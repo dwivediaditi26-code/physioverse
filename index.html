@@ -788,7 +788,7 @@ function patientRows(list){
   return '<tr class="clk" onclick="patientView(\''+p.id+'\',\'assess\')">'
    +'<td><div class="pcell"><div class="avatar">'+initials(p.name)+'</div><div><div class="nm">'+p.name+'</div><div class="mt muted">'+p.therapist+'</div></div></div></td>'
    +'<td><b style="color:var(--brand)">'+patientCode(p)+'</b><div class="mt muted">'+fmtDate(p.dob)+'</div></td>'
-   +'<td>'+p.age+'/'+p.gender+'</td>'
+   +'<td>'+(p.age||ageFromDob(p.dob)||'—')+'/'+p.gender+'</td>'
    +'<td>'+p.phone+'</td>'
    +'<td>'+p.condition+'</td>'
    +'<td>'+lastVisitLabel(p.id)+'</td>'
@@ -849,7 +849,7 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
  const homePlans=plans.filter(t=>t.home&&t.home.length);
  const visits=[];plans.forEach(t=>(t.visits||[]).forEach(s=>visits.push({...s,planId:t.id})));visits.sort((a,b)=>b.date.localeCompare(a.date)||b.n-a.n);
  const show=t=>T===t?"block":"none";
- openModal(`<div class="modal-h"><h3><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div>${p.name}</div><div class="mt muted">ID ${patientCode(p)} · ${p.age}y · ${p.gender==='M'?'Male':'Female'} · ${p.phone} · ${p.therapist}</div></div></div></h3><button class="x" onclick="closeModal()">×</button></div>
+ openModal(`<div class="modal-h"><h3><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div>${p.name}</div><div class="mt muted">ID ${patientCode(p)} · ${p.age||ageFromDob(p.dob)||'?'}y · ${p.gender==='M'?'Male':p.gender==='F'?'Female':'Other'} · ${p.phone} · ${p.therapist}</div></div></div></h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="tabs" id="pvtabs">
    <button class="${T==='assess'?'active':''}" onclick="pvtab(this,'assess')">📋 Assessment</button>
@@ -913,7 +913,37 @@ function printHome(id){const p=pById(id);const hp=DB.plans.filter(t=>t.pid===id&
   <hr class="sep"><div class="muted" style="font-size:12px">Do these at home as advised. Stop and contact us if pain increases. — Team ${DB.settings.clinic}, Indore</div>
  </div></div>
  <div class="modal-f"><button class="btn sec" onclick="window.print()">🖨 Print / PDF</button><button class="btn" onclick="alert('Demo: home plan PDF sent to patient on WhatsApp')">Send on WhatsApp</button></div>`,true);}
-function uploadDoc(id){const n=prompt("Document name (demo):","Report.pdf");if(n){const p=pById(id);(p.docs=p.docs||[]).push({n,d:todayISO});save();closeModal();patientView(id);}}
+function uploadDoc(pid){
+  // Open a real file picker — accepts images, PDFs, and common doc types
+  const inp=document.createElement('input');
+  inp.type='file';
+  inp.accept='image/*,.pdf,.jpg,.jpeg,.png,.gif,.doc,.docx,.xls,.xlsx,.txt';
+  inp.multiple=true;
+  inp.style.display='none';
+  document.body.appendChild(inp);
+  inp.onchange=()=>{
+    const files=Array.from(inp.files);
+    if(!files.length){document.body.removeChild(inp);return;}
+    let done=0;
+    files.forEach(file=>{
+      const reader=new FileReader();
+      reader.onload=e=>{
+        const p=pById(pid);
+        if(!p.docs)p.docs=[];
+        // Warn if file is very large (>2MB base64 can stress localStorage)
+        if(file.size>2*1024*1024){
+          const ok=confirm(file.name+' is '+Math.round(file.size/1024)+'KB. Large files may slow the app. Add anyway?');
+          if(!ok){done++;if(done===files.length){save();document.body.removeChild(inp);patientView(pid);}return;}
+        }
+        p.docs.push({n:file.name,d:todayISO,type:file.type.startsWith('image')?'image':file.type==='application/pdf'?'pdf':'file',data:e.target.result,size:file.size});
+        done++;
+        if(done===files.length){save();document.body.removeChild(inp);patientView(pid);}
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+  inp.click();
+}
 function patientForm(id){const p=id?pById(id):{name:"",dob:"",age:"",gender:"M",phone:"",condition:"",therapist:"Dr. Neha Verma",branch:DB.branches[0].id,wallet:0,docs:[]};
  openModal(`<div class="modal-h"><h3>${id?"Edit":"New"} Patient</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
@@ -925,7 +955,20 @@ function patientForm(id){const p=id?pById(id):{name:"",dob:"",age:"",gender:"M",
   <div class="grid3">
    <div class="field"><label>Date of birth</label><input id="f_dob" type="date" value="${p.dob||''}" oninput="pfDobToAge()"></div>
    <div class="field"><label>Age <span style="color:var(--muted);font-size:11px">(if DOB unknown)</span></label><input id="f_age" type="number" min="1" max="120" placeholder="e.g. 58" value="${p.age||''}" oninput="pfAgeEntry()"></div>
-   <div class="field"><label>Gender</label><select id="f_gender"><option ${p.gender==='M'?'selected':''}>M</option><option ${p.gender==='F'?'selected':''}>F</option><option ${p.gender==='Other'?'selected':''}>Other</option></select></div>
+   <div class="field"><label>Gender <span style="color:var(--danger)">*</span></label>
+    <div style="display:flex;gap:8px;margin-top:4px">
+     <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer;padding:7px 13px;border:1px solid var(--line);border-radius:8px;flex:1;justify-content:center" id="fg_M">
+      <input type="radio" name="f_gender_r" value="M" ${(p.gender||'M')==='M'?'checked':''} onchange="document.getElementById('f_gender').value='M';pfGenderHighlight()"> Male
+     </label>
+     <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer;padding:7px 13px;border:1px solid var(--line);border-radius:8px;flex:1;justify-content:center" id="fg_F">
+      <input type="radio" name="f_gender_r" value="F" ${p.gender==='F'?'checked':''} onchange="document.getElementById('f_gender').value='F';pfGenderHighlight()"> Female
+     </label>
+     <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer;padding:7px 13px;border:1px solid var(--line);border-radius:8px;flex:1;justify-content:center" id="fg_Other">
+      <input type="radio" name="f_gender_r" value="Other" ${p.gender==='Other'?'checked':''} onchange="document.getElementById('f_gender').value='Other';pfGenderHighlight()"> Other
+     </label>
+    </div>
+    <input type="hidden" id="f_gender" value="${p.gender||'M'}">
+   </div>
   </div>
   <div class="field"><label>Phone <span style="color:var(--danger)">*</span></label><input id="f_phone" type="tel" maxlength="15" placeholder="10-digit mobile" value="${p.phone||''}" oninput="pfValidate();pfCheckDupPhone('${id||''}')"></div>
   <div id="f_phone_warn" style="display:none;color:var(--danger);font-size:12px;margin:-10px 0 8px;font-weight:600">⚠ This phone number already exists — possible duplicate patient!</div>
@@ -964,6 +1007,19 @@ function pfAgeEntry(){
   const yr=new Date().getFullYear()-age;
   dobEl.value=yr+"-01-01";
 }
+function pfGenderHighlight(){
+  ['M','F','Other'].forEach(v=>{
+    const el=document.getElementById('fg_'+v);
+    if(!el)return;
+    const checked=el.querySelector('input').checked;
+    el.style.background=checked?'var(--brand)':'';
+    el.style.color=checked?'#fff':'';
+    el.style.borderColor=checked?'var(--brand)':'var(--line)';
+    el.style.fontWeight=checked?'700':'400';
+  });
+}
+// run once on load to highlight default
+setTimeout(pfGenderHighlight,50);
 function pfCheckDupPhone(editId){
   const phone=((document.getElementById("f_phone")||{}).value||"").trim();
   const warn=document.getElementById("f_phone_warn");
@@ -2794,7 +2850,11 @@ function viewDoc(pid,idx){
   const p=pById(pid);if(!p||!p.docs)return;
   const d=p.docs[idx];if(!d||!d.data)return;
   const w=window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html><head><title>${d.n}</title><style>body,html{margin:0;padding:0;height:100%}iframe{border:none;width:100%;height:100vh}</style></head><body><iframe src="${d.data}"></iframe></body></html>`);
+  const isImg=d.type==='image'||/^image\//i.test(d.data);
+  const body=isImg
+    ?`<body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${d.data}" style="max-width:100%;max-height:100vh;object-fit:contain"></body>`
+    :`<body style="margin:0;padding:0;height:100%"><iframe src="${d.data}" style="border:none;width:100%;height:100vh"></iframe></body>`;
+  w.document.write(`<!DOCTYPE html><html><head><title>${d.n}</title><style>body,html{margin:0;padding:0;height:100%}</style></head>${body}</html>`);
   w.document.close();
 }
 function dlDoc(pid,idx){
