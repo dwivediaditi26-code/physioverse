@@ -1054,16 +1054,97 @@ function apptView(id){const a=DB.appointments.find(x=>x.id===id);const p=pById(a
  <div class="modal-f"><button class="btn sec" onclick="closeModal();patientView('${a.pid}')">View patient</button>${(DB.active||[]).includes(a.pid)?`<button class="btn sec" onclick="endSession('${a.pid}');closeModal()">End session</button>`:`<button class="btn" onclick="startSession('${a.pid}');closeModal()">▶ Start session</button>`}<button class="btn sec" onclick="closeModal()">Done</button></div>`);}
 function apptForm(date,time,ther){openModal(`<div class="modal-h"><h3>Book Appointment</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
-  <div class="field"><label>Patient</label><select id="a_pid">${DB.patients.filter(p=>!MYTHER||p.therapist===MYTHER).map(p=>`<option value="${p.id}">${p.name} — ${p.condition}</option>`).join("")}</select></div>
-  <div class="grid2"><div class="field"><label>Date</label><input id="a_date" type="date" value="${date||calDate}"></div><div class="field"><label>Time</label><input id="a_time" type="time" value="${time||'10:00'}"></div></div>
-  <div class="grid2"><div class="field"><label>Type</label><select id="a_type"><option>Therapy session</option><option>Follow-up</option><option>Assessment</option><option>Consultation</option></select></div>
-   <div class="field"><label>Therapist</label><select id="a_ther">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${ther===s.name||MYTHER===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div></div>
-  <div class="muted" style="font-size:12.5px">🔔 Send a WhatsApp reminder anytime from the Reminders tab.</div>
+  <div class="tabs" id="appt-tabs" style="margin-bottom:14px">
+   <button class="active" onclick="apptTab('existing',this)">Existing Patient</button>
+   <button onclick="apptTab('new',this)">📞 New / Walk-in</button>
+  </div>
+  <!-- EXISTING PATIENT -->
+  <div id="appt-existing">
+   <div class="field"><label>Patient</label>
+    <input id="a_psearch" placeholder="Type name or phone to search…" oninput="apptSearch(this.value)" autocomplete="off">
+    <div id="a_psearch_res" style="display:none;background:#fff;border:1px solid var(--line);border-radius:8px;max-height:180px;overflow-y:auto;margin-top:4px;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
+    <input type="hidden" id="a_pid">
+    <div id="a_pselected" class="muted" style="font-size:12.5px;margin-top:5px"></div>
+   </div>
+  </div>
+  <!-- NEW / WALK-IN PATIENT -->
+  <div id="appt-new" style="display:none">
+   <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:9px 13px;margin-bottom:12px;font-size:12.5px;color:#795548">
+    📞 Phone enquiry — quick slot booking. A full patient record can be created when they arrive.
+   </div>
+   <div class="grid2">
+    <div class="field"><label>Patient name <span style="color:var(--danger)">*</span></label><input id="a_newname" placeholder="e.g. Rajesh Sharma"></div>
+    <div class="field"><label>Phone <span style="color:var(--danger)">*</span></label><input id="a_newphone" type="tel" placeholder="10-digit mobile"></div>
+   </div>
+   <div class="field"><label>Complaint <span class="muted" style="font-size:11px">(optional)</span></label><input id="a_newcomp" placeholder="e.g. knee pain, back pain"></div>
+  </div>
+  <!-- COMMON FIELDS -->
+  <div class="grid2">
+   <div class="field"><label>Date <span style="color:var(--danger)">*</span></label><input id="a_date" type="date" value="${date||calDate}"></div>
+   <div class="field"><label>Time <span style="color:var(--danger)">*</span></label><input id="a_time" type="time" value="${time||'10:00'}"></div>
+  </div>
+  <div class="grid2">
+   <div class="field"><label>Type</label><select id="a_type"><option>Therapy session</option><option>Follow-up</option><option>Assessment</option><option>Consultation</option><option>First visit</option></select></div>
+   <div class="field"><label>Therapist</label><select id="a_ther">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${ther===s.name||MYTHER===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
+  </div>
+  <div class="muted" style="font-size:12.5px">🔔 WhatsApp reminder can be sent from the Reminders tab after booking.</div>
  </div>
- <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveAppt()">Book</button></div>`);}
-function saveAppt(){const v=k=>document.getElementById(k).value;const p=pById(v("a_pid"));const dt=v("a_date");
- if(DB.appointments.some(a=>a.date===dt&&a.time===v("a_time")&&a.therapist===v("a_ther"))){if(!confirm("That therapist already has an appointment at this time. Book anyway?"))return;}
- DB.appointments.push({id:uid("a"),pid:v("a_pid"),date:dt,time:v("a_time"),type:v("a_type"),therapist:v("a_ther"),status:"Confirmed",branch:p.branch});calDate=dt;save();closeModal();render();}
+ <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveAppt()">Book Appointment</button></div>`);
+ window._apptMode="existing";
+}
+function apptTab(mode,btn){
+ window._apptMode=mode;
+ document.querySelectorAll('#appt-tabs button').forEach(b=>b.classList.remove('active'));
+ btn.classList.add('active');
+ document.getElementById('appt-existing').style.display=mode==='existing'?'block':'none';
+ document.getElementById('appt-new').style.display=mode==='new'?'block':'none';
+}
+function apptSearch(q){
+ const res=document.getElementById('a_psearch_res');if(!res)return;
+ const raw=q.trim().toLowerCase();
+ if(!raw){res.style.display='none';return;}
+ const pts=DB.patients.filter(p=>!MYTHER||p.therapist===MYTHER);
+ const matches=pts.filter(p=>{
+  const sc=_tokenScore(raw,p.name);
+  const ph=(p.phone||"").replace(/\D/g,"");const dq=q.replace(/\D/g,"");
+  return sc>0||(dq.length>=4&&ph.includes(dq));
+ }).slice(0,8);
+ if(!matches.length){res.innerHTML='<div style="padding:10px 13px;color:var(--muted);font-size:13px">No match — use 📞 New / Walk-in tab</div>';res.style.display='block';return;}
+ res.innerHTML=matches.map(p=>`<div style="padding:9px 13px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13.5px" onmousedown="apptSelectPt('${p.id}','${p.name.replace(/'/g,"\\'")}','${p.condition||''}')">
+  <b>${p.name}</b> <span class="muted" style="font-size:12px">${p.phone} · ${p.condition||''}</span>
+ </div>`).join('');
+ res.style.display='block';
+}
+function apptSelectPt(id,name,cond){
+ document.getElementById('a_pid').value=id;
+ document.getElementById('a_psearch').value=name;
+ document.getElementById('a_psearch_res').style.display='none';
+ document.getElementById('a_pselected').innerHTML='<span style="color:var(--ok)">✓ Selected:</span> <b>'+name+'</b>'+(cond?' — '+cond:'');
+}
+function saveAppt(){
+ const v=k=>{const el=document.getElementById(k);return el?el.value.trim():'';};
+ const dt=v('a_date'),tm=v('a_time'),ther=v('a_ther');
+ if(!dt||!tm){alert('Date and time required');return;}
+ const mode=window._apptMode||'existing';
+ let pid='',branch=DB.branches[0].id,apptName='';
+ if(mode==='new'){
+  const nm=v('a_newname'),ph=v('a_newphone');
+  if(!nm){const el=document.getElementById('a_newname');if(el)el.style.borderColor='var(--danger)';return;}
+  if(!ph){const el=document.getElementById('a_newphone');if(el)el.style.borderColor='var(--danger)';return;}
+  // Create a lightweight "pending" patient record
+  const np={id:uid('p'),name:nm,phone:ph,condition:v('a_newcomp')||'(pending)',dob:'',age:'',gender:'M',therapist:ther,branch,since:todayISO,wallet:0,docs:[],status:'Pending'};
+  DB.patients.push(np);pid=np.id;apptName=nm;
+ } else {
+  pid=v('a_pid');
+  if(!pid){const el=document.getElementById('a_psearch');if(el)el.style.borderColor='var(--danger)';return;}
+  const p=pById(pid);if(p)branch=p.branch;
+ }
+ if(DB.appointments.some(a=>a.date===dt&&a.time===tm&&a.therapist===ther)){
+  if(!confirm('That therapist already has an appointment at this time. Book anyway?'))return;
+ }
+ DB.appointments.push({id:uid('a'),pid,date:dt,time:tm,type:v('a_type'),therapist:ther,status:'Confirmed',branch});
+ calDate=dt;save();closeModal();render();
+}
 
 /* CONSULTATIONS */
 views.consultations=()=>`<div class="panel"><div class="panel-h"><h3>Consultation Notes</h3><button class="btn" onclick="consultForm()">+ New Consultation</button></div>
