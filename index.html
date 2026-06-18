@@ -741,25 +741,42 @@ function therapistDash(){
 }
 
 /* PATIENTS */
-let _ptab="active";
+let _ptab="active", _pShowAll=false, _pLetter="";
 views.patients=()=>{
  const all=DB.patients.filter(inBranch).filter(p=>!MYTHER||p.therapist===MYTHER);
  const active=all.filter(p=>(p.status||"Active")==="Active");
  const inactive=all.filter(p=>p.status==="Inactive");
- const list=_ptab==="active"?active:_ptab==="inactive"?inactive:all;
+ let base=_ptab==="active"?active:_ptab==="inactive"?inactive:all;
+ // Sort by last visit desc (most recently active first)
+ base=base.slice().sort((a,b)=>{const da=lastVisitDate(a.id)||a.since||"";const db=lastVisitDate(b.id)||b.since||"";return db.localeCompare(da);});
+ // Letter filter
+ if(_pLetter)base=base.filter(p=>p.name.toUpperCase().startsWith(_pLetter));
+ // Smart default: show 20, expand on demand
+ const hasSearch=()=>{const el=document.getElementById("psearch");return el&&el.value.trim();};
+ const showCount=_pShowAll?base.length:20;
+ const list=base.slice(0,showCount);
+ const letters="ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+ const letterBar=`<div style="display:flex;flex-wrap:wrap;gap:3px;margin:8px 0 4px">
+  <button class="btn sm${!_pLetter?' ':' sec'}" style="padding:3px 8px;min-width:28px;font-size:11px" onclick="_pLetter='';_pShowAll=false;filterPatients('')">All</button>
+  ${letters.map(l=>{const has=base.some(p=>p.name.toUpperCase().startsWith(l));return has?`<button class="btn sm${_pLetter===l?' ':' sec'}" style="padding:3px 7px;min-width:28px;font-size:11px" onclick="_pLetter='${l}';_pShowAll=false;render()">${l}</button>`:`<span style="display:inline-block;width:28px;text-align:center;font-size:11px;color:#ccc;padding:3px 0">${l}</span>`;}).join("")}
+ </div>`;
  return `<div class="panel">
   <div class="panel-h" style="flex-wrap:wrap;gap:8px">
    <div style="display:flex;gap:6px">
-    <button class="btn sm${_ptab==="active"?"":' sec'}" onclick="_ptab='active';render()">🟢 Active <span class="tag blue" style="margin-left:4px">${active.length}</span></button>
-    <button class="btn sm${_ptab==="inactive"?"":' sec'}" onclick="_ptab='inactive';render()">⛔ Inactive <span class="tag gray" style="margin-left:4px">${inactive.length}</span></button>
-    <button class="btn sm${_ptab==="all"?"":' sec'}" onclick="_ptab='all';render()">All <span class="tag gray" style="margin-left:4px">${all.length}</span></button>
+    <button class="btn sm${_ptab==="active"?"":' sec'}" onclick="_ptab='active';_pShowAll=false;_pLetter='';render()">🟢 Active <span class="tag blue" style="margin-left:4px">${active.length}</span></button>
+    <button class="btn sm${_ptab==="inactive"?"":' sec'}" onclick="_ptab='inactive';_pShowAll=false;_pLetter='';render()">⛔ Inactive <span class="tag gray" style="margin-left:4px">${inactive.length}</span></button>
+    <button class="btn sm${_ptab==="all"?"":' sec'}" onclick="_ptab='all';_pShowAll=false;_pLetter='';render()">All <span class="tag gray" style="margin-left:4px">${all.length}</span></button>
    </div>
    <div style="display:flex;gap:8px;margin-left:auto">
-    <div class="search">🔍<input id="psearch" placeholder="Search name, phone, DOB..." oninput="filterPatients(this.value)"></div>
+    <div class="search">🔍<input id="psearch" placeholder="Search name, phone..." oninput="filterPatients(this.value)"></div>
     <button class="btn" onclick="patientForm()">+ New Patient</button>
    </div>
   </div>
-  <div class="panel-b flush"><table><thead><tr><th>Patient</th><th>Patient ID</th><th>Age/Sex</th><th>Phone</th><th>Condition</th><th>Last Visit</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody id="prows">${patientRows(list)}</tbody></table></div>
+  <div class="panel-b" style="padding:0 16px 6px">${letterBar}</div>
+  <div class="panel-b flush"><table><thead><tr><th>Patient</th><th>Patient ID</th><th>Age/Sex</th><th>Phone</th><th>Condition</th><th>Last Visit</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody id="prows">${patientRows(list)}</tbody></table>
+  ${base.length>showCount?`<div style="padding:12px 16px;text-align:center"><button class="btn sec" onclick="_pShowAll=true;render()">Show all ${base.length} patients ▼</button></div>`:''}
+  ${_pShowAll&&base.length>20?`<div style="padding:4px 16px 12px;text-align:center"><button class="btn sec sm" onclick="_pShowAll=false;render()">Show less ▲</button></div>`:''}
+  </div>
  </div>`;
 };
 function lastVisitDate(pid){
@@ -832,11 +849,16 @@ function filterPatients(q){
  const raw=q.trim();const dig=q.replace(/\D/g,"");
  const all=DB.patients.filter(inBranch).filter(p=>!MYTHER||p.therapist===MYTHER);
  const base=_ptab==="active"?all.filter(p=>(p.status||"Active")==="Active"):_ptab==="inactive"?all.filter(p=>p.status==="Inactive"):all;
- if(!raw){document.getElementById("prows").innerHTML=patientRows(base);return;}
+ if(!raw){
+   // restore smart-default view
+   document.getElementById("prows").innerHTML=patientRows(base.slice(0,_pShowAll?base.length:20));
+   return;
+ }
+ // When searching: ignore letter filter, search full base
+ _pLetter="";
  const scored=[];
  base.forEach(p=>{
   const phone=(p.phone||"").replace(/\D/g,"");
-  // phone / ID numeric match
   if(dig.length>=4&&(phone.includes(dig)||patientCode(p).includes(dig)||(p.dob||"").replace(/\D/g,"").includes(dig))){scored.push({p,sc:3});return;}
   const sc=_tokenScore(raw,p.name+" "+(p.condition||""));
   if(sc>0)scored.push({p,sc});
@@ -1063,21 +1085,31 @@ const therColor=t=>({"Dr. Neha Verma":"#2563eb","Dr. Amit Joshi":"#0d9488","Dr. 
 let calDate=todayISO, calView="day";
 const pad2=h=>String(h).padStart(2,"0");
 function shiftDate(iso,n){const d=new Date(iso+"T00:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+function weekStart(iso){const d=new Date(iso+"T00:00:00");const day=d.getDay();const diff=day===0?-6:1-day;d.setDate(d.getDate()+diff);return d.toISOString().slice(0,10);}
 function dayName(iso){return new Date(iso+"T00:00:00").toLocaleDateString("en-IN",{weekday:"long"});}
-function calShift(n){calDate=shiftDate(calDate,n);render();}
+function dayNameShort(iso){return new Date(iso+"T00:00:00").toLocaleDateString("en-IN",{weekday:"short"});}
+function calShift(n){
+ if(calView==='week')calDate=shiftDate(calDate,n*7);
+ else calDate=shiftDate(calDate,n);
+ render();
+}
 function calToday(){calDate=todayISO;render();}
 function setCalView(v){calView=v;render();}
 views.appointments=()=>{
  const thers=MYTHER?[MYTHER]:[...new Set(DB.staff.filter(s=>s.role.includes("Physio")).map(s=>s.name))];
- const toolbar=`<div class="panel-h">
+ const navLabel=calView==='week'
+  ?(()=>{const ws=weekStart(calDate);const we=shiftDate(ws,6);return fmtDate(ws)+' – '+fmtDate(we);})()
+  :`${dayName(calDate)}, ${fmtDate(calDate)}`;
+ const toolbar=`<div class="panel-h" style="flex-wrap:wrap;gap:8px">
    <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
      <button class="btn sec sm" onclick="calShift(-1)">◀</button>
-     <b style="min-width:160px;text-align:center">${dayName(calDate)}, ${fmtDate(calDate)}</b>
+     <b style="min-width:150px;text-align:center;font-size:13px">${navLabel}</b>
      <button class="btn sec sm" onclick="calShift(1)">▶</button>
      <button class="btn sec sm" onclick="calToday()">Today</button>
    </div>
    <div class="tools">
      <button class="btn sm ${calView==='day'?'':'sec'}" onclick="setCalView('day')">Day grid</button>
+     <button class="btn sm ${calView==='week'?'':'sec'}" onclick="setCalView('week')">Week</button>
      <button class="btn sm ${calView==='agenda'?'':'sec'}" onclick="setCalView('agenda')">Agenda</button>
      <button class="btn sm" onclick="apptForm('${calDate}')">+ Book</button>
    </div></div>`;
@@ -1089,9 +1121,20 @@ views.appointments=()=>{
      <table><tbody>${byDate[d].map(a=>{const p=pById(a.pid);return `<tr class="clk" onclick="apptView('${a.id}')"><td style="width:70px;border-left:4px solid ${therColor(a.therapist)}"><b>${a.time}</b></td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt">${p.phone}</div></div></div></td><td>${a.type}</td><td>${a.therapist}</td><td><span class="tag ${statusTag(a.status)}">${a.status}</span></td></tr>`;}).join("")}</tbody></table>`).join("")||'<div class=empty>No appointments</div>'}
    </div></div>`;
  }
+ const nowHHMM=(()=>{const n=new Date();return pad2(n.getHours())+':'+pad2(n.getMinutes());})();
+ if(calView==='week'){
+  const ws=weekStart(calDate);
+  const days=Array.from({length:7},(_,i)=>shiftDate(ws,i));
+  const allWeekAppts=DB.appointments.filter(inBranch).filter(a=>!MYTHER||a.therapist===MYTHER).filter(a=>a.date>=ws&&a.date<=days[6]);
+  const wkBlock=a=>{const p=pById(a.pid);const isLate=a.date===todayISO&&a.time<nowHHMM&&a.status==='Confirmed';return`<div onclick="calDate='${a.date}';setCalView('day');setTimeout(()=>apptView('${a.id}'),80)" style="border-left:2px solid ${therColor(a.therapist)};background:${isLate?'#fff0f0':'#f3f7fc'};border-radius:4px;padding:3px 5px;margin-bottom:2px;cursor:pointer;font-size:11px"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.time.slice(0,5)} ${p.name.split(' ')[0]}</div><div style="color:var(--muted);font-size:10px;white-space:nowrap;overflow:hidden">${a.type}</div></div>`;};
+  const weekGrid=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:600px">
+   <thead><tr><th style="width:40px"></th>${days.map(d=>`<th style="border:1px solid var(--line);padding:6px 4px;font-size:12px;background:${d===todayISO?'var(--brand-soft)':''}"><div style="font-weight:700;color:${d===todayISO?'var(--brand)':'#1e293b'}">${dayNameShort(d)}</div><div style="font-size:11px;color:var(--muted)">${fmtDate(d).replace(/\d{4}$/,'').trim()}</div></th>`).join('')}</tr></thead>
+   <tbody>${Array.from({length:12},(_,i)=>i+8).map(h=>`<tr><td style="font-size:10px;font-weight:600;color:var(--muted);text-align:right;padding-right:4px;vertical-align:top;border-top:1px solid var(--line)">${pad2(h)}:00</td>${days.map(d=>{const cell=allWeekAppts.filter(a=>a.date===d&&+a.time.split(':')[0]===h);return`<td style="vertical-align:top;padding:2px 3px;border:1px solid #f0f0f0;min-width:80px;cursor:pointer;background:${d===todayISO?'#f8fbff':''}" onclick="calDate='${d}';setCalView('day');apptForm('${d}','${pad2(h)}:00')">${cell.map(wkBlock).join('')||''}</td>`;}).join('')}</tr>`).join('')}
+   </tbody></table></div>`;
+  return `<div class="panel">${toolbar}<div class="panel-b" style="padding:8px 0 0">${weekGrid}</div></div>`;
+ }
  const dayAppts=DB.appointments.filter(inBranch).filter(a=>a.date===calDate).filter(a=>!MYTHER||a.therapist===MYTHER);
  const hours=[];for(let h=8;h<=19;h++)hours.push(h);
- const nowHHMM=(()=>{const n=new Date();return pad2(n.getHours())+':'+pad2(n.getMinutes());})();
  const block=a=>{
   const p=pById(a.pid);
   const isToday=a.date===calDate&&calDate===todayISO;
@@ -1114,12 +1157,59 @@ views.appointments=()=>{
  const grid=`<table style="min-width:${120+thers.length*150}px"><thead><tr><th style="width:64px">Time</th>${thers.map(t=>`<th><span class="dot" style="background:${therColor(t)}"></span>${t.replace('Dr. ','')}</th>`).join("")}</tr></thead><tbody>
    ${hours.map(h=>`<tr><td style="font-weight:600;color:var(--muted);vertical-align:top">${pad2(h)}:00</td>${thers.map(t=>{const cell=dayAppts.filter(a=>a.therapist===t&&+a.time.split(":")[0]===h);return `<td style="vertical-align:top;cursor:pointer;min-width:140px" onclick="apptForm('${calDate}','${pad2(h)}:00','${t}')">${cell.map(block).join("")||'<span style="color:#cdd5e0;font-size:12px">+</span>'}</td>`;}).join("")}</tr>`).join("")}
  </tbody></table>`;
- return `<div class="panel">${toolbar}<div class="panel-b flush" style="overflow-x:auto">${dayAppts.length?'':'<div style="padding:10px 17px" class="muted">No appointments this day — tap any slot to book.</div>'}${grid}</div></div>`;
+ // Batch check-in panel — only shown for today
+ const todayConfirmed=calDate===todayISO?dayAppts.filter(a=>a.status==='Confirmed'||a.status==='Pending'):[];
+ const batchPanel=todayConfirmed.length?`
+  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin:12px 16px 0;padding:12px 14px">
+   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <b style="font-size:13px;color:#166534">✅ Batch Check-in — ${fmtDate(todayISO)}</b>
+    <button class="btn sm" style="background:#16a34a;font-size:12px" onclick="batchCheckin()">Check in selected</button>
+   </div>
+   <div style="display:flex;flex-direction:column;gap:6px" id="batchList">
+    ${todayConfirmed.sort((a,b)=>a.time.localeCompare(b.time)).map(a=>{const p=pById(a.pid);return `
+     <label style="display:flex;align-items:center;gap:9px;cursor:pointer;padding:6px 8px;background:#fff;border-radius:7px;border:1px solid #d1fae5">
+      <input type="checkbox" class="bcb" data-id="${a.id}" style="width:16px;height:16px;accent-color:#16a34a">
+      <span style="font-size:12px;font-weight:600;color:#166534;min-width:42px">${a.time}</span>
+      <div class="pcell" style="gap:7px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${initials(p.name)}</div><div><div style="font-weight:600;font-size:13px">${p.name}</div><div style="font-size:11px;color:var(--muted)">${a.type} · ${a.therapist.replace('Dr. ','')}</div></div></div>
+      <span class="tag ${statusTag(a.status)}" style="margin-left:auto;font-size:10px">${a.status}</span>
+     </label>`;}).join('')}
+   </div>
+   <div style="margin-top:8px;display:flex;gap:8px">
+    <button class="btn sm sec" style="font-size:11px" onclick="document.querySelectorAll('.bcb').forEach(c=>c.checked=true)">Select all</button>
+    <button class="btn sm sec" style="font-size:11px" onclick="document.querySelectorAll('.bcb').forEach(c=>c.checked=false)">Clear</button>
+   </div>
+  </div>`:''
+ ;
+ return `<div class="panel">${toolbar}${batchPanel}<div class="panel-b flush" style="overflow-x:auto;margin-top:12px">${dayAppts.length?'':'<div style="padding:10px 17px" class="muted">No appointments this day — tap any slot to book.</div>'}${grid}</div></div>`;
 };
+function batchCheckin(){
+ const checked=Array.from(document.querySelectorAll('.bcb:checked')).map(c=>c.dataset.id);
+ if(!checked.length){return;}
+ checked.forEach(id=>{
+  const a=DB.appointments.find(x=>x.id===id);if(!a)return;
+  a.status='Checked-in';
+  DB.active=DB.active||[];
+  if(!DB.active.includes(a.pid))DB.active.push(a.pid);
+ });
+ save();render();
+}
 function setApptStatus(id,s){const a=DB.appointments.find(a=>a.id===id);a.status=s;DB.active=DB.active||[];
  if(s==="Checked-in"&&!DB.active.includes(a.pid))DB.active.push(a.pid);
  if((s==="Completed"||s==="Cancelled"))DB.active=DB.active.filter(x=>x!==a.pid);
  save();render();}
+function rescheduleAppt(id){
+ const a=DB.appointments.find(x=>x.id===id);if(!a)return;
+ const nd=(document.getElementById('rs_date')||{}).value;
+ const nt=(document.getElementById('rs_time')||{}).value;
+ if(!nd||!nt)return;
+ if(nd===a.date&&nt===a.time){closeModal();return;}
+ if(DB.appointments.some(x=>x.id!==id&&x.date===nd&&x.time===nt&&x.therapist===a.therapist)){
+  if(!confirm('That therapist already has an appointment at this time. Reschedule anyway?'))return;
+ }
+ a.date=nd;a.time=nt;
+ if(a.status==='Cancelled')a.status='Confirmed';
+ calDate=nd;save();closeModal();render();
+}
 function apptView(id){const a=DB.appointments.find(x=>x.id===id);const p=pById(a.pid);
  const when=a.date===todayISO?'today at '+a.time:fmtDate(a.date)+' at '+a.time;
  const waMsg=apptMsg(p,when);
@@ -1133,12 +1223,23 @@ function apptView(id){const a=DB.appointments.find(x=>x.id===id);const p=pById(a
   <div class="grid2"><div><b class="muted">Date</b><div>${fmtDate(a.date)}</div></div><div><b class="muted">Time</b><div>${a.time}</div></div></div>
   <div class="grid2" style="margin-top:8px"><div><b class="muted">Type</b><div>${a.type}</div></div><div><b class="muted">Therapist</b><div>${a.therapist}</div></div></div>
   <div class="field" style="margin-top:12px"><label>Status</label><select onchange="setApptStatus('${a.id}',this.value)">${["Pending","Confirmed","Checked-in","Completed","Cancelled"].map(s=>`<option ${a.status===s?'selected':''}>${s}</option>`).join("")}</select></div>
-  ${a.status==='Cancelled'?`<div style="background:#fff5f5;border:1px solid #fca5a5;border-radius:8px;padding:9px 12px;margin-top:10px;font-size:12.5px">
-   <b style="color:var(--danger)">Cancelled appointment</b> — send a reschedule message?<br>
+  <hr class="sep" style="margin:14px 0 10px">
+  <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">📅 Reschedule</div>
+  <div class="grid2">
+   <div class="field"><label>New date</label><input id="rs_date" type="date" value="${a.date}"></div>
+   <div class="field"><label>New time</label><input id="rs_time" type="time" value="${a.time}"></div>
+  </div>
+  ${a.status==='Cancelled'?`<div style="background:#fff5f5;border:1px solid #fca5a5;border-radius:8px;padding:9px 12px;margin-top:4px;font-size:12.5px">
+   <b style="color:var(--danger)">Cancelled</b> — send a reschedule message?
    <a href="${waLink(p.phone,'Namaste '+p.name.split(' ')[0]+' ji 🙏\nWe noticed your appointment at '+DB.settings.clinic+' was cancelled. Would you like to reschedule? Please call us or reply here.\n— Team '+DB.settings.clinic)}" target="_blank" class="btn sm sec" style="margin-top:8px;display:inline-flex">📲 Send reschedule message</a>
   </div>`:''}
  </div>
- <div class="modal-f"><button class="btn sec" onclick="closeModal();patientView('${a.pid}')">View patient</button>${(DB.active||[]).includes(a.pid)?`<button class="btn sec" onclick="endSession('${a.pid}');closeModal()">End session</button>`:`<button class="btn" onclick="startSession('${a.pid}');closeModal()">▶ Start session</button>`}<button class="btn sec" onclick="closeModal()">Done</button></div>`);}
+ <div class="modal-f">
+  <button class="btn sec" onclick="closeModal();patientView('${a.pid}')">View patient</button>
+  <button class="btn sec" onclick="rescheduleAppt('${a.id}')">📅 Reschedule</button>
+  ${(DB.active||[]).includes(a.pid)?`<button class="btn sec" onclick="endSession('${a.pid}');closeModal()">End session</button>`:`<button class="btn" onclick="startSession('${a.pid}');closeModal()">▶ Start session</button>`}
+  <button class="btn sec" onclick="closeModal()">Done</button>
+ </div>`);}
 function apptForm(date,time,ther){openModal(`<div class="modal-h"><h3>Book Appointment</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="tabs" id="appt-tabs" style="margin-bottom:14px">
