@@ -638,12 +638,12 @@ const seed={
   {id:"s3",name:"Priya Nair",role:"Receptionist",phone:"+91 98260 30303",branch:"b1",salary:22000,present:25,leave:1},
   {id:"s4",name:"Dr. Karan Mehta",role:"Physiotherapist",phone:"+91 98260 40404",branch:"b2",salary:40000,present:22,leave:4}],
  patients:[
-  {id:"p1",name:"Rajesh Sharma",dob:"1972-03-15",age:54,gender:"M",phone:"+91 98260 11223",condition:"Lower back pain (L4-L5)",since:"2026-05-02",therapist:"Dr. Neha Verma",branch:"b1",wallet:0,status:"Active",email:"rajesh.s@gmail.com",occ:"Bank manager (desk job)",addr:"42 Sapna Sangeeta Rd, Indore",emName:"Sunita Sharma",emPhone:"+91 98260 11999",refDr:"Dr. R. Malhotra (Ortho)",docs:[{n:"MRI Lumbar Spine.pdf",d:"2026-05-02"},{n:"X-Ray L-S.jpg",d:"2026-05-02"}]},
-  {id:"p2",name:"Sunita Patel",dob:"1985-07-22",age:40,gender:"F",phone:"+91 99770 44556",condition:"Frozen shoulder (Rt)",since:"2026-05-18",therapist:"Dr. Amit Joshi",branch:"b1",wallet:0,status:"Active",docs:[{n:"Shoulder USG.pdf",d:"2026-05-18"}]},
-  {id:"p3",name:"Imran Khan",dob:"1997-01-10",age:29,gender:"M",phone:"+91 78690 33112",condition:"ACL post-op rehab",since:"2026-04-10",therapist:"Dr. Neha Verma",branch:"b1",wallet:2360,status:"Active",docs:[{n:"Op Notes.pdf",d:"2026-04-10"},{n:"MRI Knee.jpg",d:"2026-04-08"}]},
-  {id:"p4",name:"Lakshmi Iyer",dob:"1963-11-05",age:62,gender:"F",phone:"+91 90390 77881",condition:"Knee osteoarthritis (bilateral)",since:"2026-03-22",therapist:"Dr. Amit Joshi",branch:"b1",wallet:0,status:"Active",occ:"Retired teacher",addr:"18 Scheme 54, Indore",emName:"Rahul Iyer",emPhone:"+91 98260 55001",refDr:"Dr. S. Kapoor (Ortho)",docs:[{n:"X-Ray Knee (bilateral).jpg",d:"2026-03-22"}]},
-  {id:"p5",name:"Vikram Singh",dob:"1990-04-18",age:36,gender:"M",phone:"+91 94250 66009",condition:"Cervical spondylosis",since:"2026-06-01",therapist:"Dr. Neha Verma",branch:"b1",wallet:0,status:"Active",occ:"Software engineer",addr:"7 Palasia Colony, Indore",docs:[]},
-  {id:"p6",name:"Pooja Mehta",dob:"1994-09-30",age:31,gender:"F",phone:"+91 97520 88123",condition:"Post-natal low back pain",since:"2026-06-08",therapist:"Dr. Karan Mehta",branch:"b2",wallet:500,status:"Active",occ:"Homemaker",addr:"22 Bicholi Mardana, Indore",emName:"Arun Mehta",emPhone:"+91 97520 88000",docs:[]}],
+  {id:"p1",pcode:"PV-001",name:"Rajesh Sharma",dob:"1972-03-15",age:54,gender:"M",phone:"+91 98260 11223",condition:"Lower back pain (L4-L5)",since:"2026-05-02",therapist:"Dr. Neha Verma",branch:"b1",wallet:0,status:"Active",email:"rajesh.s@gmail.com",occ:"Bank manager (desk job)",addr:"42 Sapna Sangeeta Rd, Indore",emName:"Sunita Sharma",emPhone:"+91 98260 11999",refDr:"Dr. R. Malhotra (Ortho)",docs:[{n:"MRI Lumbar Spine.pdf",d:"2026-05-02"},{n:"X-Ray L-S.jpg",d:"2026-05-02"}]},
+  {id:"p2",pcode:"PV-002",name:"Sunita Patel",dob:"1985-07-22",age:40,gender:"F",phone:"+91 99770 44556",condition:"Frozen shoulder (Rt)",since:"2026-05-18",therapist:"Dr. Amit Joshi",branch:"b1",wallet:0,status:"Active",docs:[{n:"Shoulder USG.pdf",d:"2026-05-18"}]},
+  {id:"p3",pcode:"PV-003",name:"Imran Khan",dob:"1997-01-10",age:29,gender:"M",phone:"+91 78690 33112",condition:"ACL post-op rehab",since:"2026-04-10",therapist:"Dr. Neha Verma",branch:"b1",wallet:2360,status:"Active",docs:[{n:"Op Notes.pdf",d:"2026-04-10"},{n:"MRI Knee.jpg",d:"2026-04-08"}]},
+  {id:"p4",pcode:"PV-004",name:"Lakshmi Iyer",dob:"1963-11-05",age:62,gender:"F",phone:"+91 90390 77881",condition:"Knee osteoarthritis (bilateral)",since:"2026-03-22",therapist:"Dr. Amit Joshi",branch:"b1",wallet:0,status:"Active",occ:"Retired teacher",addr:"18 Scheme 54, Indore",emName:"Rahul Iyer",emPhone:"+91 98260 55001",refDr:"Dr. S. Kapoor (Ortho)",docs:[{n:"X-Ray Knee (bilateral).jpg",d:"2026-03-22"}]},
+  {id:"p5",pcode:"PV-005",name:"Vikram Singh",dob:"1990-04-18",age:36,gender:"M",phone:"+91 94250 66009",condition:"Cervical spondylosis",since:"2026-06-01",therapist:"Dr. Neha Verma",branch:"b1",wallet:0,status:"Active",occ:"Software engineer",addr:"7 Palasia Colony, Indore",docs:[]},
+  {id:"p6",pcode:"PV-006",name:"Pooja Mehta",dob:"1994-09-30",age:31,gender:"F",phone:"+91 97520 88123",condition:"Post-natal low back pain",since:"2026-06-08",therapist:"Dr. Karan Mehta",branch:"b2",wallet:500,status:"Active",occ:"Homemaker",addr:"22 Bicholi Mardana, Indore",emName:"Arun Mehta",emPhone:"+91 97520 88000",docs:[]}],
  appointments:[
   {id:"a1",pid:"p1",date:"2026-06-15",time:"09:30",type:"Follow-up",therapist:"Dr. Neha Verma",status:"Confirmed",branch:"b1"},
   {id:"a2",pid:"p3",date:"2026-06-15",time:"10:15",type:"Therapy session",therapist:"Dr. Neha Verma",status:"Confirmed",branch:"b1"},
@@ -771,6 +771,9 @@ function canDo(cap){return true;}
 function load(){try{const s=localStorage.getItem("physioverse_v2");DB=s?JSON.parse(s):JSON.parse(JSON.stringify(seed));}catch(e){DB=JSON.parse(JSON.stringify(seed));}
  // Migration: patch plans missing modalities/exercises/home from seed
  if(DB.plans&&seed.plans){DB.plans.forEach(function(p){var sp=seed.plans.find(function(x){return x.id===p.id;});if(sp){if(!p.modalities||!p.modalities.length)p.modalities=sp.modalities||[];if(!p.exercises||!p.exercises.length)p.exercises=sp.exercises||[];if(!p.home||!p.home.length)p.home=sp.home||[];if(!p.homeFreq)p.homeFreq=sp.homeFreq||"";}});}
+ // Migration: patch patients missing pcode from seed
+ if(DB.patients&&seed.patients){DB.patients.forEach(function(p){var sp=seed.patients.find(function(x){return x.id===p.id;});if(sp&&sp.pcode&&!p.pcode)p.pcode=sp.pcode;});}
+ _assignPcodes();
 }
 function save(){try{localStorage.setItem("physioverse_v2",JSON.stringify(DB));}catch(e){}}
 function resetDB(){if(confirm("Reset demo to sample data?")){DB=JSON.parse(JSON.stringify(seed));save();fillBranches();render();}}
@@ -815,7 +818,21 @@ const EXCOUNT=Object.values(EXLIB).reduce((s,a)=>s+a.length,0);
 function modOpts(){return MODALITIES.map(function(m){return m.startsWith("──")?'<option disabled style="color:var(--muted);font-size:11px;background:var(--bg2)">'+m+'</option>':'<option>'+m+'</option>';}).join("");}
 
 const pById=id=>DB.patients.find(p=>p.id===id)||{name:"—"};
-function patientCode(p){const base=(p.dob||"").split("-").reverse().join("");if(!base)return(p.id||"").toUpperCase();const same=DB.patients.filter(x=>x.dob===p.dob);if(same.length>1){const idx=same.findIndex(x=>x.id===p.id);return base+"-"+(idx+1);}return base;}
+function patientCode(p){
+  // Use stored pcode if present (set when patient is created)
+  if(p.pcode)return p.pcode;
+  // Fallback: generate PV-### from position in patient list (for legacy data)
+  const idx=DB.patients.findIndex(x=>x.id===p.id);
+  return"PV-"+(String(idx+1).padStart(3,"0"));
+}
+function _assignPcodes(){
+  // Called once on DB load — ensures every patient has a stable pcode
+  let changed=false;
+  DB.patients.forEach((p,i)=>{
+    if(!p.pcode){p.pcode="PV-"+(String(i+1).padStart(3,"0"));changed=true;}
+  });
+  if(changed)save();
+}
 function ageFromDob(dob){if(!dob)return"";const b=new Date(dob),n=new Date(todayISO);let a=n.getFullYear()-b.getFullYear();if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))a--;return a;}
 const bName=id=>(DB.branches.find(b=>b.id===id)||{name:"—"}).name;
 const initials=n=>n.split(" ").filter(w=>!/^(dr\.?|mr\.?|ms\.?)$/i.test(w)).map(w=>w[0]).slice(0,2).join("").toUpperCase();
@@ -1064,11 +1081,11 @@ function filterPatients(q){
  const scored=[];
  base.forEach(p=>{
   const phone=(p.phone||"").replace(/\D/g,"");
-  const pid=patientCode(p).toLowerCase();
-  // Patient ID / phone / DOB digit match — always highest priority
-  if(dig.length>=4&&(phone.includes(dig)||pid.replace(/\D/g,"").includes(dig)||(p.dob||"").replace(/\D/g,"").includes(dig))){scored.push({p,sc:3});return;}
-  // Patient ID string match (handles partial codes, DOB fragments with separators)
-  if(raw.length>=3&&pid.includes(raw.toLowerCase())){scored.push({p,sc:3});return;}
+  const pid=(p.pcode||patientCode(p)).toLowerCase();
+  // Patient ID match — PV-001, PV-002 etc. (even partial: "PV-0", "001")
+  if(pid.includes(raw.toLowerCase())){scored.push({p,sc:3});return;}
+  // Phone / DOB digit match
+  if(dig.length>=4&&(phone.includes(dig)||(p.dob||"").replace(/\D/g,"").includes(dig))){scored.push({p,sc:3});return;}
   const sc=_tokenScore(raw,p.name+" "+(p.condition||"")+" "+(p.email||"")+" "+(p.refDr||""));
   if(sc>0)scored.push({p,sc});
  });
@@ -1287,7 +1304,12 @@ function savePatient(id){
   const age=dob?ageFromDob(dob):(ageRaw||"");
   const obj={name,dob,age,gender:v("f_gender"),phone,condition:cond,email:v("f_email"),occ:v("f_occ"),addr:v("f_addr"),emName:v("f_emname"),emPhone:v("f_emphone"),refDr:v("f_refdr"),therapist:v("f_ther"),branch:v("f_branch")};
   if(id){Object.assign(pById(id),obj);}
-  else{DB.patients.push({id:uid("p"),since:todayISO,wallet:0,docs:[],...obj});}
+  else{
+    const newPid=uid("p");
+    const nextNum=DB.patients.length+1;
+    const newPcode="PV-"+(String(nextNum).padStart(3,"0"));
+    DB.patients.push({id:newPid,pcode:newPcode,since:todayISO,wallet:0,docs:[],...obj});
+  }
   save();closeModal();render();
 }
 
