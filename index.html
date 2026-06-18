@@ -922,7 +922,7 @@ views.patients=()=>{
     <button class="btn sm${_ptab==="all"?"":' sec'}" onclick="_ptab='all';_pShowAll=false;_pLetter='';render()">All <span class="tag gray" style="margin-left:4px">${all.length}</span></button>
    </div>
    <div style="display:flex;gap:8px;margin-left:auto">
-    <div class="search">🔍<input id="psearch" placeholder="Search name, phone..." oninput="filterPatients(this.value)"></div>
+    <div class="search">🔍<input id="psearch" placeholder="Search name, phone, patient ID..." oninput="filterPatients(this.value)"></div>
     <button class="btn" onclick="patientForm()">+ New Patient</button>
    </div>
   </div>
@@ -1013,8 +1013,12 @@ function filterPatients(q){
  const scored=[];
  base.forEach(p=>{
   const phone=(p.phone||"").replace(/\D/g,"");
-  if(dig.length>=4&&(phone.includes(dig)||patientCode(p).includes(dig)||(p.dob||"").replace(/\D/g,"").includes(dig))){scored.push({p,sc:3});return;}
-  const sc=_tokenScore(raw,p.name+" "+(p.condition||""));
+  const pid=patientCode(p).toLowerCase();
+  // Patient ID / phone / DOB digit match — always highest priority
+  if(dig.length>=4&&(phone.includes(dig)||pid.replace(/\D/g,"").includes(dig)||(p.dob||"").replace(/\D/g,"").includes(dig))){scored.push({p,sc:3});return;}
+  // Patient ID string match (handles partial codes, DOB fragments with separators)
+  if(raw.length>=3&&pid.includes(raw.toLowerCase())){scored.push({p,sc:3});return;}
+  const sc=_tokenScore(raw,p.name+" "+(p.condition||"")+" "+(p.email||"")+" "+(p.refDr||""));
   if(sc>0)scored.push({p,sc});
  });
  scored.sort((a,b)=>b.sc-a.sc);
