@@ -2377,7 +2377,7 @@ function aToggleRegion(r){
   else a.regions.push(r);
   aUpdateRegChips();aRenderObs();aRenderROM();aRenderMMT();aRenderTests();
 }
-function aSetSide(r,s){const a=window._aForm;if(!a)return;a.regionSides[r]=a.regionSides[r]===s?null:s;aUpdateRegChips();aRenderObs();aRenderROM();aRenderMMT();aRenderTests();}
+// aSetSide(sec,r,side) — used by ROM/MMT/Test side bars. Old 2-arg version removed.
 function aUpdateRegChips(){
   const a=window._aForm;if(!a)return;
   AREGIONS.forEach(r=>{
@@ -2569,9 +2569,34 @@ function aRenderTests(){
   const allTest=[...new Set([...a.regions,...a.testRegions])];
   const bar=aSectionRegBar('test',a.testRegions);
   if(!a.regions.length&&!a.testRegions.length){body.innerHTML=bar+'<div class="empty-reg">Select a body region above or use the pills to add regions here.</div>';return;}
-  body.innerHTML=bar+allTest.map(r=>{const ts=ATESTS[r]||[];const sv=a.tests[r]||{};
+  body.innerHTML=bar+allTest.map(r=>{
+    const ts=ATESTS[r]||[];
     const fromMain=a.regions.includes(r);
-    return'<div class="aregion-block"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+r+' — Special Tests</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div><div class="test-grid-a">'+ts.map(function(t){var res=sv[t]||null;var tid=(r+'_'+t).replace(/[\s\(\)\/\']/g,'_');return'<div class="test-row-a"><span style="font-size:12.5px">'+t+'</span><div class="test-btns-a"><button id="atp-'+tid+'" class="'+(res==='+'?'tpos':'')+'" onclick="aTest(\''+r+'\',\''+t+'\',\'+\')">+ Pos</button><button id="atn-'+tid+'" class="'+(res==='-'?'tneg':'')+'" onclick="aTest(\''+r+'\',\''+t+'\',\'-\')">− Neg</button></div></div>';}).join('')+'</div></div>';
+    const sideBar=aSideBar('test',r);
+    const side=_getSide('test',r);
+    const isBilat=BILATERAL_REGIONS.has(r);
+    const isSpinal=SPINAL_REGIONS.has(r);
+    const sides=(isBilat||isSpinal)?[side]:[null];
+    return sides.map(sd=>{
+      const storeKey=(isBilat&&sd)||(isSpinal&&sd&&sd!=='Both')?(r+'_'+sd):r;
+      if(!a.tests[storeKey])a.tests[storeKey]={};
+      const sv=a.tests[storeKey];
+      const label=(sd&&sd!=='Both')?(r+' — '+sd):r;
+      return'<div class="aregion-block">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+label+' — Special Tests</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div>'
+        +sideBar
+        +'<div class="test-grid-a">'
+        +ts.map(function(t){
+          var res=sv[t]||null;
+          var tid=(storeKey+'_'+t).replace(/[\s\(\)\/\']/g,'_');
+          return'<div class="test-row-a"><span style="font-size:12.5px">'+t+'</span>'
+            +'<div class="test-btns-a">'
+            +'<button id="atp-'+tid+'" class="'+(res==='+'?'tpos':'')+'" onclick="aTest(\''+storeKey+'\',\''+t+'\',\'+\')">+ Pos</button>'
+            +'<button id="atn-'+tid+'" class="'+(res==='-'?'tneg':'')+'" onclick="aTest(\''+storeKey+'\',\''+t+'\',\'-\')">− Neg</button>'
+            +'</div></div>';
+        }).join('')
+        +'</div></div>';
+    }).join('');
   }).join('');
 }
 function aTest(r,t,res){const a=window._aForm;if(!a)return;if(!a.tests[r])a.tests[r]={};const prev=a.tests[r][t];a.tests[r][t]=prev===res?null:res;const tid=(r+"_"+t).replace(/[\s\(\)\/\']/g,"_");const p=document.getElementById("atp-"+tid),n=document.getElementById("atn-"+tid);if(p)p.className=a.tests[r][t]==='+'?"tpos":"";if(n)n.className=a.tests[r][t]==='-'?"tneg":"";}
