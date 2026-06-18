@@ -2438,20 +2438,28 @@ function aToggleSecReg(secKey,r){
 
 // Bilateral regions need a Left / Right / Both side-tab
 const BILATERAL_REGIONS=new Set(["Shoulder","Elbow","Wrist/Hand","Hip","Knee","Ankle/Foot"]);
-function _sideKey(r,side){return BILATERAL_REGIONS.has(r)?(r+'__'+side):r;}
-function _romKey(r,side){return BILATERAL_REGIONS.has(r)?(r+'_'+side):r;}
+// Spinal regions can also specify a dominant/symptomatic side (Left/Right only, no "Both")
+const SPINAL_REGIONS=new Set(["Cervical","Thoracic","Lumbar"]);
+function _sideKey(r,side){return (BILATERAL_REGIONS.has(r)||SPINAL_REGIONS.has(r))?(r+'__'+side):r;}
+function _romKey(r,side){return (BILATERAL_REGIONS.has(r)||SPINAL_REGIONS.has(r))?(r+'_'+side):r;}
 
 function aSideBar(sec,r){
-  if(!BILATERAL_REGIONS.has(r))return'';
+  const isBilateral=BILATERAL_REGIONS.has(r);
+  const isSpinal=SPINAL_REGIONS.has(r);
+  if(!isBilateral&&!isSpinal)return'';
   const a=window._aForm;
   if(!a._sides)a._sides={};
   const key=sec+'_'+r;
-  if(!a._sides[key])a._sides[key]='Left';
+  // Default: Bilateral → Left, Spinal → Both (meaning no side filter — show all movements)
+  if(!a._sides[key])a._sides[key]=isSpinal?'Both':'Left';
   const cur=a._sides[key];
-  return'<div style="display:flex;gap:6px;margin-bottom:10px">'
-    +['Left','Right','Both'].map(s=>{
+  // Spinal: Left / Right / Both(=all movements)  |  Bilateral limbs: Left / Right / Both(=both sides)
+  const opts=isSpinal?['Left','Right','Both']:['Left','Right','Both'];
+  const label=isSpinal?'Symptomatic side:':'Side:';
+  return'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:12px;color:var(--muted);font-weight:600">'+label+'</span>'
+    +opts.map(s=>{
       const on=cur===s;
-      return'<button style="padding:4px 14px;border-radius:20px;border:1px solid '+(on?'var(--brand)':'var(--line)')+';background:'+(on?'var(--brand)':'#f4f6fb')+';color:'+(on?'#fff':'var(--muted)')+';font-size:12px;font-weight:600;cursor:pointer" onclick="aSetSide(\''+sec+'\',\''+r+'\',\''+s+'\')">'+s+'</button>';
+      return'<button style="padding:4px 14px;border-radius:20px;border:1px solid '+(on?'var(--brand)':'var(--line)')+';background:'+(on?'var(--brand)':'#f4f6fb')+';color:'+(on?'#fff':'var(--muted)')+';font-size:12px;font-weight:600;cursor:pointer" onclick="aSetSide(\''+sec+'\',\''+r+'\',\''+s+'\')">'+(isSpinal&&s==='Both'?'Both sides':s)+'</button>';
     }).join('')+'</div>';
 }
 function aSetSide(sec,r,side){
@@ -2463,7 +2471,9 @@ function aSetSide(sec,r,side){
 }
 function _getSide(sec,r){
   const a=window._aForm;if(!a||!a._sides)return null;
-  return BILATERAL_REGIONS.has(r)?(a._sides[sec+'_'+r]||'Left'):null;
+  if(BILATERAL_REGIONS.has(r))return a._sides[sec+'_'+r]||'Left';
+  if(SPINAL_REGIONS.has(r))return a._sides[sec+'_'+r]||'Both';
+  return null;
 }
 
 function aRenderROM(){
@@ -2478,14 +2488,16 @@ function aRenderROM(){
     const fromMain=a.regions.includes(r);
     const sideBar=aSideBar('rom',r);
     const side=_getSide('rom',r);
-    // For bilateral: store as rom[r+'_Left'], rom[r+'_Right'], rom[r+'_Both']
-    // For axial: store as rom[r]
-    const sides=BILATERAL_REGIONS.has(r)?[side]:[null];
+    // Bilateral limbs: store as rom[r+'_Left'] etc. Spinal with side: rom[r+'_Left'] etc. Pure axial (no side selected): rom[r]
+    const isBilat=BILATERAL_REGIONS.has(r);
+    const isSpinal=SPINAL_REGIONS.has(r);
+    const hasSide=isBilat||(isSpinal&&side&&side!=='Both');
+    const sides=(isBilat||isSpinal)?[side]:[null];
     return sides.map(sd=>{
-      const storeKey=sd?(r+'_'+sd):r;
+      const storeKey=(isBilat&&sd)||(isSpinal&&sd&&sd!=='Both')?(r+'_'+sd):r;
       if(!a.rom[storeKey])a.rom[storeKey]={};
       const sv=a.rom[storeKey];
-      const label=sd?(r+' — '+sd):r;
+      const label=(sd&&sd!=='Both')?(r+' — '+sd):r;
       return'<div class="aregion-block">'
         +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+label+' — ROM</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div>'
         +sideBar
@@ -2514,12 +2526,14 @@ function aRenderMMT(){
     const fromMain=a.regions.includes(r);
     const sideBar=aSideBar('mmt',r);
     const side=_getSide('mmt',r);
-    const sides=BILATERAL_REGIONS.has(r)?[side]:[null];
+    const isBilatM=BILATERAL_REGIONS.has(r);
+    const isSpinalM=SPINAL_REGIONS.has(r);
+    const sides=(isBilatM||isSpinalM)?[side]:[null];
     return sides.map(sd=>{
-      const storeKey=sd?(r+'_'+sd):r;
+      const storeKey=(isBilatM&&sd)||(isSpinalM&&sd&&sd!=='Both')?(r+'_'+sd):r;
       if(!a.mmt[storeKey])a.mmt[storeKey]={};
       const sv=a.mmt[storeKey];
-      const label=sd?(r+' — '+sd):r;
+      const label=(sd&&sd!=='Both')?(r+' — '+sd):r;
       return'<div class="aregion-block">'
         +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+label+' — MMT</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div>'
         +sideBar
