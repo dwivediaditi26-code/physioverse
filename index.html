@@ -354,6 +354,11 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 .tx-slbl{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--line)}
 .tx-slbl:first-of-type{margin-top:0}
 .empty-reg{font-size:13px;color:var(--muted);padding:10px 0}
+.sec-reg-bar{display:flex;gap:6px;overflow-x:auto;padding:6px 0 10px;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;border-bottom:1px solid var(--line);margin-bottom:12px}
+.sec-reg-bar::-webkit-scrollbar{height:3px}.sec-reg-bar::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+.sec-reg-pill{flex-shrink:0;padding:4px 11px;border-radius:20px;border:1px solid var(--line);background:#f4f6fb;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap;transition:all .15s}
+.sec-reg-pill:hover{border-color:var(--brand);color:var(--brand);background:var(--brand-soft)}
+.sec-reg-pill.srp-on{background:var(--brand);border-color:var(--brand);color:#fff}
 @media(max-width:640px){.agrid2,.agrid3,.agrid4{grid-template-columns:1fr}.test-grid-a{grid-template-columns:1fr}}
 /* ── Assessment document view ── */
 .adoc-wrap{max-width:820px;margin:0 auto;padding-bottom:40px}
@@ -2001,23 +2006,50 @@ function aPalpNote(r,i,v){const a=window._aForm;if(!a)return;if(!a.palp[r])a.pal
 function aToggleNeuro(r,i,v){const a=window._aForm;if(!a)return;if(!a.neuro[r])a.neuro[r]={};a.neuro[r]["s"+i]=v;const el=document.getElementById("anc-"+r.replace("/","_")+"-"+i);if(el)el.classList.toggle("nc-on",v);}
 function aNeuroField(r,f,v){const a=window._aForm;if(!a)return;if(!a.neuro[r])a.neuro[r]={};a.neuro[r][f]=v;}
 
+// helper: scrollable region pill bar for ROM/MMT/Tests sections
+function aSectionRegBar(secKey,activeList){
+  return '<div class="sec-reg-bar">'+AREGIONS.map(r=>{
+    const on=activeList.includes(r);
+    return'<button class="sec-reg-pill'+(on?' srp-on':'')+'" onclick="aToggleSecReg(\''+secKey+'\',\''+r+'\')">'+r+'</button>';
+  }).join('')+'</div>';
+}
+function aToggleSecReg(secKey,r){
+  const a=window._aForm;if(!a)return;
+  const key=secKey+'Regions';
+  if(!a[key])a[key]=[];
+  const idx=a[key].indexOf(r);
+  if(idx>-1)a[key].splice(idx,1);else a[key].push(r);
+  if(secKey==='rom')aRenderROM();
+  else if(secKey==='mmt')aRenderMMT();
+  else if(secKey==='test')aRenderTests();
+}
+
 function aRenderROM(){
   const a=window._aForm;if(!a)return;
   const body=document.getElementById("aromBody");if(!body)return;
-  if(!a.regions.length){body.innerHTML='<div class="empty-reg">Select a body region above.</div>';return;}
-  body.innerHTML=a.regions.map(r=>{const mvs=AROM[r]||[];const sv=a.rom[r]||{};
-    return`<div class="aregion-block"><span class="aregion-label">${r} — ROM</span><table class="rom-tbl"><thead><tr><th>Movement</th><th>Active</th><th>Passive</th><th>Normal</th></tr></thead><tbody>${mvs.map(({mv,norm})=>{const s=sv[mv]||{};return`<tr><td>${mv}</td><td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="${s.active||''}" oninput="aROM('${r}','${mv}','active',this.value)"><span>°</span></div></td><td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="${s.passive||''}" oninput="aROM('${r}','${mv}','passive',this.value)"><span>°</span></div></td><td class="rom-norm-a">${norm}</td></tr>`;}).join("")}</tbody></table></div>`;
-  }).join("");
+  if(!a.romRegions)a.romRegions=[];
+  // merge main regions + extra rom regions, deduplicated, preserving order
+  const allRom=[...new Set([...a.regions,...a.romRegions])];
+  const bar=aSectionRegBar('rom',a.romRegions);
+  if(!a.regions.length&&!a.romRegions.length){body.innerHTML=bar+'<div class="empty-reg">Select a body region above or use the pills to add regions here.</div>';return;}
+  body.innerHTML=bar+allRom.map(r=>{const mvs=AROM[r]||[];const sv=a.rom[r]||{};
+    const fromMain=a.regions.includes(r);
+    return'<div class="aregion-block"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+r+' — ROM</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div><div style="overflow-x:auto"><table class="rom-tbl"><thead><tr><th>Movement</th><th>Active</th><th>Passive</th><th>Normal</th></tr></thead><tbody>'+mvs.map(function(item){var mv=item.mv,norm=item.norm;var s=sv[mv]||{};return'<tr><td>'+mv+'</td><td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="'+(s.active||'')+'" oninput="aROM(\''+r+'\',\''+mv+'\',\'active\',this.value)"><span>°</span></div></td><td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="'+(s.passive||'')+'" oninput="aROM(\''+r+'\',\''+mv+'\',\'passive\',this.value)"><span>°</span></div></td><td class="rom-norm-a">'+norm+'</td></tr>';}).join('')+'</tbody></table></div></div>';
+  }).join('');
 }
 function aROM(r,mv,t,v){const a=window._aForm;if(!a)return;if(!a.rom[r])a.rom[r]={};if(!a.rom[r][mv])a.rom[r][mv]={};a.rom[r][mv][t]=v;}
 
 function aRenderMMT(){
   const a=window._aForm;if(!a)return;
   const body=document.getElementById("ammtBody");if(!body)return;
-  if(!a.regions.length){body.innerHTML='<div class="empty-reg">Select a body region above.</div>';return;}
-  body.innerHTML=a.regions.map(r=>{const ms=AMMT[r]||[];const sv=a.mmt[r]||{};
-    return`<div class="aregion-block"><span class="aregion-label">${r} — MMT</span><table class="mmt-tbl"><thead><tr><th>Muscle</th><th>Grade (0–5)</th><th>Notes</th></tr></thead><tbody>${ms.map(m=>{const g=sv[m]!=null?sv[m]:null;const mid=(r+"_"+m).replace(/[\s\/\(\)]/g,"_");return`<tr><td>${m}</td><td><div class="mmt-btns">${[0,1,2,3,4,5].map(gv=>`<button id="ammt-${mid}-${gv}" class="${g===gv?"mmt-on":""}" onclick="aMMT('${r}','${m}',${gv})">${gv}</button>`).join("")}</div></td><td><input style="width:130px;padding:4px 7px;border:1px solid var(--line);border-radius:5px;font-size:12px" placeholder="e.g. pain…" value="${sv[m+'_note']||''}" oninput="aMMTNote('${r}','${m}',this.value)"></td></tr>`;}).join("")}</tbody></table></div>`;
-  }).join("");
+  if(!a.mmtRegions)a.mmtRegions=[];
+  const allMmt=[...new Set([...a.regions,...a.mmtRegions])];
+  const bar=aSectionRegBar('mmt',a.mmtRegions);
+  if(!a.regions.length&&!a.mmtRegions.length){body.innerHTML=bar+'<div class="empty-reg">Select a body region above or use the pills to add regions here.</div>';return;}
+  body.innerHTML=bar+allMmt.map(r=>{const ms=AMMT[r]||[];const sv=a.mmt[r]||{};
+    const fromMain=a.regions.includes(r);
+    return'<div class="aregion-block"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+r+' — MMT</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div><div style="overflow-x:auto"><table class="mmt-tbl"><thead><tr><th>Muscle</th><th>Grade (0–5)</th><th>Notes</th></tr></thead><tbody>'+ms.map(function(m){var g=sv[m]!=null?sv[m]:null;var mid=(r+'_'+m).replace(/[\s\/\(\)]/g,'_');return'<tr><td>'+m+'</td><td><div class="mmt-btns">'+[0,1,2,3,4,5].map(function(gv){return'<button id="ammt-'+mid+'-'+gv+'" class="'+(g===gv?'mmt-on':'')+'" onclick="aMMT(\''+r+'\',\''+m+'\','+gv+')">'+gv+'</button>';}).join('')+'</div></td><td><input style="width:130px;padding:4px 7px;border:1px solid var(--line);border-radius:5px;font-size:12px" placeholder="e.g. pain…" value="'+(sv[m+'_note']||'')+'" oninput="aMMTNote(\''+r+'\',\''+m+'\',this.value)"></td></tr>';}).join('')+'</tbody></table></div></div>';
+  }).join('');
 }
 function aMMT(r,m,g){const a=window._aForm;if(!a)return;if(!a.mmt[r])a.mmt[r]={};a.mmt[r][m]=g;const ms=AMMT[r]||[];ms.forEach(mu=>{const mid=(r+"_"+mu).replace(/[\s\/\(\)]/g,"_");[0,1,2,3,4,5].forEach(gv=>{const b=document.getElementById("ammt-"+mid+"-"+gv);if(b)b.classList.toggle("mmt-on",mu===m&&gv===g);});});}
 function aMMTNote(r,m,v){const a=window._aForm;if(!a)return;if(!a.mmt[r])a.mmt[r]={};a.mmt[r][m+"_note"]=v;}
@@ -2025,10 +2057,14 @@ function aMMTNote(r,m,v){const a=window._aForm;if(!a)return;if(!a.mmt[r])a.mmt[r
 function aRenderTests(){
   const a=window._aForm;if(!a)return;
   const body=document.getElementById("atestBody");if(!body)return;
-  if(!a.regions.length){body.innerHTML='<div class="empty-reg">Select a body region above.</div>';return;}
-  body.innerHTML=a.regions.map(r=>{const ts=ATESTS[r]||[];const sv=a.tests[r]||{};
-    return`<div class="aregion-block"><span class="aregion-label">${r} — Special Tests</span><div class="test-grid-a">${ts.map(t=>{const res=sv[t]||null;const tid=(r+"_"+t).replace(/[\s\(\)\/\']/g,"_");return`<div class="test-row-a"><span style="font-size:12.5px">${t}</span><div class="test-btns-a"><button id="atp-${tid}" class="${res==='+'?"tpos":""}" onclick="aTest('${r}','${t}','+')">+ Pos</button><button id="atn-${tid}" class="${res==='-'?"tneg":""}" onclick="aTest('${r}','${t}','-')">− Neg</button></div></div>`;}).join("")}</div></div>`;
-  }).join("");
+  if(!a.testRegions)a.testRegions=[];
+  const allTest=[...new Set([...a.regions,...a.testRegions])];
+  const bar=aSectionRegBar('test',a.testRegions);
+  if(!a.regions.length&&!a.testRegions.length){body.innerHTML=bar+'<div class="empty-reg">Select a body region above or use the pills to add regions here.</div>';return;}
+  body.innerHTML=bar+allTest.map(r=>{const ts=ATESTS[r]||[];const sv=a.tests[r]||{};
+    const fromMain=a.regions.includes(r);
+    return'<div class="aregion-block"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+r+' — Special Tests</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div><div class="test-grid-a">'+ts.map(function(t){var res=sv[t]||null;var tid=(r+'_'+t).replace(/[\s\(\)\/\']/g,'_');return'<div class="test-row-a"><span style="font-size:12.5px">'+t+'</span><div class="test-btns-a"><button id="atp-'+tid+'" class="'+(res==='+'?'tpos':'')+'" onclick="aTest(\''+r+'\',\''+t+'\',\'+\')">+ Pos</button><button id="atn-'+tid+'" class="'+(res==='-'?'tneg':'')+'" onclick="aTest(\''+r+'\',\''+t+'\',\'-\')">− Neg</button></div></div>';}).join('')+'</div></div>';
+  }).join('');
 }
 function aTest(r,t,res){const a=window._aForm;if(!a)return;if(!a.tests[r])a.tests[r]={};const prev=a.tests[r][t];a.tests[r][t]=prev===res?null:res;const tid=(r+"_"+t).replace(/[\s\(\)\/\']/g,"_");const p=document.getElementById("atp-"+tid),n=document.getElementById("atn-"+tid);if(p)p.className=a.tests[r][t]==='+'?"tpos":"";if(n)n.className=a.tests[r][t]==='-'?"tneg":"";}
 
@@ -2042,6 +2078,7 @@ function assessForm(_,pid){
   const freshA={id:uid("ca"),pid:pid||"",date:todayISO,therapist:MYTHER||(DB.staff.find(s=>s.role.includes("Physio"))||{name:""}).name,
     mode:"template",complaint:"",onset:"",painsite:"",pain:null,aggr:"",reliev:"",history:"",
     regions:[],regionSides:{},obs:{},palp:{},neuro:{},rom:{},mmt:{},tests:{},func:[],funcOther:"",
+    romRegions:[],mmtRegions:[],testRegions:[],
     assessment:"",posture:"",gait:"",swelling:"",neuroNote:"",dx:"",problem:"",stg:"",ltg:"",freq:"",advice:"",rx:[]};
   window._aForm=freshA;
   openModal(`<div class="modal-h"><h3>New Assessment</h3><button class="x" onclick="closeModal()">×</button></div>
