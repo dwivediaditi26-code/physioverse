@@ -870,7 +870,7 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
    <hr class="sep"><b class="muted">Sessions given — date-wise</b>
    ${visits.length?visits.map(s=>`<details style="border:0.5px solid var(--line);border-radius:8px;margin:8px 0"><summary style="padding:10px 12px;cursor:pointer"><b>Session #${s.n} · ${fmtDate(s.date)}</b><span style="float:right">${s.pain!==''&&s.pain!=null?'<span class="tag '+(+s.pain<=3?'green':+s.pain<=6?'amber':'red')+'">Pain '+s.pain+'/10</span> ':''}<span class="muted" style="font-size:12px">${s.therapist.replace('Dr. ','')}</span></span></summary><div style="padding:0 12px 12px">${s.modalities&&s.modalities.length?'<div style="margin-bottom:6px"><b class="muted" style="font-size:12px">Treatments: </b>'+s.modalities.map(m=>'<span class="tag teal">'+m+'</span> ').join("")+'</div>':''}${s.exercises&&s.exercises.length?'<div style="margin-bottom:6px"><b class="muted" style="font-size:12px">Exercises: </b>'+s.exercises.map(e=>'<span class="tag gray">'+e+'</span> ').join("")+'</div>':''}${s.note?'<div style="font-size:12.5px;margin-top:4px">📝 '+s.note+'</div>':''}<div style="margin-top:8px"><button class="btn sm sec" onclick="sessionForm('${s.planId}','${s.id}')">Edit session</button></div></div></details>`).join(""):'<div class=muted style="padding:6px 0">No sessions logged yet.</div>'}
    <button class="btn sm" style="margin-top:6px" onclick="openConsole('${id}')">+ Log today's session</button>
-   ${homePlans.length?'<hr class="sep"><b class="muted">🏠 Home programme</b>'+homePlans.map(t=>`<div class="list-row"><span class="tag blue">${t.homeFreq||'as advised'}</span><div class="pill-row" style="margin-top:5px">${t.home.map(e=>'<span class="tag gray">'+e+'</span>').join("")}</div></div>`).join("")+`<button class="btn sm sec" style="margin-top:8px" onclick="printHome('${id}')">🖨 Print / WhatsApp home plan</button>`:''}
+   ${homePlans.length?`<hr class="sep"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b class="muted">🏠 Home programme</b><button class="btn sm sec" style="font-size:11px;padding:3px 9px" onclick="sendHomeWA('${id}')">📲 Send on WA</button></div>`+homePlans.map(t=>`<div class="list-row"><span class="tag blue">${t.homeFreq||'as advised'}</span><div class="pill-row" style="margin-top:5px">${t.home.map(e=>'<span class="tag gray">'+e+'</span>').join("")}</div></div>`).join("")+`<button class="btn sm sec" style="margin-top:8px" onclick="printHome('${id}')">🖨 Print home plan</button>`:''}
   </div>
   <div id="pv-bill" style="display:${show('bill')}">
    ${(()=>{
@@ -1091,7 +1091,26 @@ views.appointments=()=>{
  }
  const dayAppts=DB.appointments.filter(inBranch).filter(a=>a.date===calDate).filter(a=>!MYTHER||a.therapist===MYTHER);
  const hours=[];for(let h=8;h<=19;h++)hours.push(h);
- const block=a=>{const p=pById(a.pid);return `<div onclick="event.stopPropagation();apptView('${a.id}')" style="border-left:3px solid ${therColor(a.therapist)};background:#f3f7fc;border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer"><div style="font-weight:600;font-size:12px">${a.time} · ${p.name}</div><div style="font-size:11px;color:var(--muted)">${a.type}</div><span class="tag ${statusTag(a.status)}" style="font-size:10px;margin-top:2px">${a.status}</span></div>`;};
+ const nowHHMM=(()=>{const n=new Date();return pad2(n.getHours())+':'+pad2(n.getMinutes());})();
+ const block=a=>{
+  const p=pById(a.pid);
+  const isToday=a.date===calDate&&calDate===todayISO;
+  const isLate=isToday&&a.time<nowHHMM&&a.status==='Confirmed';
+  const isCancelled=a.status==='Cancelled';
+  const bg=isLate?'#fff0f0':isCancelled?'#f9f9f9':'#f3f7fc';
+  const borderCol=isLate?'var(--danger)':isCancelled?'#ccc':therColor(a.therapist);
+  const waMsg=apptMsg(p,a.date===todayISO?'today at '+a.time:fmtDate(a.date)+' at '+a.time);
+  const bellBtn=`<button title="Send WhatsApp reminder" onclick="event.stopPropagation();sendWA('${a.pid}','Appointment',a.time,'${waMsg.replace(/'/g,"\\'")}');this.textContent='✓';this.style.opacity='.5'" style="border:none;background:none;cursor:pointer;font-size:13px;padding:0 2px;opacity:.7">🔔</button>`;
+  const lateTag=isLate?'<span style="font-size:9px;font-weight:700;color:var(--danger);margin-left:4px;text-transform:uppercase">LATE</span>':'';
+  return `<div onclick="event.stopPropagation();apptView('${a.id}')" style="border-left:3px solid ${borderCol};background:${bg};border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer;opacity:${isCancelled?'.55':'1'}">
+   <div style="display:flex;justify-content:space-between;align-items:center">
+    <div style="font-weight:600;font-size:12px">${a.time} · ${p.name}${lateTag}</div>
+    <span onclick="event.stopPropagation()">${bellBtn}</span>
+   </div>
+   <div style="font-size:11px;color:var(--muted)">${a.type}</div>
+   <span class="tag ${isLate?'red':statusTag(a.status)}" style="font-size:10px;margin-top:2px">${isLate?'Late':a.status}</span>
+  </div>`;
+ };
  const grid=`<table style="min-width:${120+thers.length*150}px"><thead><tr><th style="width:64px">Time</th>${thers.map(t=>`<th><span class="dot" style="background:${therColor(t)}"></span>${t.replace('Dr. ','')}</th>`).join("")}</tr></thead><tbody>
    ${hours.map(h=>`<tr><td style="font-weight:600;color:var(--muted);vertical-align:top">${pad2(h)}:00</td>${thers.map(t=>{const cell=dayAppts.filter(a=>a.therapist===t&&+a.time.split(":")[0]===h);return `<td style="vertical-align:top;cursor:pointer;min-width:140px" onclick="apptForm('${calDate}','${pad2(h)}:00','${t}')">${cell.map(block).join("")||'<span style="color:#cdd5e0;font-size:12px">+</span>'}</td>`;}).join("")}</tr>`).join("")}
  </tbody></table>`;
@@ -1102,12 +1121,22 @@ function setApptStatus(id,s){const a=DB.appointments.find(a=>a.id===id);a.status
  if((s==="Completed"||s==="Cancelled"))DB.active=DB.active.filter(x=>x!==a.pid);
  save();render();}
 function apptView(id){const a=DB.appointments.find(x=>x.id===id);const p=pById(a.pid);
+ const when=a.date===todayISO?'today at '+a.time:fmtDate(a.date)+' at '+a.time;
+ const waMsg=apptMsg(p,when);
+ const waLink_=waLink(p.phone,waMsg);
  openModal(`<div class="modal-h"><h3>Appointment</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
-  <div class="pcell" style="margin-bottom:12px"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt muted">${p.phone}</div></div></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+   <div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt muted">${p.phone}</div></div></div>
+   <a href="${waLink_}" target="_blank" onclick="sendWA('${a.pid}','Appointment','${when}','${waMsg.replace(/'/g,"\\'")}');return true;" class="btn sm sec" style="gap:5px;white-space:nowrap;display:flex;align-items:center">🔔 Remind on WA</a>
+  </div>
   <div class="grid2"><div><b class="muted">Date</b><div>${fmtDate(a.date)}</div></div><div><b class="muted">Time</b><div>${a.time}</div></div></div>
   <div class="grid2" style="margin-top:8px"><div><b class="muted">Type</b><div>${a.type}</div></div><div><b class="muted">Therapist</b><div>${a.therapist}</div></div></div>
   <div class="field" style="margin-top:12px"><label>Status</label><select onchange="setApptStatus('${a.id}',this.value)">${["Pending","Confirmed","Checked-in","Completed","Cancelled"].map(s=>`<option ${a.status===s?'selected':''}>${s}</option>`).join("")}</select></div>
+  ${a.status==='Cancelled'?`<div style="background:#fff5f5;border:1px solid #fca5a5;border-radius:8px;padding:9px 12px;margin-top:10px;font-size:12.5px">
+   <b style="color:var(--danger)">Cancelled appointment</b> — send a reschedule message?<br>
+   <a href="${waLink(p.phone,'Namaste '+p.name.split(' ')[0]+' ji 🙏\nWe noticed your appointment at '+DB.settings.clinic+' was cancelled. Would you like to reschedule? Please call us or reply here.\n— Team '+DB.settings.clinic)}" target="_blank" class="btn sm sec" style="margin-top:8px;display:inline-flex">📲 Send reschedule message</a>
+  </div>`:''}
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal();patientView('${a.pid}')">View patient</button>${(DB.active||[]).includes(a.pid)?`<button class="btn sec" onclick="endSession('${a.pid}');closeModal()">End session</button>`:`<button class="btn" onclick="startSession('${a.pid}');closeModal()">▶ Start session</button>`}<button class="btn sec" onclick="closeModal()">Done</button></div>`);}
 function apptForm(date,time,ther){openModal(`<div class="modal-h"><h3>Book Appointment</h3><button class="x" onclick="closeModal()">×</button></div>
@@ -1347,8 +1376,19 @@ views.treatment=function(){
       +'</div></div>'
       +'<div class="mt muted" style="margin:2px 0 4px;font-size:11.5px"><span class="dot" style="background:'+therColor(s.therapist)+'"></span>'+s.therapist+'</div>'
       +(s.modalities&&s.modalities.length?'<div class="pill-row">'+s.modalities.map(function(m){return '<span class="tag teal">'+m+'</span>';}).join("")+'</div>':'')
-      +(s.exercises&&s.exercises.length?'<div class="pill-row" style="margin-top:4px">'+s.exercises.map(function(e){return '<span class="tag gray">'+e+'</span>';}).join("")+'</div>':'')
-      +(s.note?'<div style="font-size:12.5px;margin-top:4px">📝 '+s.note+'</div>':'')
+      +(s.exercises&&s.exercises.length?(function(){
+        var exList=s.exercises.join(', ');
+        var pid2=t.pid;var pName=pById(pid2).name.split(' ')[0];var pPhone=pById(pid2).phone;
+        var exMsg='Namaste '+pName+' ji 🙏\nHome exercises for today from '+DB.settings.clinic+':\n'+s.exercises.map(function(e,i){return (i+1)+'. '+e;}).join('\n')+'\n\nDo these carefully. Stop if pain worsens.\n— Dr. '+s.therapist.replace('Dr. ','');
+        return '<div class="pill-row" style="margin-top:4px">'+s.exercises.map(function(e){return '<span class="tag gray">'+e+'</span>';}).join('')+'</div>'
+          +'<div style="margin-top:4px"><a href="'+waLink(pPhone,exMsg)+'" target="_blank" class="btn sm sec" style="font-size:11px;padding:3px 9px;display:inline-flex;align-items:center;gap:4px">📲 Send exercises on WA</a></div>';
+       })():'')
+      +(s.note?(function(){
+        var pid2=t.pid;var pName=pById(pid2).name.split(' ')[0];var pPhone=pById(pid2).phone;
+        var noteMsg='Namaste '+pName+' ji 🙏\nNote from '+s.therapist+' ('+DB.settings.clinic+'):\n\n'+s.note+'\n\nIf you have any questions, please contact us.';
+        return '<div style="font-size:12.5px;margin-top:6px">📝 '+s.note+'</div>'
+          +'<div style="margin-top:4px"><a href="'+waLink(pPhone,noteMsg)+'" target="_blank" class="btn sm sec" style="font-size:11px;padding:3px 9px;display:inline-flex;align-items:center;gap:4px">📲 Send note on WA</a></div>';
+       })():'')
      +'</div>';
     });
     html+='</div>';
@@ -2017,6 +2057,21 @@ function payMsg(p,txt){return `Namaste ${p.name.split(" ")[0]} ji 🙏\nGentle r
 function waLink(phone,text){return "https://wa.me/"+(phone||"").replace(/\D/g,"")+"?text="+encodeURIComponent(text);}
 function sendWA(pid,kind,when,text){const p=pById(pid);try{window.open(waLink(p.phone,text),"_blank");}catch(e){}
  DB.reminders.unshift({id:uid("r"),pid,channel:"WhatsApp",kind,when:"Sent "+fmtDate(todayISO),appt:when,status:"Sent"});save();render();}
+function sendHomeWA(pid){
+  const p=pById(pid);
+  const plans=DB.plans.filter(t=>t.pid===pid&&t.home&&t.home.length);
+  if(!plans.length)return;
+  const lines=[];
+  plans.forEach(t=>{
+    if(t.home&&t.home.length){
+      lines.push('*'+t.diagnosis+'*'+(t.homeFreq?' ('+t.homeFreq+')':''));
+      t.home.forEach((e,i)=>lines.push((i+1)+'. '+e));
+      lines.push('');
+    }
+  });
+  const msg='Namaste '+p.name.split(' ')[0]+' ji 🙏\nYour home exercise programme from *'+DB.settings.clinic+'*:\n\n'+lines.join('\n').trim()+'\n\n⚠ Do these carefully. Stop if pain increases.\nContact us: '+DB.settings.phone+'\n— Team '+DB.settings.clinic;
+  window.open(waLink(p.phone,msg),'_blank');
+}
 function copyTemplate(i){const el=document.getElementById("tmpl_"+i);if(!el)return;navigator.clipboard.writeText(el.innerText).then(function(){const btn=el.nextElementSibling.querySelector("button");const orig=btn.textContent;btn.textContent="✓ Copied!";setTimeout(function(){btn.textContent=orig;},1800);});}
 function sendTemplateWA(i){const el=document.getElementById("tmpl_"+i);if(!el)return;const msg=el.innerText;window.open("https://wa.me/?text="+encodeURIComponent(msg),"_blank");}
 views.reminders=()=>{
