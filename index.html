@@ -303,9 +303,9 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 .mmt-tbl td{padding:5px 6px;border-bottom:1px solid #f4f4f4;vertical-align:middle}
 .mmt-tbl tr:last-child td{border-bottom:none}
 .mmt-btns{display:flex;gap:2px}
-.mmt-btns button{width:30px;height:26px;border:1px solid var(--line);background:#fff;border-radius:4px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer}
-.mmt-btns button:hover{border-color:var(--brand);color:var(--brand)}
-.mmt-btns button.mmt-on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.mmt-btns button,.mmt-btn{width:30px;height:26px;border:1px solid var(--line);background:#fff;border-radius:4px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer}
+.mmt-btns button:hover,.mmt-btn:hover{border-color:var(--brand);color:var(--brand)}
+.mmt-btns button.mmt-on,.mmt-btn.mmt-on{background:var(--brand);color:#fff;border-color:var(--brand)}
 .test-grid-a{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .test-row-a{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:12.5px}
 .test-btns-a{display:flex;gap:4px}
@@ -2252,10 +2252,12 @@ function aNeuroField(r,f,v){const a=window._aForm;if(!a)return;if(!a.neuro[r])a.
 
 // helper: scrollable region pill bar for ROM/MMT/Tests sections
 function aSectionRegBar(secKey,activeList){
-  return '<div class="sec-reg-bar">'+AREGIONS.map(r=>{
-    const on=activeList.includes(r);
-    return'<button class="sec-reg-pill'+(on?' srp-on':'')+'" onclick="aToggleSecReg(\''+secKey+'\',\''+r+'\')">'+r+'</button>';
-  }).join('')+'</div>';
+  const secLabel={rom:'ROM',mmt:'MMT',test:'Special Tests'}[secKey]||secKey.toUpperCase();
+  return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap">Add region to '+secLabel+':</span>'
+    +'<div class="sec-reg-bar" style="flex:1">'+AREGIONS.map(r=>{
+      const on=activeList.includes(r);
+      return'<button class="sec-reg-pill'+(on?' srp-on':'')+'" onclick="aToggleSecReg(\''+secKey+'\',\''+r+'\')">'+r+'</button>';
+    }).join('')+'</div></div>';
 }
 function aToggleSecReg(secKey,r){
   const a=window._aForm;if(!a)return;
@@ -2268,17 +2270,68 @@ function aToggleSecReg(secKey,r){
   else if(secKey==='test')aRenderTests();
 }
 
+// Bilateral regions need a Left / Right / Both side-tab
+const BILATERAL_REGIONS=new Set(["Shoulder","Elbow","Wrist/Hand","Hip","Knee","Ankle/Foot"]);
+function _sideKey(r,side){return BILATERAL_REGIONS.has(r)?(r+'__'+side):r;}
+function _romKey(r,side){return BILATERAL_REGIONS.has(r)?(r+'_'+side):r;}
+
+function aSideBar(sec,r){
+  if(!BILATERAL_REGIONS.has(r))return'';
+  const a=window._aForm;
+  if(!a._sides)a._sides={};
+  const key=sec+'_'+r;
+  if(!a._sides[key])a._sides[key]='Left';
+  const cur=a._sides[key];
+  return'<div style="display:flex;gap:6px;margin-bottom:10px">'
+    +['Left','Right','Both'].map(s=>{
+      const on=cur===s;
+      return'<button style="padding:4px 14px;border-radius:20px;border:1px solid '+(on?'var(--brand)':'var(--line)')+';background:'+(on?'var(--brand)':'#f4f6fb')+';color:'+(on?'#fff':'var(--muted)')+';font-size:12px;font-weight:600;cursor:pointer" onclick="aSetSide(\''+sec+'\',\''+r+'\',\''+s+'\')">'+s+'</button>';
+    }).join('')+'</div>';
+}
+function aSetSide(sec,r,side){
+  const a=window._aForm;if(!a)return;
+  if(!a._sides)a._sides={};
+  a._sides[sec+'_'+r]=side;
+  if(sec==='rom')aRenderROM();
+  else if(sec==='mmt')aRenderMMT();
+}
+function _getSide(sec,r){
+  const a=window._aForm;if(!a||!a._sides)return null;
+  return BILATERAL_REGIONS.has(r)?(a._sides[sec+'_'+r]||'Left'):null;
+}
+
 function aRenderROM(){
   const a=window._aForm;if(!a)return;
   const body=document.getElementById("aromBody");if(!body)return;
   if(!a.romRegions)a.romRegions=[];
-  // merge main regions + extra rom regions, deduplicated, preserving order
   const allRom=[...new Set([...a.regions,...a.romRegions])];
   const bar=aSectionRegBar('rom',a.romRegions);
   if(!a.regions.length&&!a.romRegions.length){body.innerHTML=bar+'<div class="empty-reg">Select a body region above or use the pills to add regions here.</div>';return;}
-  body.innerHTML=bar+allRom.map(r=>{const mvs=AROM[r]||[];const sv=a.rom[r]||{};
+  body.innerHTML=bar+allRom.map(r=>{
+    const mvs=AROM[r]||[];
     const fromMain=a.regions.includes(r);
-    return'<div class="aregion-block"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+r+' — ROM</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div><div style="overflow-x:auto"><table class="rom-tbl"><thead><tr><th>Movement</th><th>Active</th><th>Passive</th><th>Normal</th></tr></thead><tbody>'+mvs.map(function(item){var mv=item.mv,norm=item.norm;var s=sv[mv]||{};return'<tr><td>'+mv+'</td><td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="'+(s.active||'')+'" oninput="aROM(\''+r+'\',\''+mv+'\',\'active\',this.value)"><span>°</span></div></td><td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="'+(s.passive||'')+'" oninput="aROM(\''+r+'\',\''+mv+'\',\'passive\',this.value)"><span>°</span></div></td><td class="rom-norm-a">'+norm+'</td></tr>';}).join('')+'</tbody></table></div></div>';
+    const sideBar=aSideBar('rom',r);
+    const side=_getSide('rom',r);
+    // For bilateral: store as rom[r+'_Left'], rom[r+'_Right'], rom[r+'_Both']
+    // For axial: store as rom[r]
+    const sides=BILATERAL_REGIONS.has(r)?[side]:[null];
+    return sides.map(sd=>{
+      const storeKey=sd?(r+'_'+sd):r;
+      if(!a.rom[storeKey])a.rom[storeKey]={};
+      const sv=a.rom[storeKey];
+      const label=sd?(r+' — '+sd):r;
+      return'<div class="aregion-block">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+label+' — ROM</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div>'
+        +sideBar
+        +'<div style="overflow-x:auto"><table class="rom-tbl"><thead><tr><th>Movement</th><th>Active °</th><th>Passive °</th><th>Normal</th></tr></thead><tbody>'
+        +mvs.map(function(item){var mv=item.mv,norm=item.norm;var s=sv[mv]||{};
+          var esc_r=storeKey.replace(/'/g,"\\'");var esc_mv=mv.replace(/'/g,"\\'");
+          return'<tr><td>'+mv+'</td>'
+            +'<td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="'+(s.active||'')+'" oninput="aROM(\''+esc_r+'\',\''+esc_mv+'\',\'active\',this.value)"><span>°</span></div></td>'
+            +'<td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="'+(s.passive||'')+'" oninput="aROM(\''+esc_r+'\',\''+esc_mv+'\',\'passive\',this.value)"><span>°</span></div></td>'
+            +'<td class="rom-norm-a">'+norm+'</td></tr>';
+        }).join('')+'</tbody></table></div></div>';
+    }).join('');
   }).join('');
 }
 function aROM(r,mv,t,v){const a=window._aForm;if(!a)return;if(!a.rom[r])a.rom[r]={};if(!a.rom[r][mv])a.rom[r][mv]={};a.rom[r][mv][t]=v;}
@@ -2290,12 +2343,43 @@ function aRenderMMT(){
   const allMmt=[...new Set([...a.regions,...a.mmtRegions])];
   const bar=aSectionRegBar('mmt',a.mmtRegions);
   if(!a.regions.length&&!a.mmtRegions.length){body.innerHTML=bar+'<div class="empty-reg">Select a body region above or use the pills to add regions here.</div>';return;}
-  body.innerHTML=bar+allMmt.map(r=>{const ms=AMMT[r]||[];const sv=a.mmt[r]||{};
+  body.innerHTML=bar+allMmt.map(r=>{
+    const ms=AMMT[r]||[];
     const fromMain=a.regions.includes(r);
-    return'<div class="aregion-block"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+r+' — MMT</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div><div style="overflow-x:auto"><table class="mmt-tbl"><thead><tr><th>Muscle</th><th>Grade (0–5)</th><th>Notes</th></tr></thead><tbody>'+ms.map(function(m){var g=sv[m]!=null?sv[m]:null;var mid=(r+'_'+m).replace(/[\s\/\(\)]/g,'_');return'<tr><td>'+m+'</td><td><div class="mmt-btns">'+[0,1,2,3,4,5].map(function(gv){return'<button id="ammt-'+mid+'-'+gv+'" class="'+(g===gv?'mmt-on':'')+'" onclick="aMMT(\''+r+'\',\''+m+'\','+gv+')">'+gv+'</button>';}).join('')+'</div></td><td><input style="width:130px;padding:4px 7px;border:1px solid var(--line);border-radius:5px;font-size:12px" placeholder="e.g. pain…" value="'+(sv[m+'_note']||'')+'" oninput="aMMTNote(\''+r+'\',\''+m+'\',this.value)"></td></tr>';}).join('')+'</tbody></table></div></div>';
+    const sideBar=aSideBar('mmt',r);
+    const side=_getSide('mmt',r);
+    const sides=BILATERAL_REGIONS.has(r)?[side]:[null];
+    return sides.map(sd=>{
+      const storeKey=sd?(r+'_'+sd):r;
+      if(!a.mmt[storeKey])a.mmt[storeKey]={};
+      const sv=a.mmt[storeKey];
+      const label=sd?(r+' — '+sd):r;
+      return'<div class="aregion-block">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+label+' — MMT</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div>'
+        +sideBar
+        +'<div style="overflow-x:auto"><table class="mmt-tbl"><thead><tr><th>Muscle</th><th>Grade (0–5)</th><th>Notes</th></tr></thead><tbody>'
+        +ms.map(function(m){
+          var g=sv[m]!=null?sv[m]:null;
+          var mid=(storeKey+'_'+m).replace(/[\s\/\(\)]/g,'_');
+          var esc_sk=storeKey.replace(/'/g,"\\'");var esc_m=m.replace(/'/g,"\\'");
+          return'<tr><td>'+m+'</td><td><div class="mmt-btns">'
+            +[0,1,2,3,4,5].map(function(gv){return'<button id="ammt-'+mid+'-'+gv+'" class="mmt-btn'+(g===gv?' mmt-on':'')+'" onclick="aMMT(\''+esc_sk+'\',\''+esc_m+'\','+gv+')">'+gv+'</button>';}).join('')
+            +'</div></td><td><input style="width:130px;padding:4px 7px;border:1px solid var(--line);border-radius:5px;font-size:12px" placeholder="e.g. pain…" value="'+(sv[m+'_note']||'')+'" oninput="aMMTNote(\''+esc_sk+'\',\''+esc_m+'\',this.value)"></td></tr>';
+        }).join('')+'</tbody></table></div></div>';
+    }).join('');
   }).join('');
 }
-function aMMT(r,m,g){const a=window._aForm;if(!a)return;if(!a.mmt[r])a.mmt[r]={};a.mmt[r][m]=g;const ms=AMMT[r]||[];ms.forEach(mu=>{const mid=(r+"_"+mu).replace(/[\s\/\(\)]/g,"_");[0,1,2,3,4,5].forEach(gv=>{const b=document.getElementById("ammt-"+mid+"-"+gv);if(b)b.classList.toggle("mmt-on",mu===m&&gv===g);});});}
+function aMMT(r,m,g){
+  const a=window._aForm;if(!a)return;
+  if(!a.mmt[r])a.mmt[r]={};
+  // Toggle off if same grade clicked again
+  a.mmt[r][m]=(a.mmt[r][m]===g)?null:g;
+  const mid=(r+'_'+m).replace(/[\s\/\(\)]/g,'_');
+  [0,1,2,3,4,5].forEach(gv=>{
+    const b=document.getElementById('ammt-'+mid+'-'+gv);
+    if(b)b.classList.toggle('mmt-on',a.mmt[r][m]===gv);
+  });
+}
 function aMMTNote(r,m,v){const a=window._aForm;if(!a)return;if(!a.mmt[r])a.mmt[r]={};a.mmt[r][m+"_note"]=v;}
 
 function aRenderTests(){
