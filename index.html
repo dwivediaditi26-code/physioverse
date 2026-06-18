@@ -2,7 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PhysioVerse">
+<meta name="theme-color" content="#0b1b3d">
+<link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;PhysioVerse&quot;,&quot;short_name&quot;:&quot;PhysioVerse&quot;,&quot;start_url&quot;:&quot;/&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230b1b3d&quot;,&quot;theme_color&quot;:&quot;%230b1b3d&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232563eb'/><text y='70' x='50' text-anchor='middle' font-size='60' font-family='system-ui' fill='white' font-weight='800'>P</text></svg>&quot;,&quot;sizes&quot;:&quot;any&quot;,&quot;type&quot;:&quot;image/svg+xml&quot;}]}">
 <title>PhysioVerse — Clinic Management</title>
 <style>
 :root{
@@ -148,69 +154,80 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 .hamburger{display:none;background:none;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:18px;line-height:1;color:var(--ink)}
 .backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55}
 .backdrop.show{display:block}
+/* ── Bottom nav bar (mobile only) ── */
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:70;background:#fff;border-top:1px solid var(--line);padding:6px 0 env(safe-area-inset-bottom,6px);box-shadow:0 -2px 12px rgba(0,0,0,.08)}
+.bottom-nav-inner{display:flex;justify-content:space-around;align-items:center}
+.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;padding:6px 4px;color:var(--muted);font-size:10px;font-weight:600;cursor:pointer;min-height:48px;border-radius:10px;transition:color .15s}
+.bnav-btn .bico{font-size:20px;line-height:1}
+.bnav-btn.active{color:var(--brand)}
+.bnav-btn.active .bico{filter:drop-shadow(0 0 4px rgba(37,99,235,.4))}
+/* More drawer */
+.more-drawer{display:none;position:fixed;bottom:0;left:0;right:0;z-index:80;background:#fff;border-radius:18px 18px 0 0;padding:16px 16px env(safe-area-inset-bottom,16px);box-shadow:0 -4px 30px rgba(0,0,0,.15);max-height:70vh;overflow-y:auto}
+.more-drawer.open{display:block}
+.more-drawer-handle{width:40px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 16px}
+.more-drawer-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.more-item{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:#f4f6fb;border-radius:12px;border:none;font-size:11px;font-weight:600;color:var(--ink);cursor:pointer}
+.more-item .mico{font-size:24px}
+.more-item:active{background:var(--brand-soft)}
+
 @media(max-width:780px){
+ /* Show bottom nav, hide sidebar */
+ .bottom-nav{display:block}
  .sidebar{transform:translateX(-100%);transition:transform .25s ease;z-index:60;box-shadow:0 0 40px rgba(0,0,0,.45)}
  .sidebar.open{transform:translateX(0)}
- .main{margin-left:0}
- .hamburger{display:inline-flex}
+ .main{margin-left:0;padding-bottom:72px} /* room for bottom nav */
+ .hamburger{display:none!important} /* use bottom nav instead */
+ /* Top bar — compact */
  .topbar{padding:10px 13px}
  .topbar h2{font-size:16px}
  .topbar .sub{display:none}
  .topbar .right{gap:6px}
- .content{padding:10px}
- /* Cards — single column on mobile */
+ .content{padding:12px}
+ /* Cards 2-col */
  .cards{grid-template-columns:1fr 1fr!important;gap:9px}
- .stat{padding:12px}
- .stat .val{font-size:20px}
+ .stat{padding:11px}
+ .stat .val{font-size:19px}
  .stat .lbl{font-size:11px}
- /* All 2/3 col grids collapse to 1 */
+ /* Grids collapse */
  .grid2,.grid3,.two-col{grid-template-columns:1fr!important}
- /* Tables — scrollable */
+ /* Tables scrollable */
  .panel-b.flush{overflow-x:auto;-webkit-overflow-scrolling:touch}
- .panel-b.flush table{min-width:600px}
- /* Hide less important table columns on mobile */
- th:nth-child(3),td:nth-child(3){display:none}
- /* Panel headers wrap nicely */
+ .panel-b.flush table{min-width:540px}
+ /* Panel headers */
  .panel-h{padding:11px 13px;gap:7px}
  .panel-h h3{font-size:14px}
  .panel-h .tools{gap:5px}
  .panel-b{padding:12px}
- /* Modals full screen */
- .modal,.modal.wide{max-width:100%;border-radius:12px 12px 0 0;position:fixed;bottom:0;left:0;right:0;margin:0}
+ /* Modals slide up from bottom */
+ .modal,.modal.wide{max-width:100%;border-radius:18px 18px 0 0;position:fixed;bottom:0;left:0;right:0;margin:0}
  .overlay{padding:0;align-items:flex-end}
- .modal-b{padding:14px;max-height:75vh}
+ .modal-b{padding:16px;max-height:78vh}
  .modal-f{padding:12px 14px}
- /* Buttons smaller */
- .btn{padding:8px 12px;font-size:13px}
- .btn.sm{padding:5px 9px;font-size:11.5px}
+ /* Bigger touch targets */
+ .btn{padding:10px 14px;font-size:13.5px;min-height:42px}
+ .btn.sm{padding:7px 11px;font-size:12px;min-height:36px}
+ /* Inputs bigger */
+ .field input,.field select,.field textarea{padding:11px 12px;font-size:15px}
  /* Branch selector */
  #branchSel{max-width:38vw;font-size:12px}
- /* Reminder templates — single col */
- .panel-b [style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important}
- /* Treatment cards */
  .pill-row{gap:5px}
  .tag{font-size:11px;padding:2px 7px}
- /* Patient cells */
  .pcell .nm{font-size:13px}
- /* Active bar chips scroll */
  .abar-chips{gap:6px}
- .achip{padding:5px 8px;font-size:12px}
- /* Search bar full width */
+ .achip{padding:6px 10px;font-size:12px;min-height:36px}
  .search{width:100%}
- /* KPI mini wrap */
  .kpi-mini{gap:12px}
  .kpi-mini div b{font-size:16px}
- /* Tabs scroll */
  .tabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:1px}
- .tabs button{white-space:nowrap;padding:8px 11px;font-size:13px}
- /* Template grid single col */
+ .tabs button{white-space:nowrap;padding:10px 13px;font-size:13px;min-height:40px}
  .tmpl-grid{grid-template-columns:1fr!important}
- /* Stats single col on very small screens */
- @media(max-width:400px){.cards{grid-template-columns:1fr!important}}
+ /* Letter strip scrollable */
+ .letter-strip{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
 }
 @media(max-width:520px){
  .cards{grid-template-columns:1fr!important}
  .uc-text{display:none}
+ .more-drawer-grid{grid-template-columns:repeat(3,1fr)}
 }
 @media print{
   body > *:not(#print-only-sheet){display:none!important}
@@ -503,6 +520,43 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 </div>
 <div class="backdrop" id="backdrop" onclick="toggleNav(false)"></div>
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+
+<!-- Mobile bottom nav -->
+<nav class="bottom-nav" id="bottomNav">
+  <div class="bottom-nav-inner">
+    <button class="bnav-btn active" id="bn-dashboard" onclick="go('dashboard');bnav('dashboard')">
+      <span class="bico">📊</span><span>Home</span>
+    </button>
+    <button class="bnav-btn" id="bn-patients" onclick="go('patients');bnav('patients')">
+      <span class="bico">👤</span><span>Patients</span>
+    </button>
+    <button class="bnav-btn" id="bn-appointments" onclick="go('appointments');bnav('appointments')">
+      <span class="bico">📅</span><span>Calendar</span>
+    </button>
+    <button class="bnav-btn" id="bn-treatment" onclick="go('treatment');bnav('treatment')">
+      <span class="bico">📋</span><span>Treatments</span>
+    </button>
+    <button class="bnav-btn" id="bn-more" onclick="toggleMoreDrawer()">
+      <span class="bico">☰</span><span>More</span>
+    </button>
+  </div>
+</nav>
+
+<!-- More drawer -->
+<div class="more-drawer" id="moreDrawer" onclick="event.stopPropagation()">
+  <div class="more-drawer-handle"></div>
+  <div class="more-drawer-grid">
+    <button class="more-item" onclick="go('assessment');bnav('assessment');closeMoreDrawer()"><span class="mico">📝</span>Assessment</button>
+    <button class="more-item" onclick="go('billing');bnav('billing');closeMoreDrawer()"><span class="mico">🧾</span>Billing</button>
+    <button class="more-item" onclick="go('packages');bnav('packages');closeMoreDrawer()"><span class="mico">🎁</span>Packages</button>
+    <button class="more-item" onclick="go('reminders');bnav('reminders');closeMoreDrawer()"><span class="mico">🔔</span>Reminders</button>
+    <button class="more-item" onclick="go('reports');bnav('reports');closeMoreDrawer()"><span class="mico">📈</span>Reports</button>
+    <button class="more-item" onclick="go('expenses');bnav('expenses');closeMoreDrawer()"><span class="mico">💸</span>Expenses</button>
+    <button class="more-item" onclick="go('staff');bnav('staff');closeMoreDrawer()"><span class="mico">👥</span>Staff</button>
+    <button class="more-item" onclick="go('settings');bnav('settings');closeMoreDrawer()"><span class="mico">⚙️</span>Settings</button>
+  </div>
+</div>
+<div class="backdrop" id="moreBackdrop" onclick="closeMoreDrawer()" style="display:none;z-index:75"></div>
 <script>
 const todayISO="2026-06-15";
 function uid(p){return p+Math.random().toString(36).slice(2,8)}
@@ -669,6 +723,31 @@ let current="dashboard";
 function go(v){current=v;document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.v===v));document.getElementById("pageTitle").textContent=titles[v][0];document.getElementById("pageSub").textContent=titles[v][1];render();window.scrollTo(0,0);}
 document.getElementById("nav").addEventListener("click",e=>{const b=e.target.closest("button");if(b){go(b.dataset.v);toggleNav(false);}});
 function toggleNav(force){const sb=document.querySelector(".sidebar"),bd=document.getElementById("backdrop");const open=force!==undefined?force:!sb.classList.contains("open");sb.classList.toggle("open",open);bd.classList.toggle("show",open);}
+// Bottom nav
+const _bnavKeys=['dashboard','patients','appointments','treatment'];
+function bnav(v){
+  document.querySelectorAll('.bnav-btn').forEach(b=>b.classList.remove('active'));
+  const el=document.getElementById('bn-'+v);
+  if(el)el.classList.add('active');
+  else document.getElementById('bn-more').classList.add('active');
+}
+function toggleMoreDrawer(){
+  const d=document.getElementById('moreDrawer'),bd=document.getElementById('moreBackdrop');
+  const open=!d.classList.contains('open');
+  d.classList.toggle('open',open);
+  bd.style.display=open?'block':'none';
+}
+function closeMoreDrawer(){
+  document.getElementById('moreDrawer').classList.remove('open');
+  document.getElementById('moreBackdrop').style.display='none';
+}
+// Patch go() to also update bottom nav
+const _goOrig=go;
+// Override go after definition to sync bottom nav
+setTimeout(()=>{
+  const _origGo=window.go;
+  window.go=function(v){_origGo(v);bnav(v);closeMoreDrawer();};
+},0);
 function render(){document.getElementById("view").innerHTML=views[current]();renderActiveBar();}
 function activePids(){return (DB.active||[]).filter(pid=>DB.patients.some(p=>p.id===pid)).filter(pid=>!MYTHER||pById(pid).therapist===MYTHER);}
 function renderActiveBar(){const el=document.getElementById("activeBar");if(!el)return;const pids=activePids();
