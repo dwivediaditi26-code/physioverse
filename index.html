@@ -1518,13 +1518,13 @@ views.treatment=function(){
    :'<button class="btn sm" style="font-size:11px;padding:3px 10px;background:var(--teal)" onclick="event.stopPropagation();startSession(\''+g.pid+'\');render()">▶ Ongoing Treatment</button>';
   html+='<div class="list-row" style="padding:0;border-bottom:1px solid var(--line)">';
   // Patient header row — clickable to expand/collapse
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:13px 16px;cursor:pointer;gap:10px" onclick="_treatOpen[\''+g.pid+'\']=!_treatOpen[\''+g.pid+'\'];this.closest(\'.list-row\').querySelector(\'.treat-body\').style.display=(_treatOpen[\''+g.pid+'\']?\'block\':\'none\');this.querySelector(\'.treat-arrow\').textContent=(_treatOpen[\''+g.pid+'\']+\'\')===\'true\'?\'▾\':\'▸\'">'
-   +'<div class="pcell" style="min-width:0"><div class="avatar">'+initials(p.name)+'</div>'
-   +'<div style="min-width:0"><div class="nm">'+p.name+'</div>'
-   +'<div class="mt muted" style="font-size:11.5px">'+g.plans.map(function(t){return t.diagnosis;}).join(' · ')+'</div></div></div>'
-   +'<div style="display:flex;align-items:center;gap:10px;flex-shrink:0">'
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:13px 16px;cursor:pointer;gap:8px" onclick="_treatOpen[\''+g.pid+'\']=!_treatOpen[\''+g.pid+'\'];this.closest(\'.list-row\').querySelector(\'.treat-body\').style.display=(_treatOpen[\''+g.pid+'\']?\'block\':\'none\');this.querySelector(\'.treat-arrow\').textContent=(_treatOpen[\''+g.pid+'\']+\'\')===\'true\'?\'▾\':\'▸\'">'
+   +'<div class="pcell" style="min-width:0;flex:1;overflow:hidden"><div class="avatar" style="flex-shrink:0">'+initials(p.name)+'</div>'
+   +'<div style="min-width:0;overflow:hidden"><div class="nm" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.name+'</div>'
+   +'<div class="mt muted" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+g.plans.map(function(t){return t.diagnosis;}).join(' · ')+'</div></div></div>'
+   +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'
    +ongoingBtn
-   +'<span class="tag teal">'+doneSessions+'/'+totalSessions+' sessions</span>'
+   +'<span class="tag teal" style="white-space:nowrap">'+doneSessions+'/'+totalSessions+'</span>'
    +'<span class="treat-arrow" style="font-size:18px;color:var(--muted)">'+(isOpen?'▾':'▸')+'</span>'
    +'</div></div>';
   // Progress bar (always visible)
@@ -1532,43 +1532,58 @@ views.treatment=function(){
   // Collapsible body
   html+='<div class="treat-body" style="display:'+(isOpen?'block':'none')+';border-top:1px solid var(--line)">';
   g.plans.forEach(function(t){
-   var visits=(t.visits||[]).slice().sort(function(a,b){return b.date.localeCompare(a.date)||b.n-a.n;});
+   // Sort oldest first (Session #1 at top), most recent at bottom
+   var visits=(t.visits||[]).slice().sort(function(a,b){return a.date.localeCompare(b.date)||a.n-b.n;});
+   var maxN=visits.length?Math.max.apply(null,visits.map(function(x){return x.n;})):0;
    html+='<div style="padding:12px 16px 4px">'
     +'<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px">'+t.diagnosis+'</div>';
    // Modalities + exercises summary
    if(t.modalities&&t.modalities.length)html+='<div class="pill-row" style="margin-bottom:6px">'+t.modalities.map(function(m){return '<span class="tag teal">'+m+'</span>';}).join("")+'</div>';
    if(t.exercises&&t.exercises.length)html+='<div class="pill-row" style="margin-bottom:10px">'+t.exercises.map(function(e){return '<span class="tag gray">'+e+'</span>';}).join("")+'</div>';
-   // Session list date-wise
+   // Session list — oldest first, most recent auto-expanded
    if(!visits.length){html+='<div class="muted" style="font-size:12.5px;padding:6px 0 10px">No sessions logged yet.</div>';}
    else{
-    var maxN=Math.max.apply(null,visits.map(function(x){return x.n;}));
     html+='<div style="margin-bottom:8px">';
     visits.forEach(function(s,si){
-     var isLatest=s.n===maxN; // highest session number = most recent
-     html+='<div class="list-row" style="padding:9px 0;border-bottom:1px solid var(--line)">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center">'
-      +'<div><b>Session #'+s.n+'</b> <span class="muted" style="font-size:12px">· '+fmtDate(s.date)+'</span></div>'
-      +'<div style="display:flex;gap:6px;align-items:center">'
-      +(s.pain!==''&&s.pain!=null?'<span class="tag '+(+s.pain<=3?'green':+s.pain<=6?'amber':'red')+'">Pain '+s.pain+'/10</span>':'')
-      +(s.paid?'<span class="tag green">✓ Paid</span>':(isLatest?'<button class="btn sm" style="font-size:11px;padding:3px 8px;background:var(--accent)" onclick="paySession(\''+t.id+'\',\''+s.id+'\')">💳 End &amp; Pay</button>':""))
-      +'<button class="btn ghost" title="Edit" onclick="sessionForm(\''+t.id+'\',\''+s.id+'\')">✏️</button>'
-      +(CURROLE==='owner'?'<button class="btn ghost" title="Remove" onclick="delSession(\''+t.id+'\',\''+s.id+'\')">🗑</button>':'')
+     var isLatest=s.n===maxN;
+     var sessKey='sess_'+t.id+'_'+s.id;
+     // Auto-open most recent session
+     if(!window._sessOpen)window._sessOpen={};
+     if(isLatest&&window._sessOpen[sessKey]===undefined)window._sessOpen[sessKey]=true;
+     var sOpen=!!window._sessOpen[sessKey];
+     var painTag=s.pain!==''&&s.pain!=null?'<span class="tag '+(+s.pain<=3?'green':+s.pain<=6?'amber':'red')+'" style="font-size:11px">Pain '+s.pain+'</span>':'';
+     var payBtn=s.paid?'<span class="tag green" style="font-size:11px">✓ Paid</span>':(isLatest?'<button class="btn sm" style="font-size:11px;padding:3px 8px;background:var(--accent)" onclick="event.stopPropagation();paySession(\''+t.id+'\',\''+s.id+'\')">💳 Pay</button>':"");
+     // Session header row — always visible, clickable
+     html+='<div style="border:1px solid var(--line);border-radius:8px;margin-bottom:6px;overflow:hidden">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;cursor:pointer;background:'+(isLatest?'var(--brand-soft)':'#fafbfd')+'" onclick="window._sessOpen[\''+sessKey+'\']=!window._sessOpen[\''+sessKey+'\'];var b=this.nextElementSibling;b.style.display=window._sessOpen[\''+sessKey+'\']?\'block\':\'none\';this.querySelector(\'.sarr\').textContent=window._sessOpen[\''+sessKey+'\']?\'▾\':\'▸\'">'
+      +'<div style="display:flex;align-items:center;gap:8px">'
+      +'<span style="font-weight:700;font-size:13px">Session #'+s.n+'</span>'
+      +'<span class="muted" style="font-size:11.5px">'+fmtDate(s.date)+'</span>'
+      +(isLatest?'<span class="tag blue" style="font-size:10px">Latest</span>':'')
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:5px">'
+      +painTag+payBtn
+      +'<button class="btn ghost" onclick="event.stopPropagation();sessionForm(\''+t.id+'\',\''+s.id+'\')">✏️</button>'
+      +(CURROLE==='owner'?'<button class="btn ghost" onclick="event.stopPropagation();delSession(\''+t.id+'\',\''+s.id+'\')">🗑</button>':'')
+      +'<span class="sarr" style="font-size:16px;color:var(--muted)">'+(sOpen?'▾':'▸')+'</span>'
       +'</div></div>'
-      +'<div class="mt muted" style="margin:2px 0 4px;font-size:11.5px"><span class="dot" style="background:'+therColor(s.therapist)+'"></span>'+s.therapist+'</div>'
-      +(s.modalities&&s.modalities.length?'<div class="pill-row">'+s.modalities.map(function(m){return '<span class="tag teal">'+m+'</span>';}).join("")+'</div>':'')
+      // Session detail — collapsible
+      +'<div style="display:'+(sOpen?'block':'none')+';padding:10px 12px;border-top:1px solid var(--line)">'
+      +'<div class="muted" style="font-size:11.5px;margin-bottom:6px"><span class="dot" style="background:'+therColor(s.therapist)+'"></span>'+s.therapist+'</div>'
+      +(s.modalities&&s.modalities.length?'<div class="pill-row" style="margin-bottom:6px">'+s.modalities.map(function(m){return '<span class="tag teal">'+m+'</span>';}).join("")+'</div>':'')
       +(s.exercises&&s.exercises.length?(function(){
-        var exList=s.exercises.join(', ');
         var pid2=t.pid;var pName=pById(pid2).name.split(' ')[0];var pPhone=pById(pid2).phone;
         var exMsg='Namaste '+pName+' ji 🙏\nHome exercises for today from '+DB.settings.clinic+':\n'+s.exercises.map(function(e,i){return (i+1)+'. '+e;}).join('\n')+'\n\nDo these carefully. Stop if pain worsens.\n— Dr. '+s.therapist.replace('Dr. ','');
-        return '<div class="pill-row" style="margin-top:4px">'+s.exercises.map(function(e){return '<span class="tag gray">'+e+'</span>';}).join('')+'</div>'
-          +'<div style="margin-top:4px"><a href="'+waLink(pPhone,exMsg)+'" target="_blank" class="btn sm sec" style="font-size:11px;padding:3px 9px;display:inline-flex;align-items:center;gap:4px">📲 Send exercises on WA</a></div>';
+        return '<div class="pill-row" style="margin-bottom:4px">'+s.exercises.map(function(e){return '<span class="tag gray">'+e+'</span>';}).join('')+'</div>'
+          +'<a href="'+waLink(pPhone,exMsg)+'" target="_blank" class="btn sm sec" style="font-size:11px;padding:3px 9px;margin-bottom:6px;display:inline-flex;align-items:center;gap:4px">📲 Send exercises on WA</a>';
        })():'')
       +(s.note?(function(){
         var pid2=t.pid;var pName=pById(pid2).name.split(' ')[0];var pPhone=pById(pid2).phone;
         var noteMsg='Namaste '+pName+' ji 🙏\nNote from '+s.therapist+' ('+DB.settings.clinic+'):\n\n'+s.note+'\n\nIf you have any questions, please contact us.';
-        return '<div style="font-size:12.5px;margin-top:6px">📝 '+s.note+'</div>'
-          +'<div style="margin-top:4px"><a href="'+waLink(pPhone,noteMsg)+'" target="_blank" class="btn sm sec" style="font-size:11px;padding:3px 9px;display:inline-flex;align-items:center;gap:4px">📲 Send note on WA</a></div>';
+        return '<div style="font-size:12.5px;margin-bottom:4px">📝 '+s.note+'</div>'
+          +'<a href="'+waLink(pPhone,noteMsg)+'" target="_blank" class="btn sm sec" style="font-size:11px;padding:3px 9px;display:inline-flex;align-items:center;gap:4px">📲 Send note on WA</a>';
        })():'')
+      +'</div>'
      +'</div>';
     });
     html+='</div>';
@@ -1853,7 +1868,7 @@ views.packages=()=>`
  <div class="panel-b flush"><table><thead><tr><th>Package</th><th>Sessions</th><th>Price</th><th>Validity</th><th>Per session</th></tr></thead><tbody>
  ${DB.pkgTemplates.map(k=>`<tr><td><b>${k.name}</b></td><td>${k.sessions}</td><td>${inr(k.price)}</td><td>${k.validity} days</td><td class="muted">${inr(Math.round(k.price/k.sessions))}</td></tr>`).join("")}
  </tbody></table></div></div>
- <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;align-items:start">
+ <div class="grid2">
   <div class="panel" style="margin-bottom:0"><div class="panel-h"><h3>Patient Packages</h3><button class="btn sm" onclick="assignPkg()">+ Assign</button></div>
   <div class="panel-b" style="padding:0">${pkgListHTML()}</div></div>
   <div class="panel" style="margin-bottom:0"><div class="panel-h"><h3>Wallet Balances</h3><button class="btn sm" onclick="walletForm()">+ Top up</button></div>
