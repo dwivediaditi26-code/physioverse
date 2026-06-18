@@ -759,9 +759,26 @@ views.patients=()=>{
     <button class="btn" onclick="patientForm()">+ New Patient</button>
    </div>
   </div>
-  <div class="panel-b flush"><table><thead><tr><th>Patient</th><th>Patient ID</th><th>Age/Sex</th><th>Phone</th><th>Condition</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody id="prows">${patientRows(list)}</tbody></table></div>
+  <div class="panel-b flush"><table><thead><tr><th>Patient</th><th>Patient ID</th><th>Age/Sex</th><th>Phone</th><th>Condition</th><th>Last Visit</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody id="prows">${patientRows(list)}</tbody></table></div>
  </div>`;
 };
+function lastVisitDate(pid){
+ // Check treatment plan visits, invoices, and assessments — return most recent date
+ var dates=[];
+ (DB.plans||[]).filter(t=>t.pid===pid).forEach(t=>(t.visits||[]).forEach(v=>dates.push(v.date)));
+ (DB.invoices||[]).filter(i=>i.pid===pid).forEach(i=>dates.push(i.date));
+ (DB.assessments||[]).filter(a=>a.pid===pid).forEach(a=>dates.push(a.date));
+ if(!dates.length)return null;
+ return dates.sort().pop();
+}
+function lastVisitLabel(pid){
+ var d=lastVisitDate(pid);
+ if(!d)return'<span class="muted" style="font-size:11px">No visits yet</span>';
+ var diff=Math.round((new Date(todayISO)-new Date(d))/(1000*60*60*24));
+ var label=diff===0?"Today":diff===1?"Yesterday":diff+"d ago";
+ var color=diff<=7?"var(--ok)":diff<=30?"var(--warn)":"var(--muted)";
+ return'<div style="font-size:12.5px;font-weight:600;color:'+color+'">'+label+'</div><div style="font-size:11px;color:var(--muted)">'+fmtDate(d)+'</div>';
+}
 function patientRows(list){
  return list.map(function(p){
   var isActive=(p.status||"Active")==="Active";
@@ -774,6 +791,7 @@ function patientRows(list){
    +'<td>'+p.age+'/'+p.gender+'</td>'
    +'<td>'+p.phone+'</td>'
    +'<td>'+p.condition+'</td>'
+   +'<td>'+lastVisitLabel(p.id)+'</td>'
    +'<td><span class="tag '+(isActive?'green':'gray')+'">'+( isActive?'Active':'Inactive')+'</span></td>'
    +'<td style="text-align:right;white-space:nowrap">'
    +'<button class="btn sm sec" title="Assessment" onclick="event.stopPropagation();patientView(\''+p.id+'\',\'assess\')">📋</button> '
@@ -782,22 +800,49 @@ function patientRows(list){
    +'<button class="btn ghost" title="Edit" onclick="event.stopPropagation();patientForm(\''+p.id+'\')">✏️</button> '
    +toggleBtn
    +'</td></tr>';
- }).join("")||'<tr><td colspan=7 class=empty>No patients</td></tr>';
+ }).join("")||'<tr><td colspan=8 class=empty>No patients</td></tr>';
 }
 function togglePatientStatus(id){
  var p=pById(id);
  p.status=(p.status||"Active")==="Active"?"Inactive":"Active";
  save();render();
 }
+/* ---- Fuzzy / phonetic search helpers ---- */
+function _soundex(s){
+ s=s.toUpperCase().replace(/[^A-Z]/g,"");if(!s)return"";
+ const map={B:1,F:1,P:1,V:1,C:2,G:2,J:2,K:2,Q:2,S:2,X:2,Z:2,D:3,T:3,L:4,M:5,N:5,R:6};
+ let code=s[0],prev=map[s[0]]||0;
+ for(let i=1;i<s.length&&code.length<4;i++){const d=map[s[i]]||0;if(d&&d!==prev){code+=d;}prev=d;}
+ return(code+"000").slice(0,4);
+}
+function _tokenScore(query,target){
+ // Returns 0-3: 3=exact, 2=contains, 1=soundex match, 0=no match
+ const q=query.toLowerCase().trim();const t=target.toLowerCase();
+ if(!q)return 3;
+ if(t===q)return 3;
+ if(t.includes(q))return 2;
+ // token-level: query words all appear in target words (handles "Sharma Rajesh" → "Rajesh Sharma")
+ const qToks=q.split(/\s+/);const tToks=t.split(/\s+/);
+ if(qToks.every(qt=>tToks.some(tt=>tt.includes(qt))))return 2;
+ // soundex on each query token vs each target token
+ if(qToks.some(qt=>tToks.some(tt=>_soundex(qt)===_soundex(tt)&&qt.length>2)))return 1;
+ return 0;
+}
 function filterPatients(q){
- const raw=q.trim().toLowerCase();const dig=q.replace(/\D/g,"");
+ const raw=q.trim();const dig=q.replace(/\D/g,"");
  const all=DB.patients.filter(inBranch).filter(p=>!MYTHER||p.therapist===MYTHER);
  const base=_ptab==="active"?all.filter(p=>(p.status||"Active")==="Active"):_ptab==="inactive"?all.filter(p=>p.status==="Inactive"):all;
- document.getElementById("prows").innerHTML=patientRows(base.filter(p=>{
-  const hay=(p.name+" "+(p.dob||"")+" "+patientCode(p)+" "+p.condition).toLowerCase();
+ if(!raw){document.getElementById("prows").innerHTML=patientRows(base);return;}
+ const scored=[];
+ base.forEach(p=>{
   const phone=(p.phone||"").replace(/\D/g,"");
-  return hay.includes(raw)||(dig.length>=2&&(phone.includes(dig)||patientCode(p).includes(dig)||(p.dob||"").replace(/\D/g,"").includes(dig)));
- }));
+  // phone / ID numeric match
+  if(dig.length>=4&&(phone.includes(dig)||patientCode(p).includes(dig)||(p.dob||"").replace(/\D/g,"").includes(dig))){scored.push({p,sc:3});return;}
+  const sc=_tokenScore(raw,p.name+" "+(p.condition||""));
+  if(sc>0)scored.push({p,sc});
+ });
+ scored.sort((a,b)=>b.sc-a.sc);
+ document.getElementById("prows").innerHTML=patientRows(scored.map(x=>x.p));
 }
 function patientView(id,tab){const p=pById(id);const T=tab||"assess";
  const invs=DB.invoices.filter(i=>i.pid===id),asmts=(DB.assessments||[]).filter(c=>c.pid===id).sort((a,b)=>b.date.localeCompare(a.date)),pkgs=DB.patientPkgs.filter(x=>x.pid===id),plans=DB.plans.filter(t=>t.pid===id);
