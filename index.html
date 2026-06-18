@@ -771,8 +771,8 @@ function canDo(cap){return true;}
 function load(){try{const s=localStorage.getItem("physioverse_v2");DB=s?JSON.parse(s):JSON.parse(JSON.stringify(seed));}catch(e){DB=JSON.parse(JSON.stringify(seed));}
  // Migration: patch plans missing modalities/exercises/home from seed
  if(DB.plans&&seed.plans){DB.plans.forEach(function(p){var sp=seed.plans.find(function(x){return x.id===p.id;});if(sp){if(!p.modalities||!p.modalities.length)p.modalities=sp.modalities||[];if(!p.exercises||!p.exercises.length)p.exercises=sp.exercises||[];if(!p.home||!p.home.length)p.home=sp.home||[];if(!p.homeFreq)p.homeFreq=sp.homeFreq||"";}});}
- // Migration: clear old PV-### pcodes so _assignPcodes recomputes DOB-based ones
- if(DB.patients){DB.patients.forEach(function(p){if(p.pcode&&/^PV-\d+$/.test(p.pcode))delete p.pcode;});}
+ // Always recompute pcodes from DOB — clears any stale PV-### or wrong codes
+ if(DB.patients){DB.patients.forEach(function(p){delete p.pcode;});}
  _assignPcodes();
 }
 function save(){try{localStorage.setItem("physioverse_v2",JSON.stringify(DB));}catch(e){}}
