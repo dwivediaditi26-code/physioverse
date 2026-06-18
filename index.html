@@ -638,12 +638,12 @@ const seed={
   {id:"s3",name:"Priya Nair",role:"Receptionist",phone:"+91 98260 30303",branch:"b1",salary:22000,present:25,leave:1},
   {id:"s4",name:"Dr. Karan Mehta",role:"Physiotherapist",phone:"+91 98260 40404",branch:"b2",salary:40000,present:22,leave:4}],
  patients:[
-  {id:"p1",name:"Rajesh Sharma",dob:"1972-03-15",age:54,gender:"M",phone:"+91 98260 11223",condition:"Lower back pain (L4-L5)",since:"2026-05-02",therapist:"Dr. Neha Verma",branch:"b1",wallet:500,status:"Active",email:"rajesh.s@gmail.com",occ:"Bank manager (desk job)",addr:"42 Sapna Sangeeta Rd, Indore",emName:"Sunita Sharma",emPhone:"+91 98260 11999",refDr:"Dr. R. Malhotra (Ortho)",docs:[{n:"MRI Lumbar Spine.pdf",d:"2026-05-02"},{n:"X-Ray L-S.jpg",d:"2026-05-02"}]},
+  {id:"p1",name:"Rajesh Sharma",dob:"1972-03-15",age:54,gender:"M",phone:"+91 98260 11223",condition:"Lower back pain (L4-L5)",since:"2026-05-02",therapist:"Dr. Neha Verma",branch:"b1",wallet:-590,status:"Active",email:"rajesh.s@gmail.com",occ:"Bank manager (desk job)",addr:"42 Sapna Sangeeta Rd, Indore",emName:"Sunita Sharma",emPhone:"+91 98260 11999",refDr:"Dr. R. Malhotra (Ortho)",docs:[{n:"MRI Lumbar Spine.pdf",d:"2026-05-02"},{n:"X-Ray L-S.jpg",d:"2026-05-02"}]},
   {id:"p2",name:"Sunita Patel",dob:"1985-07-22",age:40,gender:"F",phone:"+91 99770 44556",condition:"Frozen shoulder (Rt)",since:"2026-05-18",therapist:"Dr. Amit Joshi",branch:"b1",wallet:0,status:"Active",docs:[{n:"Shoulder USG.pdf",d:"2026-05-18"}]},
-  {id:"p3",name:"Imran Khan",dob:"1997-01-10",age:29,gender:"M",phone:"+91 78690 33112",condition:"ACL post-op rehab",since:"2026-04-10",therapist:"Dr. Neha Verma",branch:"b1",wallet:1500,status:"Active",docs:[{n:"Op Notes.pdf",d:"2026-04-10"},{n:"MRI Knee.jpg",d:"2026-04-08"}]},
+  {id:"p3",name:"Imran Khan",dob:"1997-01-10",age:29,gender:"M",phone:"+91 78690 33112",condition:"ACL post-op rehab",since:"2026-04-10",therapist:"Dr. Neha Verma",branch:"b1",wallet:2360,status:"Active",docs:[{n:"Op Notes.pdf",d:"2026-04-10"},{n:"MRI Knee.jpg",d:"2026-04-08"}]},
   {id:"p4",name:"Lakshmi Iyer",dob:"1963-11-05",age:62,gender:"F",phone:"+91 90390 77881",condition:"Knee osteoarthritis",since:"2026-03-22",therapist:"Dr. Amit Joshi",branch:"b1",wallet:0,status:"Active",docs:[]},
   {id:"p5",name:"Vikram Singh",dob:"1990-04-18",age:36,gender:"M",phone:"+91 94250 66009",condition:"Cervical spondylosis",since:"2026-06-01",therapist:"Dr. Neha Verma",branch:"b1",wallet:0,status:"Inactive",docs:[]},
-  {id:"p6",name:"Pooja Mehta",dob:"1994-09-30",age:31,gender:"F",phone:"+91 97520 88123",condition:"Post-natal back pain",since:"2026-06-08",therapist:"Dr. Karan Mehta",branch:"b2",wallet:300,status:"Active",docs:[]}],
+  {id:"p6",name:"Pooja Mehta",dob:"1994-09-30",age:31,gender:"F",phone:"+91 97520 88123",condition:"Post-natal back pain",since:"2026-06-08",therapist:"Dr. Karan Mehta",branch:"b2",wallet:500,status:"Active",docs:[]}],
  appointments:[
   {id:"a1",pid:"p1",date:"2026-06-15",time:"09:30",type:"Follow-up",therapist:"Dr. Neha Verma",status:"Confirmed",branch:"b1"},
   {id:"a2",pid:"p3",date:"2026-06-15",time:"10:15",type:"Therapy session",therapist:"Dr. Neha Verma",status:"Confirmed",branch:"b1"},
@@ -682,12 +682,18 @@ const seed={
  patientPkgs:[
   {id:"pp1",pid:"p3",pkg:"Post-Op Rehab — 24 sessions",total:24,used:14,price:18000,paidAmount:18000,bought:"2026-04-10",expires:"2026-08-08",status:"Active"},
   {id:"pp2",pid:"p1",pkg:"Back Pain Relief — 10 sessions",total:10,used:8,price:7000,paidAmount:5000,bought:"2026-05-02",expires:"2026-07-01",status:"Active"},
-  {id:"pp3",pid:"p2",pkg:"Sports Injury — 15 sessions",total:15,used:5,price:12000,paidAmount:12000,bought:"2026-05-18",expires:"2026-08-01",status:"Active"}],
+  {id:"pp3",pid:"p2",pkg:"Frozen Shoulder Recovery — 15 sessions",total:15,used:5,price:12000,paidAmount:12000,bought:"2026-05-18",expires:"2026-08-01",status:"Active"},
+  {id:"pp4",pid:"p4",pkg:"OA Knee Rehab — 12 sessions",total:12,used:3,price:9000,paidAmount:4500,bought:"2026-05-22",expires:"2026-08-22",status:"Active"}],
  invoices:[
+  {id:"INV-2026-038",pid:"p4",date:"2026-06-05",items:[{d:"Initial assessment & consultation",qty:1,rate:600}],gst:18,status:"Paid",mode:"Cash",branch:"b1"},
+  {id:"INV-2026-039",pid:"p1",date:"2026-06-08",items:[{d:"Physiotherapy session (Manual therapy)",qty:1,rate:800},{d:"Ultrasound therapy",qty:1,rate:350}],gst:18,status:"Paid",mode:"UPI",branch:"b1"},
+  {id:"INV-2026-040",pid:"p3",date:"2026-06-10",items:[{d:"Post-Op Rehab — 24 sessions (package)",qty:1,rate:18000}],gst:0,status:"Paid",mode:"Card",branch:"b1"},
   {id:"INV-2026-041",pid:"p1",date:"2026-06-12",items:[{d:"Physiotherapy session (Manual therapy)",qty:1,rate:800},{d:"IFT / TENS therapy",qty:1,rate:300}],gst:18,status:"Paid",mode:"UPI",branch:"b1"},
-  {id:"INV-2026-042",pid:"p3",date:"2026-06-13",items:[{d:"Post-op rehab session",qty:1,rate:1000},{d:"Cryotherapy",qty:1,rate:200}],gst:18,status:"Paid",mode:"Card",branch:"b1"},
+  {id:"INV-2026-042",pid:"p3",date:"2026-06-13",items:[{d:"Post-op rehab session",qty:1,rate:1000},{d:"Cryotherapy",qty:1,rate:200}],gst:18,status:"Paid",mode:"Wallet",branch:"b1"},
   {id:"INV-2026-043",pid:"p2",date:"2026-06-14",items:[{d:"Therapy session — frozen shoulder",qty:1,rate:800},{d:"Ultrasound therapy",qty:1,rate:350}],gst:18,status:"Pending",mode:"—",branch:"b1"},
-  {id:"INV-2026-044",pid:"p4",date:"2026-06-14",items:[{d:"Initial assessment & consultation",qty:1,rate:600}],gst:18,status:"Pending",mode:"—",branch:"b1"}],
+  {id:"INV-2026-044",pid:"p4",date:"2026-06-14",items:[{d:"OA Knee — physiotherapy session",qty:1,rate:750},{d:"TENS therapy",qty:1,rate:250}],gst:18,status:"Pending",mode:"—",branch:"b1"},
+  {id:"INV-2026-045",pid:"p6",date:"2026-06-15",items:[{d:"Post-natal back pain — session",qty:1,rate:700},{d:"Hot pack / MWD",qty:1,rate:200}],gst:18,status:"Paid",mode:"UPI",branch:"b2"},
+  {id:"INV-2026-046",pid:"p1",date:"2026-06-15",items:[{d:"Back Pain Relief — 10 sessions (balance due)",qty:1,rate:2000}],gst:0,status:"Pending",mode:"—",branch:"b1"}],
  expenses:[
   {id:"e1",date:"2026-06-02",cat:"Rent",amount:45000,note:"Clinic rent — June",branch:"b1"},
   {id:"e2",date:"2026-06-05",cat:"Equipment",amount:8500,note:"TENS electrodes + gel",bill:"electrodes-bill.jpg",branch:"b1"},
@@ -1933,7 +1939,7 @@ function savePlan(id){const v=k=>document.getElementById(k).value;
 
 /* PACKAGES */
 views.packages=()=>`
- <div class="panel"><div class="panel-h"><h3>Package Templates</h3><button class="btn sm sec" onclick="alert('Demo: add custom package template')">+ Template</button></div>
+ <div class="panel"><div class="panel-h"><h3>Package Templates</h3><button class="btn sm sec" onclick="addPkgTemplate()">+ Template</button></div>
  <div class="panel-b flush"><table><thead><tr><th>Package</th><th>Sessions</th><th>Price</th><th>Validity</th><th>Per session</th></tr></thead><tbody>
  ${DB.pkgTemplates.map(k=>`<tr><td><b>${k.name}</b></td><td>${k.sessions}</td><td>${inr(k.price)}</td><td>${k.validity} days</td><td class="muted">${inr(Math.round(k.price/k.sessions))}</td></tr>`).join("")}
  </tbody></table></div></div>
@@ -2032,6 +2038,20 @@ function savePkg(){const v=k=>document.getElementById(k);const pid=v("k_pid").va
  if(v("k_autobook")&&v("k_autobook").checked){const per=+v("k_perwk").value||3;const gap=Math.max(1,Math.round(7/per));let d=v("k_start").value||todayISO;const ther=v("k_ther").value;
    for(let i=0;i<t.sessions;i++){DB.appointments.push({id:uid("a"),pid,date:d,time:v("k_time").value||"10:00",type:"Therapy session",therapist:ther,status:"Pending",branch:p.branch});d=shiftDate(d,gap);}}
  save();closeModal();render();}
+function addPkgTemplate(){openModal(`<div class="modal-h"><h3>New Package Template</h3><button class="x" onclick="closeModal()">×</button></div>
+ <div class="modal-b">
+  <div class="field"><label>Package name</label><input id="pt_name" placeholder="e.g. Knee Rehab — 12 sessions"></div>
+  <div class="grid2">
+   <div class="field"><label>Sessions</label><input id="pt_sess" type="number" value="12"></div>
+   <div class="field"><label>Price (₹)</label><input id="pt_price" type="number" value="9000"></div>
+  </div>
+  <div class="field"><label>Validity (days)</label><input id="pt_validity" type="number" value="90"></div>
+ </div>
+ <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="savePkgTemplate()">Save Template</button></div>`);}
+function savePkgTemplate(){const v=k=>document.getElementById(k).value;const name=v("pt_name").trim();if(!name)return;
+ DB.pkgTemplates.push({id:uid("pt"),name,sessions:+v("pt_sess")||10,price:+v("pt_price")||5000,validity:+v("pt_validity")||90});
+ save();closeModal();render();}
+
 // Package balance payment form
 function pkgPayment(pid){const pkgs=DB.patientPkgs.filter(k=>k.pid===pid&&k.status==="Active"&&(k.paidAmount||k.price)<k.price);
  if(!pkgs.length){alert("No package balance outstanding for this patient.");return;}
