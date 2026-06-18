@@ -869,29 +869,91 @@ function printHome(id){const p=pById(id);const hp=DB.plans.filter(t=>t.pid===id&
  </div></div>
  <div class="modal-f"><button class="btn sec" onclick="window.print()">🖨 Print / PDF</button><button class="btn" onclick="alert('Demo: home plan PDF sent to patient on WhatsApp')">Send on WhatsApp</button></div>`,true);}
 function uploadDoc(id){const n=prompt("Document name (demo):","Report.pdf");if(n){const p=pById(id);(p.docs=p.docs||[]).push({n,d:todayISO});save();closeModal();patientView(id);}}
-function patientForm(id){const p=id?pById(id):{name:"",dob:"",gender:"M",phone:"",condition:"",therapist:"Dr. Neha Verma",branch:DB.branches[0].id,wallet:0,docs:[]};
+function patientForm(id){const p=id?pById(id):{name:"",dob:"",age:"",gender:"M",phone:"",condition:"",therapist:"Dr. Neha Verma",branch:DB.branches[0].id,wallet:0,docs:[]};
  openModal(`<div class="modal-h"><h3>${id?"Edit":"New"} Patient</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
-  ${id?`<div class="muted" style="font-size:12.5px;margin-bottom:10px">Patient ID: <b style="color:var(--brand)">${patientCode(p)}</b> (date of birth)</div>`:''}
-  <div class="field"><label>Full name</label><input id="f_name" value="${p.name}"></div>
-  <div class="grid3"><div class="field"><label>Date of birth <span class="muted">(= patient ID)</span></label><input id="f_dob" type="date" value="${p.dob||''}"></div>
-   <div class="field"><label>Gender</label><select id="f_gender"><option ${p.gender==='M'?'selected':''}>M</option><option ${p.gender==='F'?'selected':''}>F</option></select></div>
-   <div class="field"><label>Phone</label><input id="f_phone" value="${p.phone}"></div></div>
-  <div class="field"><label>Condition / Diagnosis</label><input id="f_cond" value="${p.condition}"></div>
+  ${id?`<div class="muted" style="font-size:12.5px;margin-bottom:10px">Patient ID: <b style="color:var(--brand)">${patientCode(p)}</b></div>`:''}
+  <div style="background:var(--brand-soft);border:1px solid var(--brand);border-radius:8px;padding:10px 13px;margin-bottom:13px;font-size:12.5px;color:var(--brand-dark)">
+    ⚡ <b>Quick admit:</b> Only Name + Phone + Condition are required. Fill rest later.
+  </div>
+  <div class="field"><label>Full name <span style="color:var(--danger)">*</span></label><input id="f_name" value="${p.name||''}" placeholder="Patient full name" oninput="pfValidate()"></div>
+  <div class="grid3">
+   <div class="field"><label>Date of birth</label><input id="f_dob" type="date" value="${p.dob||''}" oninput="pfDobToAge()"></div>
+   <div class="field"><label>Age <span style="color:var(--muted);font-size:11px">(if DOB unknown)</span></label><input id="f_age" type="number" min="1" max="120" placeholder="e.g. 58" value="${p.age||''}" oninput="pfAgeEntry()"></div>
+   <div class="field"><label>Gender</label><select id="f_gender"><option ${p.gender==='M'?'selected':''}>M</option><option ${p.gender==='F'?'selected':''}>F</option><option ${p.gender==='Other'?'selected':''}>Other</option></select></div>
+  </div>
+  <div class="field"><label>Phone <span style="color:var(--danger)">*</span></label><input id="f_phone" type="tel" maxlength="15" placeholder="10-digit mobile" value="${p.phone||''}" oninput="pfValidate();pfCheckDupPhone('${id||''}')"></div>
+  <div id="f_phone_warn" style="display:none;color:var(--danger);font-size:12px;margin:-10px 0 8px;font-weight:600">⚠ This phone number already exists — possible duplicate patient!</div>
+  <div class="field"><label>Condition / Chief complaint <span style="color:var(--danger)">*</span></label><input id="f_cond" placeholder="e.g. Low back pain, Frozen shoulder" value="${p.condition||''}" oninput="pfValidate()"></div>
+  <div class="field"><label>Address / Area <span style="color:var(--muted);font-size:11px">(city, locality)</span></label><input id="f_addr" placeholder="e.g. Vijay Nagar, Indore" value="${p.addr||''}"></div>
   <div class="grid2"><div class="field"><label>Email</label><input id="f_email" value="${p.email||''}"></div>
    <div class="field"><label>Occupation</label><input id="f_occ" value="${p.occ||''}"></div></div>
-  <div class="field"><label>Address</label><input id="f_addr" value="${p.addr||''}"></div>
   <div class="grid2"><div class="field"><label>Emergency contact — name</label><input id="f_emname" value="${p.emName||''}"></div>
    <div class="field"><label>Emergency contact — phone</label><input id="f_emphone" value="${p.emPhone||''}"></div></div>
   <div class="field"><label>Referred by (doctor)</label><input id="f_refdr" value="${p.refDr||''}"></div>
   <div class="grid2"><div class="field"><label>Therapist</label><select id="f_ther">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${p.therapist===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
    <div class="field"><label>Branch</label><select id="f_branch">${DB.branches.map(b=>`<option value="${b.id}" ${p.branch===b.id?'selected':''}>${b.name}</option>`).join("")}</select></div></div>
  </div>
- <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="savePatient('${id||''}')">Save</button></div>`);}
-function savePatient(id){const v=k=>{const el=document.getElementById(k);return el?el.value:"";};const dob=v("f_dob");const obj={name:v("f_name"),dob,age:ageFromDob(dob),gender:v("f_gender"),phone:v("f_phone"),condition:v("f_cond"),email:v("f_email"),occ:v("f_occ"),addr:v("f_addr"),emName:v("f_emname"),emPhone:v("f_emphone"),refDr:v("f_refdr"),therapist:v("f_ther"),branch:v("f_branch")};
- if(!obj.name){alert("Name required");return;}
- if(!dob){alert("Date of birth required — it is the patient's ID");return;}
- if(id){Object.assign(pById(id),obj);}else{DB.patients.push({id:uid("p"),since:todayISO,wallet:0,docs:[],...obj});}save();closeModal();render();}
+ <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" id="f_save_btn" onclick="savePatient('${id||''}')">Save Patient</button></div>`);
+ pfValidate();
+}
+function pfValidate(){
+  const name=(document.getElementById("f_name")||{}).value||"";
+  const phone=(document.getElementById("f_phone")||{}).value||"";
+  const cond=(document.getElementById("f_cond")||{}).value||"";
+  const btn=document.getElementById("f_save_btn");
+  if(btn){const ok=name.trim()&&phone.trim()&&cond.trim();btn.disabled=!ok;btn.style.opacity=ok?"1":"0.5";}
+}
+function pfDobToAge(){
+  const dob=(document.getElementById("f_dob")||{}).value||"";
+  if(!dob)return;
+  const age=ageFromDob(dob);
+  const ageEl=document.getElementById("f_age");
+  if(ageEl&&age)ageEl.value=age;
+}
+function pfAgeEntry(){
+  const age=parseInt((document.getElementById("f_age")||{}).value||"");
+  const dobEl=document.getElementById("f_dob");
+  if(!dobEl||!age||age<1||age>120)return;
+  // set DOB to Jan 1 of birth year as estimate
+  const yr=new Date().getFullYear()-age;
+  dobEl.value=yr+"-01-01";
+}
+function pfCheckDupPhone(editId){
+  const phone=((document.getElementById("f_phone")||{}).value||"").trim();
+  const warn=document.getElementById("f_phone_warn");
+  if(!warn)return;
+  if(!phone||phone.length<6){warn.style.display="none";return;}
+  const dup=DB.patients.find(pt=>pt.phone&&pt.phone.replace(/\D/g,"")===phone.replace(/\D/g,"")&&pt.id!==editId);
+  warn.style.display=dup?"block":"none";
+}
+function savePatient(id){
+  const v=k=>{const el=document.getElementById(k);return el?el.value.trim():"";};
+  const name=v("f_name");const phone=v("f_phone");const cond=v("f_cond");
+  // Hard validation — never freeze, always give clear message
+  if(!name){
+    const el=document.getElementById("f_name");
+    if(el){el.style.borderColor="var(--danger)";el.focus();}
+    return;
+  }
+  if(!phone){
+    const el=document.getElementById("f_phone");
+    if(el){el.style.borderColor="var(--danger)";el.focus();}
+    return;
+  }
+  if(!cond){
+    const el=document.getElementById("f_cond");
+    if(el){el.style.borderColor="var(--danger)";el.focus();}
+    return;
+  }
+  const dob=v("f_dob");
+  const ageRaw=v("f_age");
+  const age=dob?ageFromDob(dob):(ageRaw||"");
+  const obj={name,dob,age,gender:v("f_gender"),phone,condition:cond,email:v("f_email"),occ:v("f_occ"),addr:v("f_addr"),emName:v("f_emname"),emPhone:v("f_emphone"),refDr:v("f_refdr"),therapist:v("f_ther"),branch:v("f_branch")};
+  if(id){Object.assign(pById(id),obj);}
+  else{DB.patients.push({id:uid("p"),since:todayISO,wallet:0,docs:[],...obj});}
+  save();closeModal();render();
+}
 
 /* APPOINTMENTS */
 const therColor=t=>({"Dr. Neha Verma":"#2563eb","Dr. Amit Joshi":"#0d9488","Dr. Karan Mehta":"#7c3aed"}[t]||"#6b7589");
