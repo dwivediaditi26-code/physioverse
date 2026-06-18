@@ -1092,11 +1092,17 @@ function filterPatients(q){
  const scored=[];
  base.forEach(p=>{
   const phone=(p.phone||"").replace(/\D/g,"");
-  const pid=(p.pcode||patientCode(p)).toLowerCase();
-  // Patient ID match — PV-001, PV-002 etc. (even partial: "PV-0", "001")
-  if(pid.includes(raw.toLowerCase())){scored.push({p,sc:3});return;}
-  // Phone / DOB digit match
-  if(dig.length>=4&&(phone.includes(dig)||(p.dob||"").replace(/\D/g,"").includes(dig))){scored.push({p,sc:3});return;}
+  const pid=(p.pcode||patientCode(p));          // e.g. "15031972"
+  const dobDig=(p.dob||"").replace(/\D/g,"");   // e.g. "19720315" (YYYYMMDD)
+  const digClean=dig;                            // digits only from typed input
+  // Match patient ID (DDMMYYYY) — works from first digit typed
+  if(digClean.length>0&&pid.startsWith(digClean)){scored.push({p,sc:3});return;}
+  // Also match if typed digits appear anywhere in pcode (handles partial middle entry)
+  if(digClean.length>=3&&pid.includes(digClean)){scored.push({p,sc:3});return;}
+  // Phone number match
+  if(digClean.length>=4&&phone.includes(digClean)){scored.push({p,sc:3});return;}
+  // DOB raw digits match (YYYYMMDD format fallback)
+  if(digClean.length>=4&&dobDig.includes(digClean)){scored.push({p,sc:3});return;}
   const sc=_tokenScore(raw,p.name+" "+(p.condition||"")+" "+(p.email||"")+" "+(p.refDr||""));
   if(sc>0)scored.push({p,sc});
  });
