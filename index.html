@@ -847,7 +847,7 @@ function filterPatients(q){
 function patientView(id,tab){const p=pById(id);const T=tab||"assess";
  const invs=DB.invoices.filter(i=>i.pid===id),asmts=(DB.assessments||[]).filter(c=>c.pid===id).sort((a,b)=>b.date.localeCompare(a.date)),pkgs=DB.patientPkgs.filter(x=>x.pid===id),plans=DB.plans.filter(t=>t.pid===id);
  const homePlans=plans.filter(t=>t.home&&t.home.length);
- const visits=[];plans.forEach(t=>(t.visits||[]).forEach(s=>visits.push({...s,planId:t.id})));visits.sort((a,b)=>b.date.localeCompare(a.date)||b.n-a.n);
+ const visits=[];plans.forEach(t=>(t.visits||[]).forEach(s=>visits.push({...s,planId:t.id})));visits.sort((a,b)=>a.date.localeCompare(b.date)||a.n-b.n);
  const show=t=>T===t?"block":"none";
  openModal(`<div class="modal-h"><h3><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div>${p.name}</div><div class="mt muted">ID ${patientCode(p)} · ${p.age||ageFromDob(p.dob)||'?'}y · ${p.gender==='M'?'Male':p.gender==='F'?'Female':'Other'} · ${p.phone} · ${p.therapist}</div></div></div></h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
@@ -887,7 +887,9 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
       <div><div style="font-size:11.5px;color:var(--muted)">Total Paid</div><div style="font-size:16px;font-weight:800;color:var(--ok)">${inr(paidNet)}</div></div>
       <div><div style="font-size:11.5px;color:var(--muted)">Balance Due</div><div style="font-size:16px;font-weight:800;color:${balance>0?'var(--danger)':'var(--ok)'}">${inr(balance)}</div></div>
      </div>
-     ${(p.wallet||0)>0?`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--teal)">💳 Wallet advance: <b>${inr(p.wallet)}</b></div>`:''}
+     ${(p.wallet||0)!==0?(()=>{const w=p.wallet||0;return w<0
+      ?`<div style="margin-top:8px;padding:8px 10px;background:#fff0f0;border-radius:6px;border:1px solid #fca5a5"><div style="font-size:12.5px;color:var(--danger);font-weight:700">⚠ Wallet overdraft: patient owes <b>${inr(-w)}</b></div><div style="font-size:11.5px;color:var(--danger);margin-top:2px">Session was charged but wallet had insufficient funds — collect ₹${-w} at next visit or top up.</div></div>`
+      :`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--teal)">💳 Wallet advance balance: <b>${inr(w)}</b></div>`;})():''}
      ${pkgBalance>0?`<div style="margin-top:4px;font-size:12.5px;color:var(--warn)">📦 Package balance due: <b>${inr(pkgBalance)}</b></div>`:''}
     </div>`;
    })()}
@@ -1445,8 +1447,8 @@ function saveSessionPayment(planId,sid){
   var sub=items.reduce(function(s,i){return s+i.qty*i.rate;},0);
   var total=Math.round(sub*1.18);
   var bal=p.wallet||0;
-  p.wallet=Math.max(0,bal-total);
-  var status=bal>=total?"Paid":"Partial";
+  p.wallet=(bal-total);// allow negative
+  var status=p.wallet>=0?"Paid":"Partial";
   DB.invoices.push({id:invNum,pid:t.pid,date:todayISO,items:items,gst:18,status:status,mode:"Wallet",branch:branch,note:"Wallet deduction: ₹"+Math.min(bal,total)+", balance remaining: ₹"+(p.wallet)});
  } else {
   // UPI / Cash / Card / Corporate / Bill later
@@ -1550,9 +1552,9 @@ function saveSession(planId,sid,n){const v=k=>{const el=document.getElementById(
        invStatus="Paid";invMode="Package";
      } else if(pay==="Wallet (advance)"){
        const gross=Math.round(fee*1.18);
-       if((p.wallet||0)>=gross)p.wallet-=gross;
+       p.wallet=(p.wallet||0)-gross;// allow negative
        items.push({d:sessionDesc,qty:1,rate:fee});
-       invStatus="Paid";invMode="Wallet";
+       invStatus=p.wallet>=0?"Paid":"Partial";invMode="Wallet";
      } else if(pay==="Bill later"){
        items.push({d:sessionDesc,qty:1,rate:fee});
        invStatus="Pending";invMode="—";
@@ -1662,15 +1664,23 @@ function pkgListHTML(){
  }).join("");
 }
 function walletListHTML(){
- var pts=DB.patients.filter(inBranch).filter(function(p){return !MYTHER||p.therapist===MYTHER;}).filter(function(p){return (p.wallet||0)>0;});
+ var allPts=DB.patients.filter(inBranch).filter(function(p){return !MYTHER||p.therapist===MYTHER;});
+ var pts=allPts.filter(function(p){return (p.wallet||0)!==0;});
  if(!pts.length)return'<div class="empty" style="padding:20px">No wallet balances<br><span class="muted" style="font-size:12px">Top up a patient to add advance funds</span></div>';
- return pts.sort(function(a,b){return (b.wallet||0)-(a.wallet||0);}).map(function(p){
-  return '<div class="list-row" style="padding:11px 0">'
+ // Show negatives (amount to collect) first, then positives
+ pts.sort(function(a,b){return (a.wallet||0)-(b.wallet||0);});
+ return pts.map(function(p){
+  var bal=p.wallet||0;var neg=bal<0;
+  var balColor=neg?'var(--danger)':'var(--teal)';
+  var balLabel=neg?'⚠ Owes '+inr(-bal):'💳 '+inr(bal);
+  var balNote=neg?'<div style="font-size:11px;color:var(--danger);font-weight:600">Collect ₹'+(-bal)+' at next visit</div>':'<div style="font-size:11px;color:var(--muted)">Advance balance</div>';
+  return '<div class="list-row" style="padding:11px 0;'+(neg?'background:#fff5f5;margin:0 -4px;padding-left:4px;padding-right:4px;border-radius:8px':'')+'">'
    +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
-   +'<div class="pcell"><div class="avatar">'+initials(p.name)+'</div>'
+   +'<div class="pcell"><div class="avatar" style="'+(neg?'background:var(--danger)':'')+'">'+initials(p.name)+'</div>'
    +'<div><div class="nm">'+p.name+'</div><div class="mt muted" style="font-size:11.5px">'+p.therapist+'</div></div></div>'
    +'<div style="text-align:right;flex-shrink:0">'
-   +'<div style="font-size:17px;font-weight:800;color:var(--teal)">'+inr(p.wallet||0)+'</div>'
+   +'<div style="font-size:15px;font-weight:800;color:'+balColor+'">'+balLabel+'</div>'
+   +balNote
    +'<div style="display:flex;gap:5px;margin-top:4px;justify-content:flex-end">'
    +'<button class="btn sm sec" style="font-size:11px;padding:3px 8px" onclick="walletFormPid(\''+p.id+'\')">+ Top up</button>'
    +'<button class="btn sm sec" style="font-size:11px;padding:3px 8px" onclick="patientView(\''+p.id+'\',\'bill\')">View</button>'
@@ -1774,7 +1784,7 @@ views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.
  </div></div>`;};
 function walletForm(pid){openModal(`<div class="modal-h"><h3>Wallet Top-up (advance)</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
-  <div class="field"><label>Patient</label><select id="w_pid">${DB.patients.map(p=>`<option value="${p.id}" ${pid===p.id?'selected':''}>${p.name} — balance ${inr(p.wallet||0)}</option>`).join("")}</select></div>
+  <div class="field"><label>Patient</label><select id="w_pid">${DB.patients.map(p=>{const w=p.wallet||0;const lbl=w<0?`${p.name} — OWES ${inr(-w)}`:`${p.name} — balance ${inr(w)}`;return`<option value="${p.id}" ${pid===p.id?'selected':''}>${lbl}</option>`;}).join("")}</select></div>
   <div class="grid2"><div class="field"><label>Amount (₹)</label><input id="w_amt" type="number" value="2000"></div><div class="field"><label>Mode</label><select id="w_mode"><option>UPI</option><option>Cash</option><option>Card</option></select></div></div>
   <div class="muted" style="font-size:12.5px">Advance balance can be used to pay for future sessions.</div>
  </div>
@@ -1801,7 +1811,7 @@ function consultInvForm(pid){openModal(`<div class="modal-h"><h3>Consultation In
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveConsultInv()">Generate Invoice</button></div>`);}
 function saveConsultInv(){const v=k=>document.getElementById(k).value;const pid=v("ci_pid");const fee=+v("ci_fee")||0;const mode=v("ci_mode");const p=pById(pid);
  let inv={id:nextInvNo(),pid,date:v("ci_date"),items:[{d:v("ci_desc")||"Consultation fee",qty:1,rate:fee}],gst:18,branch:p.branch};
- if(mode==="Wallet (advance)"){const gross=Math.round(fee*1.18);if((p.wallet||0)>=gross){p.wallet-=gross;inv.status="Paid";inv.mode="Wallet";}else{alert("Insufficient wallet balance ("+inr(p.wallet||0)+").");return;}}
+ if(mode==="Wallet (advance)"){const gross=Math.round(fee*1.18);p.wallet=(p.wallet||0)-gross;inv.status=p.wallet>=0?"Paid":"Partial";inv.mode="Wallet";}
  else if(mode==="Bill later"){inv.status="Pending";inv.mode="—";}
  else{inv.status="Paid";inv.mode=mode;}
  DB.invoices.push(inv);save();closeModal();render();}
@@ -1814,7 +1824,7 @@ function markPaid(id){
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="doMarkPaid('${id}')">Mark paid</button></div>`);}
 function doMarkPaid(id){const mode=document.getElementById("mp_mode").value;const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);
- if(mode==="Wallet (advance)"){const gross=invTotals(i).total;if((p.wallet||0)<gross){alert("Wallet balance ("+inr(p.wallet||0)+") is insufficient for "+inr(gross)+". Top up first.");return;}p.wallet-=gross;i.mode="Wallet";}
+ if(mode==="Wallet (advance)"){const gross=invTotals(i).total;p.wallet=(p.wallet||0)-gross;i.mode="Wallet";}
  else i.mode=mode;
  i.status="Paid";save();closeModal();render();}
 function payRemind(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);sendWA(i.pid,"Payment",inr(invTotals(i).total)+" due — "+i.id,payMsg(p,inr(invTotals(i).total)+" pending for "+i.id));}
@@ -1887,7 +1897,7 @@ function saveInv(){
  const gross=Math.round(subtotal*1.18);
  let inv={id:nextInvNo(),pid,date:todayISO,items,gst:18,branch:p.branch};
  if(mode==="Package session"){const pk=DB.patientPkgs.find(k=>k.pid===pid&&k.status==="Active"&&k.used<k.total);if(!pk){alert("No active package with sessions left for this patient.");return;}pk.used++;inv.items=items.map(i=>({...i,d:i.d+" (package)",rate:0}));inv.status="Paid";inv.mode="Package";}
- else if(mode==="Wallet"){if((p.wallet||0)<gross){alert("Insufficient wallet balance ("+inr(p.wallet||0)+"). Top up first.");return;}p.wallet-=gross;inv.status="Paid";inv.mode="Wallet";}
+ else if(mode==="Wallet"){p.wallet=(p.wallet||0)-gross;inv.status=p.wallet>=0?"Paid":"Partial";inv.mode="Wallet";}
  else if(mode==="Pending"){inv.status="Pending";inv.mode="—";}
  else{inv.status="Paid";inv.mode=mode;}
  DB.invoices.push(inv);save();closeModal();render();}
