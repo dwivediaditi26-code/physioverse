@@ -594,6 +594,15 @@ function checkDemoPass(){
     document.getElementById('demoPassInput').focus();
   }
 }
+function _lockOut(){
+  sessionStorage.removeItem('pv_access');
+  // Hide app, hide role login, show gate
+  document.querySelector('.app').style.display='none';
+  document.getElementById('login').classList.add('hide');
+  const gate=document.getElementById('demoGate');
+  gate.style.display='flex';
+  setTimeout(()=>{const i=document.getElementById('demoPassInput');if(i){i.value='';i.focus();}},200);
+}
 // Check on load — only skip gate if session matches current version
 (function(){
   const gate=document.getElementById('demoGate');
@@ -602,12 +611,20 @@ function checkDemoPass(){
     gate.style.display='none';
     loginEl.classList.remove('hide');
   } else {
-    // Make sure gate is visible and login is hidden
     gate.style.display='flex';
     loginEl.classList.add('hide');
     sessionStorage.removeItem('pv_access');
     setTimeout(()=>{const i=document.getElementById('demoPassInput');if(i)i.focus();},200);
   }
+  // Poll every 30 seconds — if version changed (new deploy), lock out even open tabs
+  setInterval(()=>{
+    fetch(window.location.href+'?_='+Date.now(),{cache:'no-store'})
+      .then(r=>r.text())
+      .then(html=>{
+        const m=html.match(/const DEMO_VER\s*=\s*["']([^"']+)["']/);
+        if(m&&m[1]!==DEMO_VER){_lockOut();}
+      }).catch(()=>{});
+  }, 30000);
 })();
 
 const todayISO="2026-06-15";
