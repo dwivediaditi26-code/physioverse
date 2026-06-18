@@ -638,7 +638,7 @@ const seed={
   {id:"s3",name:"Priya Nair",role:"Receptionist",phone:"+91 98260 30303",branch:"b1",salary:22000,present:25,leave:1},
   {id:"s4",name:"Dr. Karan Mehta",role:"Physiotherapist",phone:"+91 98260 40404",branch:"b2",salary:40000,present:22,leave:4}],
  patients:[
-  {id:"p1",name:"Rajesh Sharma",dob:"1972-03-15",age:54,gender:"M",phone:"+91 98260 11223",condition:"Lower back pain (L4-L5)",since:"2026-05-02",therapist:"Dr. Neha Verma",branch:"b1",wallet:0,status:"Active",email:"rajesh.s@gmail.com",occ:"Bank manager (desk job)",addr:"42 Sapna Sangeeta Rd, Indore",emName:"Sunita Sharma",emPhone:"+91 98260 11999",refDr:"Dr. R. Malhotra (Ortho)",docs:[{n:"MRI Lumbar Spine.pdf",d:"2026-05-02"},{n:"X-Ray L-S.jpg",d:"2026-05-02"}]},
+  {id:"p1",name:"Rajesh Sharma",dob:"1972-03-15",age:54,gender:"M",phone:"+91 98260 11223",condition:"Lower back pain (L4-L5)",since:"2026-05-02",therapist:"Dr. Neha Verma",branch:"b1",wallet:-590,status:"Active",email:"rajesh.s@gmail.com",occ:"Bank manager (desk job)",addr:"42 Sapna Sangeeta Rd, Indore",emName:"Sunita Sharma",emPhone:"+91 98260 11999",refDr:"Dr. R. Malhotra (Ortho)",docs:[{n:"MRI Lumbar Spine.pdf",d:"2026-05-02"},{n:"X-Ray L-S.jpg",d:"2026-05-02"}]},
   {id:"p2",name:"Sunita Patel",dob:"1985-07-22",age:40,gender:"F",phone:"+91 99770 44556",condition:"Frozen shoulder (Rt)",since:"2026-05-18",therapist:"Dr. Amit Joshi",branch:"b1",wallet:0,status:"Active",docs:[{n:"Shoulder USG.pdf",d:"2026-05-18"}]},
   {id:"p3",name:"Imran Khan",dob:"1997-01-10",age:29,gender:"M",phone:"+91 78690 33112",condition:"ACL post-op rehab",since:"2026-04-10",therapist:"Dr. Neha Verma",branch:"b1",wallet:2360,status:"Active",docs:[{n:"Op Notes.pdf",d:"2026-04-10"},{n:"MRI Knee.jpg",d:"2026-04-08"}]},
   {id:"p4",name:"Lakshmi Iyer",dob:"1963-11-05",age:62,gender:"F",phone:"+91 90390 77881",condition:"Knee osteoarthritis (bilateral)",since:"2026-03-22",therapist:"Dr. Amit Joshi",branch:"b1",wallet:0,status:"Active",occ:"Retired teacher",addr:"18 Scheme 54, Indore",emName:"Rahul Iyer",emPhone:"+91 98260 55001",refDr:"Dr. S. Kapoor (Ortho)",docs:[{n:"X-Ray Knee (bilateral).jpg",d:"2026-03-22"}]},
@@ -774,6 +774,8 @@ function load(){try{const s=localStorage.getItem("physioverse_v2");DB=s?JSON.par
  // Always recompute pcodes from DOB — clears any stale PV-### or wrong codes
  if(DB.patients){DB.patients.forEach(function(p){delete p.pcode;});}
  _assignPcodes();
+ // Migration: re-sync seed patient wallet values so demo always shows correct balances
+ if(DB.patients&&seed.patients){DB.patients.forEach(function(p){var sp=seed.patients.find(function(x){return x.id===p.id;});if(sp&&sp.wallet!==undefined)p.wallet=sp.wallet;});}
 }
 function save(){try{localStorage.setItem("physioverse_v2",JSON.stringify(DB));}catch(e){}}
 function resetDB(){if(confirm("Reset demo to sample data?")){DB=JSON.parse(JSON.stringify(seed));save();fillBranches();render();}}
