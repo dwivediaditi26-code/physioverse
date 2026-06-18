@@ -778,6 +778,9 @@ function load(){try{const s=localStorage.getItem("physioverse_v2");DB=s?JSON.par
  _assignPcodes();
  // Migration: re-sync seed patient wallet values so demo always shows correct balances
  if(DB.patients&&seed.patients){DB.patients.forEach(function(p){var sp=seed.patients.find(function(x){return x.id===p.id;});if(sp&&sp.wallet!==undefined)p.wallet=sp.wallet;});}
+ // Migration: re-sync seed invoices — add any new seed invoices missing from DB
+ if(DB.invoices&&seed.invoices){seed.invoices.forEach(function(si){if(!DB.invoices.find(function(i){return i.id===si.id;}))DB.invoices.push(si);});}
+ save();
 }
 function save(){try{localStorage.setItem("physioverse_v2",JSON.stringify(DB));}catch(e){}}
 function resetDB(){if(confirm("Reset demo to sample data?")){DB=JSON.parse(JSON.stringify(seed));save();fillBranches();render();}}
