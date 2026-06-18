@@ -464,10 +464,28 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
-<div id="login">
+<!-- Demo password gate -->
+<div id="demoGate" style="position:fixed;inset:0;z-index:300;background:linear-gradient(135deg,#0b1b3d,#2563eb);display:flex;align-items:center;justify-content:center;padding:20px">
+  <div class="login-card" style="max-width:380px;text-align:center">
+    <div style="display:flex;justify-content:center;margin-bottom:16px">
+      <div class="logo" style="width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);display:grid;place-items:center;font-weight:800;color:#fff;font-size:22px">PV</div>
+    </div>
+    <h1 style="font-size:22px;margin-bottom:4px">PhysioVerse</h1>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:22px">Enter the access code to continue</div>
+    <div class="field" style="text-align:left">
+      <label>Access Code</label>
+      <input type="password" id="demoPassInput" placeholder="Enter code..." onkeydown="if(event.key==='Enter')checkDemoPass()" style="font-size:16px;letter-spacing:2px">
+    </div>
+    <div id="demoPassErr" style="color:var(--danger);font-size:13px;margin:-6px 0 10px;display:none">Incorrect code. Try again.</div>
+    <button class="btn" style="width:100%;justify-content:center;font-size:15px;padding:12px" onclick="checkDemoPass()">Continue →</button>
+    <div style="margin-top:16px;font-size:11px;color:var(--muted)">Powered by PhysioVerse · Demo Preview</div>
+  </div>
+</div>
+
+<div id="login" class="hide">
   <div class="login-card">
     <div class="lhead"><div class="logo">PV</div><div><h1>PhysioVerse</h1><small>CLINIC OS</small></div></div>
-    <div class="login-sub">Sign in — choose your role to see what that person can access. (Demo: no password needed.)</div>
+    <div class="login-sub">Sign in — choose your role to continue.</div>
     <button class="role-opt" onclick="login('owner')"><div class="ra" style="background:#2563eb">NV</div><div><div class="rn">Dr. Neha Verma</div><div class="rt">Owner / Senior Physiotherapist</div><div class="rsee">Full access — incl. revenue, payroll & reports</div></div><div class="arr">→</div></button>
     <button class="role-opt" onclick="login('staff')"><div class="ra" style="background:#0d9488">AJ</div><div><div class="rn">Dr. Amit Joshi</div><div class="rt">Therapist & Front Desk</div><div class="rsee">Patients, appointments, treatments & billing — no payroll/reports</div></div><div class="arr">→</div></button>
   </div>
@@ -558,6 +576,31 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 </div>
 <div class="backdrop" id="moreBackdrop" onclick="closeMoreDrawer()" style="display:none;z-index:75"></div>
 <script>
+// ── Demo access code — change this to revoke access ──
+const DEMO_CODE = "physio2026";
+
+function checkDemoPass(){
+  const val=(document.getElementById('demoPassInput').value||'').trim();
+  const err=document.getElementById('demoPassErr');
+  if(val===DEMO_CODE){
+    sessionStorage.setItem('pv_access','1');
+    document.getElementById('demoGate').style.display='none';
+    document.getElementById('login').classList.remove('hide');
+    setTimeout(()=>document.getElementById('demoPassInput')&&(document.getElementById('demoPassInput').value=''),100);
+  } else {
+    err.style.display='block';
+    document.getElementById('demoPassInput').value='';
+    document.getElementById('demoPassInput').focus();
+  }
+}
+// If already unlocked this session, skip gate
+(function(){
+  if(sessionStorage.getItem('pv_access')==='1'){
+    document.getElementById('demoGate').style.display='none';
+    document.getElementById('login').classList.remove('hide');
+  }
+})();
+
 const todayISO="2026-06-15";
 function uid(p){return p+Math.random().toString(36).slice(2,8)}
 const seed={
