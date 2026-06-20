@@ -2378,6 +2378,13 @@ function assignPkg(pid){openModal(`<div class="modal-h"><h3>Assign Package</h3><
  updatePkgPrice();}
 function updatePkgPrice(){const sel=document.getElementById("k_pkg");if(!sel)return;const t=DB.pkgTemplates.find(x=>x.id===sel.value);if(!t)return;const priceEl=document.getElementById("k_total_price");if(priceEl)priceEl.value=t.price;updatePkgBalance();}
 function updatePkgBalance(){const totalEl=document.getElementById("k_total_price");const paidEl=document.getElementById("k_paid");if(!totalEl||!paidEl)return;const total=+totalEl.value||0;const paid=+paidEl.value||0;const bal=total-paid;const row=document.getElementById("k_balance_row");const valEl=document.getElementById("k_balance_val");if(row&&valEl){if(paid>0&&paid<total){row.style.display="block";valEl.textContent=inr(bal);}else{row.style.display="none";}}}
+function addHomeLinkCA(){
+  window._ahl=window._ahl||[];
+  window._ahl.push({name:'',link:''});
+  const i=window._ahl.length-1;
+  document.getElementById('ca_homeLinks_list').insertAdjacentHTML('beforeend',
+    `<div style="display:flex;gap:6px;margin-bottom:6px"><input style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" placeholder="Exercise name" oninput="window._ahl[${i}].name=this.value"><input style="flex:2;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" placeholder="YouTube or website link" oninput="window._ahl[${i}].link=this.value"><button type="button" class="btn sm sec" onclick="window._ahl.splice(${i},1);this.parentNode.remove()">✕</button></div>`);
+}
 function addHomeLink(){window._hl=window._hl||[];window._hl.push({name:'',link:''});const i=window._hl.length-1;document.getElementById('homeLinks_list').insertAdjacentHTML('beforeend',`<div style="display:flex;gap:6px;margin-bottom:6px"><input style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" placeholder="Exercise name" oninput="window._hl[${i}].name=this.value"><input style="flex:2;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" placeholder="YouTube or website link" oninput="window._hl[${i}].link=this.value"><button type="button" class="btn sm sec" onclick="window._hl.splice(${i},1);this.parentNode.remove()">✕</button></div>`);}
 function savePkg(){const v=k=>document.getElementById(k);const pid=v("k_pid").value;const t=DB.pkgTemplates.find(x=>x.id===v("k_pkg").value);
  const exp=new Date("2026-06-15");exp.setDate(exp.getDate()+t.validity);const expISO=exp.toISOString().slice(0,10);
@@ -2900,6 +2907,7 @@ const ANEURO_SYMS=["Radiation / Referral","Numbness","Tingling / Pins & Needles"
 
 // _aForm holds the working assessment record while the modal is open
 window._aForm = null;
+window._ahl = [];
 
 // Assessment stored in DB.assessments (same pattern as consultations)
 views.assessment=()=>{
@@ -3205,6 +3213,7 @@ function assessForm(_,pid){
     regions:[],regionSides:{},obs:{},palp:{},neuro:{},rom:{},mmt:{},tests:{},func:[],funcOther:"",
     romRegions:[],mmtRegions:[],testRegions:[],
     assessment:"",posture:"",gait:"",swelling:"",neuroNote:"",dx:"",problem:"",stg:"",ltg:"",freq:"",advice:"",rx:[]};
+  window._ahl=[];
   window._aForm=freshA;
   openModal(`<div class="modal-h"><h3>New Assessment</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b" style="max-height:78vh;overflow-y:auto">
@@ -3284,6 +3293,7 @@ function saveAssess(){
   a.exercises=gv("ca_ex").split("\n").filter(x=>x.trim());
   a.home=gv("ca_home").split("\n").filter(x=>x.trim());
   a.homeFreq=gv("ca_homefreq")||a.homeFreq||"";
+  a.homeLinks=(window._ahl||[]).filter(l=>l.name||l.link);
   if(gv("ca_sessions"))a.sessions=+gv("ca_sessions");
   if(!a.pid){alert("Select a patient.");return;}
   const idx=DB.assessments.findIndex(x=>x.id===a.id);
@@ -3296,6 +3306,7 @@ function saveAssess(){
   document.getElementById("view").innerHTML=assessDocHTML(a.id);
   window.scrollTo(0,0);
   window._aForm=null;
+  window._ahl=[];
 }
 
 // ── Full-page document renderer ──
@@ -3749,6 +3760,7 @@ function assessEdit(id){
   const c=DB.assessments.find(x=>x.id===id);if(!c)return;
   const existing=JSON.parse(JSON.stringify(c)); // deep copy
   window._aForm=existing;
+  window._ahl=JSON.parse(JSON.stringify(existing.homeLinks||[]));
   const pid=existing.pid;
   openModal(`<div class="modal-h"><h3>Edit Assessment</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b" style="max-height:78vh;overflow-y:auto">
@@ -3800,6 +3812,10 @@ function assessEdit(id){
   <div class="field"><label>Clinic exercises — ${EXCOUNT}+ in library, pick region &amp; add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_exreg" onchange="fillEx('ca_exreg','ca_exsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select><select id="ca_exsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('ca_exsel','ca_ex')">+ Add</button></div><textarea id="ca_ex" rows="3" placeholder="One exercise per line">${(existing.exercises||[]).join("\n")}</textarea></div>
   <div class="field"><label>🏠 Home programme — exercises for patient to do at home</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_hreg" onchange="fillEx('ca_hreg','ca_hsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select><select id="ca_hsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('ca_hsel','ca_home')">+ Add</button></div><textarea id="ca_home" rows="2" placeholder="One exercise per line">${(existing.home||[]).join("\n")}</textarea></div>
   <div class="field"><label>Home programme frequency</label><input id="ca_homefreq" value="${existing.homeFreq||''}" placeholder="e.g. 2× daily, 7 days a week" oninput="window._aForm.homeFreq=this.value"></div>
+  <div class="field"><label>📎 Exercise video links <span class="muted" style="font-weight:400;font-size:12px">(optional — sent with WhatsApp)</span></label>
+   <div id="ca_homeLinks_list">${(window._ahl||[]).map((l,i)=>`<div style="display:flex;gap:6px;margin-bottom:6px"><input style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${l.name}" placeholder="Exercise name" oninput="window._ahl[${i}].name=this.value"><input style="flex:2;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${l.link}" placeholder="YouTube or website link" oninput="window._ahl[${i}].link=this.value"><button type="button" class="btn sm sec" onclick="window._ahl.splice(${i},1);this.parentNode.remove()">✕</button></div>`).join("")}</div>
+   <button type="button" class="btn sm sec" style="margin-top:4px" onclick="addHomeLinkCA()">+ Add video link</button>
+  </div>
   <div class="field"><label>General advice / precautions</label><textarea id="ca_adv" rows="2" oninput="window._aForm.advice=this.value">${existing.advice||''}</textarea></div>
   <div class="field"><label>Medication (Rx) — one per line</label><textarea id="ca_rx" rows="2">${(existing.rx||[]).join("\n")}</textarea></div>
  </div>
