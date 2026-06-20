@@ -571,6 +571,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
     <button class="more-item" onclick="go('reports');bnav('reports');closeMoreDrawer()"><span class="mico">📈</span>Reports</button>
     <button class="more-item" onclick="go('expenses');bnav('expenses');closeMoreDrawer()"><span class="mico">💸</span>Expenses</button>
     <button class="more-item" onclick="go('staff');bnav('staff');closeMoreDrawer()"><span class="mico">👥</span>Staff</button>
+    <button class="more-item" onclick="go('auditlog');bnav('auditlog');closeMoreDrawer()"><span class="mico">🔍</span>Audit Log</button>
     <button class="more-item" onclick="go('settings');bnav('settings');closeMoreDrawer()"><span class="mico">⚙️</span>Settings</button>
   </div>
 </div>
@@ -627,7 +628,7 @@ function _lockOut(){
   }, 30000);
 })();
 
-const todayISO="2026-06-15";
+const todayISO=new Date().toISOString().slice(0,10);
 function uid(p){return p+Math.random().toString(36).slice(2,8)}
 const seed={
  branches:[{id:"b1",name:"PhysioVerse — Vijay Nagar",address:"12 Vijay Nagar, Indore, MP 452010",phone:"+91 731 400 1100"},
@@ -783,7 +784,38 @@ function load(){try{const s=localStorage.getItem("physioverse_v2");DB=s?JSON.par
  save();
 }
 function save(){try{localStorage.setItem("physioverse_v2",JSON.stringify(DB));}catch(e){}}
+/* ── AUDIT LOG ── */
+function logAudit(action,detail,patientName){
+  DB.auditLog=DB.auditLog||[];
+  DB.auditLog.unshift({id:uid("al"),ts:new Date().toISOString(),action,detail,user:CURROLE||"owner",patient:patientName||""});
+  if(DB.auditLog.length>500)DB.auditLog=DB.auditLog.slice(0,500);// cap at 500 entries
+}
 function resetDB(){if(confirm("Reset demo to sample data?")){DB=JSON.parse(JSON.stringify(seed));save();fillBranches();render();}}
+function exportDB(){
+  const json=JSON.stringify(DB,null,2);
+  const blob=new Blob([json],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download="physioverse-backup-"+todayISO+".json";
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},1000);
+}
+function importDB(){
+  const inp=document.createElement("input");inp.type="file";inp.accept=".json,application/json";
+  inp.onchange=function(e){
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=function(ev){
+      try{
+        const parsed=JSON.parse(ev.target.result);
+        if(!parsed.patients||!parsed.settings)throw new Error("Invalid backup file — missing patients or settings.");
+        if(!confirm("This will REPLACE all current data with the backup. Are you sure?"))return;
+        DB=parsed;save();fillBranches();render();
+        alert("✅ Data restored successfully from backup.");
+      }catch(err){alert("❌ Import failed: "+err.message);}
+    };reader.readAsText(file);
+  };inp.click();
+}
 load();
 
 const DXLIST=["Mechanical low back pain","Lumbar disc prolapse (PIVD)","Sacroiliac joint dysfunction","Cervical spondylosis","Cervical radiculopathy","Postural neck pain","Frozen shoulder (adhesive capsulitis)","Rotator cuff tendinopathy","Subacromial impingement","Tennis elbow (lateral epicondylitis)","Golfer's elbow (medial epicondylitis)","Carpal tunnel syndrome","De Quervain's tenosynovitis","Knee osteoarthritis","ACL reconstruction rehab","Meniscal injury","Patellofemoral pain syndrome","Plantar fasciitis","Ankle sprain (lateral ligament)","Achilles tendinopathy","Sciatica","Post-fracture stiffness","Stroke (hemiplegia) rehab","Bell's palsy","Parkinson's — balance & gait","Post-natal back pain"];
@@ -879,9 +911,9 @@ const statusTag=s=>({Confirmed:"blue","Checked-in":"green",Pending:"amber",Compl
 function curBranch(){return document.getElementById("branchSel").value;}
 const inBranch=x=>{const b=curBranch();return b==="all"||x.branch===b||x.branch===undefined;};
 
-const titles={dashboard:["Dashboard","Clinic overview at a glance"],reports:["Reports & Analytics","Revenue, appointments & staff performance"],patients:["Patients","Records, timeline, documents & wallet"],appointments:["Appointments","Color-coded scheduling"],assessment:["Assessment","Clinical notes, SOAP & prescriptions"],treatment:["Treatments","Session plans, exercises & progress"],packages:["Packages","Treatment packages & session tracking"],billing:["Billing & GST","Invoices, receipts & payments"],expenses:["Expenses","Track clinic spending"],reminders:["Reminders","WhatsApp & SMS automation"],staff:["Staff & Payroll","Members, roles, attendance & salary"],branches:["Branches","Multi-location management"],settings:["Settings","Clinic configuration"]};
+const titles={dashboard:["Dashboard","Clinic overview at a glance"],reports:["Reports & Analytics","Revenue, appointments & staff performance"],patients:["Patients","Records, timeline, documents & wallet"],appointments:["Appointments","Color-coded scheduling"],assessment:["Assessment","Clinical notes, SOAP & prescriptions"],treatment:["Treatments","Session plans, exercises & progress"],packages:["Packages","Treatment packages & session tracking"],billing:["Billing & GST","Invoices, receipts & payments"],expenses:["Expenses","Track clinic spending"],reminders:["Reminders","WhatsApp & SMS automation"],staff:["Staff & Payroll","Members, roles, attendance & salary"],branches:["Branches","Multi-location management"],settings:["Settings","Clinic configuration"],auditlog:["Audit Log","Who changed what and when"],consultations:["Consultations","SOAP notes & prescriptions"],patientview:["Patient","Full record"],planview:["Treatment Plan","Sessions & progress"]};
 let current="dashboard";
-function go(v){current=v;document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.v===v));document.getElementById("pageTitle").textContent=titles[v][0];document.getElementById("pageSub").textContent=titles[v][1];render();window.scrollTo(0,0);}
+function go(v){current=v;document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.v===v));const t=titles[v]||[v,""];document.getElementById("pageTitle").textContent=t[0];document.getElementById("pageSub").textContent=t[1];render();window.scrollTo(0,0);}
 document.getElementById("nav").addEventListener("click",e=>{const b=e.target.closest("button");if(b){go(b.dataset.v);toggleNav(false);}});
 function toggleNav(force){const sb=document.querySelector(".sidebar"),bd=document.getElementById("backdrop");const open=force!==undefined?force:!sb.classList.contains("open");sb.classList.toggle("open",open);bd.classList.toggle("show",open);}
 // Bottom nav
@@ -1122,7 +1154,7 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
  const visits=[];plans.forEach(t=>(t.visits||[]).forEach(s=>visits.push({...s,planId:t.id})));visits.sort((a,b)=>a.date.localeCompare(b.date)||a.n-b.n);
  const show=t=>T===t?"block":"none";
  const dobStr=p.dob?` · DOB: ${fmtDate(p.dob)}`:'';
- openModal(`<div class="modal-h"><h3><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${p.name} <span style="background:#e0f2fe;color:#0369a1;border-radius:5px;font-size:11px;padding:2px 7px;font-weight:700;white-space:nowrap">${patientCode(p)}</span></div><div class="mt muted">${p.age||ageFromDob(p.dob)||'?'}y · ${p.gender==='M'?'Male':p.gender==='F'?'Female':'Other'} · ${p.phone} · ${p.therapist}${dobStr}</div></div></div></h3><button class="x" onclick="closeModal()">×</button></div>
+ openModal(`<div class="modal-h"><h3><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${p.name} <span style="background:#e0f2fe;color:#0369a1;border-radius:5px;font-size:11px;padding:2px 7px;font-weight:700;white-space:nowrap">${patientCode(p)}</span></div><div class="mt muted">${p.age||ageFromDob(p.dob)||'?'}y · ${p.gender==='M'?'Male':p.gender==='F'?'Female':'Other'} · ${p.phone} · ${p.therapist}${dobStr}</div></div></div></h3><div style="display:flex;align-items:center;gap:6px;flex-shrink:0"><button class="btn sm sec" style="border-color:#7c3aed;color:#7c3aed;font-size:12px;padding:4px 10px" onclick="printDischargeSummary('${id}')">📄 Discharge</button><button class="x" onclick="closeModal()">×</button></div></div>
  <div class="modal-b">
   <div class="tabs" id="pvtabs">
    <button class="${T==='assess'?'active':''}" onclick="pvtab(this,'assess')">📋 Assessment</button>
@@ -1313,9 +1345,10 @@ function savePatient(id){
     if(el){el.style.borderColor="var(--danger)";el.focus();}
     return;
   }
-  if(!phone){
+  if(!phone||phone.replace(/\D/g,"").length<7){
     const el=document.getElementById("f_phone");
     if(el){el.style.borderColor="var(--danger)";el.focus();}
+    alert("Please enter a valid phone number (at least 7 digits).");
     return;
   }
   if(!cond){
@@ -1327,13 +1360,16 @@ function savePatient(id){
   const ageRaw=v("f_age");
   const age=dob?ageFromDob(dob):(ageRaw||"");
   const obj={name,dob,age,gender:v("f_gender"),phone,condition:cond,email:v("f_email"),occ:v("f_occ"),addr:v("f_addr"),emName:v("f_emname"),emPhone:v("f_emphone"),refDr:v("f_refdr"),therapist:v("f_ther"),branch:v("f_branch")};
-  if(id){Object.assign(pById(id),obj);}
-  else{
+  if(id){
+    Object.assign(pById(id),obj);
+    logAudit("Patient edited","Updated record for "+name,name);
+  } else{
     const newPid=uid("p");
     const newP={id:newPid,since:todayISO,wallet:0,docs:[],...obj};
     DB.patients.push(newP);
     // Assign DOB-based pcode after push so collision check sees full list
     newP.pcode=_makePcode(newP,DB.patients);
+    logAudit("Patient added","New patient registered: "+name+" · "+phone,name);
   }
   save();closeModal();render();
 }
@@ -1533,10 +1569,39 @@ function apptForm(date,time,ther){openModal(`<div class="modal-h"><h3>Book Appoi
    <div class="field"><label>Type</label><select id="a_type"><option>Therapy session</option><option>Follow-up</option><option>Assessment</option><option>Consultation</option><option>First visit</option></select></div>
    <div class="field"><label>Therapist</label><select id="a_ther">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${ther===s.name||MYTHER===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
   </div>
+  <hr class="sep">
+  <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;margin-bottom:8px">
+    <input type="checkbox" id="a_repeat" onchange="document.getElementById('a_repeat_opts').style.display=this.checked?'block':'none'">
+    <b>Repeat weekly</b> <span class="muted" style="font-size:12px">(book this slot on multiple consecutive weeks)</span>
+  </label>
+  <div id="a_repeat_opts" style="display:none;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 12px;margin-bottom:10px">
+    <div class="field" style="margin:0"><label>Number of weeks (including this one)</label>
+    <input id="a_repeat_weeks" type="number" min="2" max="52" value="8" style="width:80px"></div>
+    <div class="muted" style="font-size:12px;margin-top:5px">You'll confirm each appointment one by one before it's created.</div>
+  </div>
   <div class="muted" style="font-size:12.5px">🔔 WhatsApp reminder can be sent from the Reminders tab after booking.</div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveAppt()">Book Appointment</button></div>`);
  window._apptMode="existing";
+}
+function _bookRecurringNext(dates,idx,pid,tm,apptType,ther,branch,ptName){
+ if(idx>=dates.length)return;
+ const dt=dates[idx];
+ const remaining=dates.length-idx;
+ const confirmed=confirm(
+   "Book recurring appointment?\n\n"+
+   "Patient: "+ptName+"\n"+
+   "Date: "+fmtDate(dt)+" at "+tm+"\n"+
+   "Type: "+apptType+" · "+ther+"\n\n"+
+   (remaining>1?"("+(remaining-1)+" more slot"+(remaining-1>1?"s":"")+" after this one)":"(This is the last one)")
+ );
+ if(confirmed){
+   DB.appointments.push({id:uid('a'),pid,date:dt,time:tm,type:apptType,therapist:ther,status:'Confirmed',branch});
+   logAudit("Appointment booked","Recurring: "+apptType+" on "+dt+" at "+tm,ptName);
+   save();render();
+ }
+ // Move to next regardless (skip or stop — user chose skip by clicking Cancel)
+ setTimeout(function(){_bookRecurringNext(dates,idx+1,pid,tm,apptType,ther,branch,ptName);},300);
 }
 function apptTab(mode,btn){
  window._apptMode=mode;
@@ -1588,8 +1653,24 @@ function saveAppt(){
  if(DB.appointments.some(a=>a.date===dt&&a.time===tm&&a.therapist===ther)){
   if(!confirm('That therapist already has an appointment at this time. Book anyway?'))return;
  }
- DB.appointments.push({id:uid('a'),pid,date:dt,time:tm,type:v('a_type'),therapist:ther,status:'Confirmed',branch});
- calDate=dt;save();closeModal();render();
+ const apPt=pById(pid);const apPtName=apPt?apPt.name:(apptName||pid);
+ const apptType=v('a_type');
+ const isRepeat=document.getElementById('a_repeat')&&document.getElementById('a_repeat').checked;
+ const repeatWeeks=isRepeat?(+document.getElementById('a_repeat_weeks').value||8):1;
+ // Book first appointment (always)
+ DB.appointments.push({id:uid('a'),pid,date:dt,time:tm,type:apptType,therapist:ther,status:'Confirmed',branch});
+ logAudit("Appointment booked",apptType+" on "+dt+" at "+tm+" with "+ther,apPtName);
+ calDate=dt;
+ if(isRepeat&&repeatWeeks>1){
+   // Confirm-each-week: collect remaining dates, ask one by one
+   const remainingDates=[];
+   for(let w=1;w<repeatWeeks;w++){remainingDates.push(shiftDate(dt,w*7));}
+   save();closeModal();render();
+   // Schedule sequential confirm prompts after render settles
+   setTimeout(function(){_bookRecurringNext(remainingDates,0,pid,tm,apptType,ther,branch,apPtName);},200);
+ } else {
+   save();closeModal();render();
+ }
 }
 
 /* CONSULTATIONS */
@@ -1768,7 +1849,7 @@ views.treatment=function(){
     html+='</div>';
    }
    if(t.visits&&t.visits.length>=2)html+='<div style="margin-bottom:10px">'+painTrendSVG(t.visits)+'</div>';
-   html+='<div style="display:flex;gap:8px;margin-bottom:12px">'
+   html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
     +'<button class="btn sm" onclick="nextSessionForm(\''+t.id+'\')">▶ Next Session</button>'
     +'<button class="btn sm sec" onclick="planForm(\''+t.id+'\')">Edit plan</button>'
    +'</div></div>';
@@ -1778,7 +1859,132 @@ views.treatment=function(){
  html+='</div></div>';
  return html;
 };
-function delSession(planId,sid){if(CURROLE!=='owner'){alert("Only the owner can delete sessions.");return;}if(!confirm("Remove this session entry?"))return;const t=DB.plans.find(x=>x.id===planId);t.visits=(t.visits||[]).filter(s=>s.id!==sid);if(t.done>0)t.done--;save();render();}
+function printDischargeSummary(pid){
+  const p=pById(pid);if(!p)return;
+  // All treatment plans for this patient
+  const allPlans=DB.plans.filter(x=>x.pid===pid);
+  // All sessions across all plans, sorted oldest first
+  const allVisits=[];
+  allPlans.forEach(t=>(t.visits||[]).forEach(s=>allVisits.push({...s,planId:t.id,diagnosis:t.diagnosis})));
+  allVisits.sort((a,b)=>a.date.localeCompare(b.date)||a.n-b.n);
+  const firstDate=allVisits.length?allVisits[0].date:"—";
+  const lastDate=allVisits.length?allVisits[allVisits.length-1].date:"—";
+  // Pain scores across all visits
+  const painVisits=allVisits.filter(s=>s.pain!==undefined&&s.pain!=="");
+  const firstPain=painVisits.length?painVisits[0].pain:null;
+  const lastPain=painVisits.length?painVisits[painVisits.length-1].pain:null;
+  const totalDone=allPlans.reduce((s,t)=>s+(t.done||0),0);
+  const totalPlanned=allPlans.reduce((s,t)=>s+(t.sessions||0),0);
+  // All unique modalities across plans
+  const allMods=[...new Set(allPlans.flatMap(t=>t.modalities||[]))];
+  // Billing
+  const invs=(DB.invoices||[]).filter(i=>i.pid===pid&&i.type!=="wallet-topup");
+  const totalPaid=invs.filter(i=>i.status==="Paid").reduce((s,i)=>{const sub=(i.items||[]).reduce((a,x)=>a+x.qty*x.rate,0);return s+Math.round(sub*(1+(i.gst||0)/100));},0);
+  const totalPending=invs.filter(i=>i.status==="Pending").reduce((s,i)=>{const sub=(i.items||[]).reduce((a,x)=>a+x.qty*x.rate,0);return s+Math.round(sub*(1+(i.gst||0)/100));},0);
+  const pkgs=(DB.patientPkgs||[]).filter(k=>k.pid===pid);
+  const activePkg=pkgs.find(k=>k.status==="Active");
+
+  const painChip=(v)=>{
+    if(v===null||v===undefined)return "—";
+    const n=+v;
+    const bg=n<=3?"#dcfce7":n<=6?"#fef9c3":"#fee2e2";
+    const col=n<=3?"#15803d":n<=6?"#854d0e":"#b91c1c";
+    return `<span style="background:${bg};color:${col};padding:1px 7px;border-radius:4px;font-size:11px">${v}/10</span>`;
+  };
+
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Discharge Summary — ${p.name}</title>
+<style>
+ *{box-sizing:border-box}
+ body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;margin:0 auto;padding:32px;max-width:760px}
+ h2{font-size:11.5px;font-weight:700;margin:18px 0 7px;text-transform:uppercase;letter-spacing:.6px;color:#475569;border-bottom:1px solid #e2e8f0;padding-bottom:4px}
+ .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 24px;margin-bottom:6px;font-size:12.5px}
+ .info-grid span{color:#64748b}
+ table{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
+ th{background:#f8fafc;text-align:left;padding:6px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#64748b;border-bottom:1px solid #e2e8f0}
+ td{padding:5px 8px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+ .tag{display:inline-block;background:#ede9fe;color:#5b21b6;border-radius:4px;padding:1px 6px;font-size:11px;margin:1px 2px}
+ .diag-badge{display:inline-block;background:#f0f9ff;color:#0369a1;border-radius:4px;padding:2px 8px;font-size:11.5px;margin-bottom:6px;font-weight:700}
+ .sig-box{border-top:1px solid #1e293b;width:200px;text-align:center;font-size:11px;color:#475569;padding-top:5px;margin-top:48px}
+ @media print{body{padding:20px}button{display:none!important}}
+</style></head><body>
+
+<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #7c3aed;padding-bottom:14px;margin-bottom:20px">
+  <div>
+    <div style="font-size:19px;font-weight:700;color:#1e293b">Discharge Summary</div>
+    <div style="font-size:12px;color:#64748b;margin-top:3px">End-of-treatment clinical record</div>
+  </div>
+  <div style="text-align:right;font-size:12px;color:#64748b">
+    <div style="font-weight:700;color:#1e293b;font-size:13px">${DB.settings.clinic}</div>
+    ${DB.settings.gstin?`<div>GSTIN: ${DB.settings.gstin}</div>`:""}
+    <div>Issued: ${fmtDate(todayISO)}</div>
+  </div>
+</div>
+
+<h2>Patient information</h2>
+<div class="info-grid">
+  <div><span>Name: </span><b>${p.name}</b></div>
+  <div><span>Patient ID: </span><b style="background:#ede9fe;color:#5b21b6;padding:1px 8px;border-radius:4px;font-size:12px">${patientCode(p)}</b></div>
+  <div><span>Age / Gender: </span>${p.age?p.age+" yrs":"—"} / ${p.gender==="M"?"Male":p.gender==="F"?"Female":p.gender||"—"}</div>
+  <div><span>Phone: </span>${p.phone||"—"}</div>
+  ${p.dob?`<div><span>Date of birth: </span>${fmtDate(p.dob)}</div>`:""}
+  ${p.refDr?`<div><span>Referred by: </span>${p.refDr}</div>`:""}
+  ${p.therapist?`<div><span>Treating therapist: </span>${p.therapist}</div>`:""}
+  ${p.email?`<div><span>Email: </span>${p.email}</div>`:""}
+</div>
+
+<h2>Diagnosis &amp; treatment overview</h2>
+<div style="margin-bottom:8px">${allPlans.map(t=>`<span class="diag-badge">${t.diagnosis}</span> `).join("") || "<span style='color:#64748b'>No plans recorded</span>"}</div>
+<div class="info-grid">
+  <div><span>Treatment period: </span>${fmtDate(firstDate)} – ${fmtDate(lastDate)}</div>
+  <div><span>Sessions completed: </span><b>${totalDone}</b> of ${totalPlanned} planned</div>
+  ${firstPain!==null?`<div><span>Initial pain score: </span>${painChip(firstPain)}</div>`:""}
+  ${lastPain!==null?`<div><span>Final pain score: </span>${painChip(lastPain)}</div>`:""}
+  ${allPlans.map(t=>`<div><span>${t.diagnosis} goal: </span>${t.goal||"—"}</div>`).join("")}
+</div>
+${allMods.length?`<div style="margin-top:8px"><span style="color:#64748b;font-size:12px">Modalities used: </span>${allMods.map(m=>`<span class="tag">${m}</span>`).join("")}</div>`:""}
+
+<h2>Session history</h2>
+${allVisits.length===0?`<p style="color:#64748b">No sessions recorded.</p>`:`
+<table>
+  <thead><tr><th>#</th><th>Date</th><th>Diagnosis</th><th>Therapist</th><th>Modalities / Exercises</th><th>Pain</th><th>Note</th></tr></thead>
+  <tbody>
+  ${allVisits.map(s=>`<tr>
+    <td style="font-weight:700;color:#7c3aed">${s.n}</td>
+    <td style="white-space:nowrap">${fmtDate(s.date)}</td>
+    <td style="font-size:11px;color:#64748b;white-space:nowrap">${s.diagnosis||""}</td>
+    <td style="white-space:nowrap;font-size:11px">${(s.therapist||"")}</td>
+    <td>${[...(s.modalities||[]),...(s.exercises||[])].map(x=>`<span class="tag">${x}</span>`).join("")||"—"}</td>
+    <td style="text-align:center;white-space:nowrap">${s.pain!==undefined&&s.pain!==""?painChip(s.pain):"—"}</td>
+    <td style="font-size:11px;color:#64748b">${s.note||""}</td>
+  </tr>`).join("")}
+  </tbody>
+</table>`}
+
+<h2>Billing summary</h2>
+<div class="info-grid">
+  <div><span>Total invoices: </span><b>${invs.length}</b></div>
+  <div><span>Amount paid: </span><b style="color:#15803d">₹${totalPaid.toLocaleString("en-IN")}</b></div>
+  ${totalPending>0?`<div><span>Balance pending: </span><b style="color:#b91c1c">₹${totalPending.toLocaleString("en-IN")}</b></div>`:"<div><span>Balance pending: </span>Nil</div>"}
+  ${activePkg?`<div><span>Active package: </span>${activePkg.pkg} (${activePkg.used}/${activePkg.total} sessions used)</div>`:""}
+  ${pkgs.filter(k=>k.status==="Completed").map(k=>`<div><span>Completed package: </span>${k.pkg}</div>`).join("")}
+  ${(p.wallet||0)!==0?`<div><span>Wallet: </span>${p.wallet>0?"₹"+p.wallet+" advance":`<span style="color:#b91c1c">₹${-p.wallet} owed</span>`}</div>`:"<div><span>Wallet: </span>Nil</div>"}
+</div>
+
+<div style="display:flex;justify-content:flex-end">
+  <div class="sig-box">${p.therapist||"Therapist"} · Signature &amp; stamp</div>
+</div>
+
+<div style="margin-top:28px;border-top:1px solid #e2e8f0;padding-top:8px;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8">
+  <div>Generated by PhysioVerse Clinic OS · ${DB.settings.clinic}</div>
+  <div>Printed: ${fmtDate(todayISO)}</div>
+</div>
+
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+  const w=window.open("","_blank","width=860,height=950");
+  if(w){w.document.write(html);w.document.close();}
+}
+function delSession(planId,sid){if(CURROLE!=='owner'){alert("Only the owner can delete sessions.");return;}if(!confirm("Remove this session entry?"))return;const t=DB.plans.find(x=>x.id===planId);const _ds=t.visits?t.visits.find(x=>x.id===sid):null;const _dsPt=pById(t.pid);t.visits=(t.visits||[]).filter(s=>s.id!==sid);t.done=Math.max(0,(t.done||0)-1);logAudit("Session deleted","Session #"+(_ds?_ds.n:"?")+" on "+(_ds?_ds.date:"?")+" deleted",_dsPt?_dsPt.name:"Unknown");save();render();}
 // Next Session: pre-fills from last session, NO billing section
 function nextSessionForm(planId){
  var t=DB.plans.find(function(x){return x.id===planId;});
@@ -1864,6 +2070,13 @@ function saveSessionPayment(planId,sid){
   p.wallet=(bal-total);// allow negative
   var status=p.wallet>=0?"Paid":"Partial";
   DB.invoices.push({id:invNum,pid:t.pid,date:todayISO,items:items,gst:18,status:status,mode:"Wallet",branch:branch,note:"Wallet deduction: ₹"+Math.min(bal,total)+", balance remaining: ₹"+(p.wallet)});
+  if(p.wallet<0){
+    save();render();
+    setTimeout(function(){
+      openModal('<div class="modal-h" style="background:#fff0f0"><h3 style="color:#b91c1c">⚠️ Wallet Overdraft — Collect Payment</h3><button class="x" onclick="closeModal()">×</button></div><div class="modal-b" style="padding:20px"><div style="font-size:15px;font-weight:700;color:#b91c1c;margin-bottom:12px">'+p.name+' owes <span style="font-size:22px">₹'+(-p.wallet)+'</span></div><div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px;font-size:13.5px;line-height:1.7">Session fee: <b>₹'+total+'</b><br>Wallet had: <b>₹'+bal+'</b><br>Shortfall: <b style="color:#b91c1c">₹'+(-p.wallet)+'</b></div><div class="muted" style="font-size:12px;margin-top:10px">Collect ₹'+(-p.wallet)+' from patient at this visit or next visit.</div></div><div class="modal-f"><button class="btn danger" onclick="closeModal()">Noted — will collect</button></div>');
+    },100);
+    return;
+  }
  } else {
   // UPI / Cash / Card / Corporate / Bill later
   var items=[{d:"Physiotherapy session",qty:1,rate:fee}];
@@ -1946,8 +2159,13 @@ function updateSessionBillSummary(){
 }
 function saveSession(planId,sid,n){const v=k=>{const el=document.getElementById(k);return el?el.value:""};const t=DB.plans.find(x=>x.id===planId);t.visits=t.visits||[];
  const rec={id:sid||uid("se"),n,date:v("s_date"),therapist:v("s_ther"),modalities:v("s_mod").split("\n").filter(x=>x.trim()),exercises:v("s_ex").split("\n").filter(x=>x.trim()),pain:v("s_pain"),note:v("s_note")};
- if(sid){const i=t.visits.findIndex(x=>x.id===sid);t.visits[i]=rec;}
+ const _ssPt=pById(t.pid);const _ssPtName=_ssPt?_ssPt.name:"Unknown";
+ if(sid){
+   const i=t.visits.findIndex(x=>x.id===sid);t.visits[i]=rec;
+   logAudit("Session edited","Session #"+n+" updated ("+rec.date+")",_ssPtName);
+ }
  else{t.visits.push(rec);t.done=(t.done||0)+1;
+   logAudit("Session recorded","Session #"+n+" recorded on "+rec.date+(rec.pain?" · pain "+rec.pain+"/10":""),_ssPtName);
    const p=pById(t.pid),pay=v("s_pay"),fee=+v("s_fee")||0;
    const partialAmt=+v("s_partial")||0;
    const addConsult=document.getElementById("s_add_consult")&&document.getElementById("s_add_consult").checked;
@@ -2135,8 +2353,12 @@ function savePkg(){const v=k=>document.getElementById(k);const pid=v("k_pid").va
  const paidAmt=+v("k_paid").value||t.price;const balance=t.price-paidAmt;
  DB.patientPkgs.push({id:uid("pp"),pid,pkg:t.name,total:t.sessions,used:0,price:t.price,paidAmount:paidAmt,bought:todayISO,expires:expISO,status:"Active"});
  const p=pById(pid);
+ logAudit("Package assigned",t.name+" ("+t.sessions+" sessions, ₹"+t.price+") assigned",p?p.name:pid);
  // Raise invoice for amount paid today
- if(paidAmt>0){DB.invoices.push({id:nextInvNo(),pid,date:todayISO,items:[{d:t.name+(paidAmt<t.price?" (advance payment)":""),qty:1,rate:paidAmt}],gst:18,status:"Paid",mode:v("k_mode").value,branch:p.branch});}
+ if(paidAmt>0){
+   DB.invoices.push({id:nextInvNo(),pid,date:todayISO,items:[{d:t.name+(paidAmt<t.price?" (advance payment)":""),qty:1,rate:paidAmt}],gst:18,status:"Paid",mode:v("k_mode").value,branch:p.branch});
+   logAudit("Invoice created","Package invoice "+nextInvNo()+" ₹"+paidAmt+" ("+v("k_mode").value+")",p?p.name:pid);
+ }
  // If balance remaining, raise a pending invoice
  if(balance>0){DB.invoices.push({id:nextInvNo(),pid,date:todayISO,items:[{d:t.name+" (balance due)",qty:1,rate:balance}],gst:0,status:"Pending",mode:"—",branch:p.branch});}
  if(v("k_autobook")&&v("k_autobook").checked){const per=+v("k_perwk").value||3;const gap=Math.max(1,Math.round(7/per));let d=v("k_start").value||todayISO;const ther=v("k_ther").value;
@@ -2513,12 +2735,55 @@ views.reminders=()=>{
   </div>`).join("")}
  </div></div>`;};
 
+/* AUDIT LOG */
+views.auditlog=()=>{
+ const logs=(DB.auditLog||[]);
+ const actionColor={
+   "Patient added":"#16a34a","Patient edited":"#0369a1",
+   "Session recorded":"#7c3aed","Session edited":"#6b7280","Session deleted":"#dc2626",
+   "Appointment booked":"#0d9488","Invoice created":"#b45309",
+   "Package assigned":"#c026d3"
+ };
+ const actionIcon={
+   "Patient added":"➕","Patient edited":"✏️",
+   "Session recorded":"📋","Session edited":"🔄","Session deleted":"🗑",
+   "Appointment booked":"📅","Invoice created":"🧾","Package assigned":"🎁"
+ };
+ const fmtTs=ts=>{try{const d=new Date(ts);return d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})+" · "+d.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});}catch(e){return ts;}};
+ return`<div class="panel"><div class="panel-h" style="justify-content:space-between">
+   <h3>🔍 Audit Log</h3>
+   <div style="display:flex;gap:8px;align-items:center">
+     <span class="muted" style="font-size:12px">${logs.length} entr${logs.length===1?"y":"ies"}</span>
+     ${logs.length>0?`<button class="btn sm danger sec" onclick="if(confirm('Clear all audit log entries?')){DB.auditLog=[];save();render();}">Clear</button>`:""}
+   </div>
+ </div>
+ <div class="panel-b flush">
+ ${logs.length===0?`<div class="empty" style="padding:40px 0;text-align:center;color:var(--muted)">No activity logged yet.<br><span style="font-size:12px">Actions like adding patients, recording sessions, and creating invoices will appear here.</span></div>`:`
+ <table>
+   <thead><tr><th>Time</th><th>Action</th><th>Patient</th><th>Detail</th><th>By</th></tr></thead>
+   <tbody>
+   ${logs.map(l=>`<tr>
+     <td style="white-space:nowrap;font-size:12px;color:var(--muted)">${fmtTs(l.ts)}</td>
+     <td><span style="background:${(actionColor[l.action]||"#6b7280")}18;color:${actionColor[l.action]||"#6b7280"};border-radius:5px;padding:2px 7px;font-size:12px;font-weight:600;white-space:nowrap">${actionIcon[l.action]||"•"} ${l.action}</span></td>
+     <td style="font-size:13px;font-weight:600">${l.patient||"—"}</td>
+     <td style="font-size:12.5px;color:var(--muted);max-width:260px">${l.detail||""}</td>
+     <td style="font-size:12px;color:var(--muted);text-transform:capitalize">${l.user||"—"}</td>
+   </tr>`).join("")}
+   </tbody>
+ </table>`}
+ </div></div>`;
+};
+
 /* SETTINGS */
 views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel-h"><h3>Clinic Settings</h3></div><div class="panel-b">
   <div class="field"><label>Clinic name</label><input value="${DB.settings.clinic}" onchange="DB.settings.clinic=this.value;save()"></div>
   <div class="field"><label>GSTIN</label><input value="${DB.settings.gstin}" onchange="DB.settings.gstin=this.value;save()"></div>
   <hr class="sep">
-  <b>Data</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">All demo data is stored locally in this browser. Resetting restores the sample clinic.</div>
+  <b>Data &amp; Backup</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">All data is stored locally in this browser. Export regularly to prevent data loss. Import restores a previous backup.</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <button class="btn sm" style="background:#0369a1;color:#fff" onclick="exportDB()">⬇ Export backup (JSON)</button>
+    <button class="btn sm sec" onclick="importDB()">⬆ Import backup</button>
+  </div>
   <button class="btn danger sm" onclick="resetDB()">↺ Reset demo data</button>
  </div></div>
  <div class="panel" style="max-width:640px"><div class="panel-h"><h3>About this build</h3></div><div class="panel-b muted" style="font-size:13px">
