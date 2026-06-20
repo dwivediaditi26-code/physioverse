@@ -592,8 +592,35 @@ function load(){try{const s=localStorage.getItem("physioverse_v2");DB=s?JSON.par
  // Migration: patch plans missing modalities/exercises/home from seed
  if(DB.plans&&seed.plans){DB.plans.forEach(function(p){var sp=seed.plans.find(function(x){return x.id===p.id;});if(sp){if(!p.modalities||!p.modalities.length)p.modalities=sp.modalities||[];if(!p.exercises||!p.exercises.length)p.exercises=sp.exercises||[];if(!p.home||!p.home.length)p.home=sp.home||[];if(!p.homeFreq)p.homeFreq=sp.homeFreq||"";}if(!p.homeLinks)p.homeLinks=[];});}
 }
-function save(){try{localStorage.setItem("physioverse_v2",JSON.stringify(DB));}catch(e){}}
+function save(){try{localStorage.setItem("physioverse_v2",JSON.stringify(DB));}catch(e){}idbSnap();}
 function resetDB(){if(confirm("Reset demo to sample data?")){DB=JSON.parse(JSON.stringify(seed));save();fillBranches();render();}}
+
+/* ── IndexedDB auto-backup ────────────────────────────────────────────────── */
+const IDB_NAME="physioverse_backup",IDB_STORE="snapshots",IDB_MAX=7;
+let _idb=null;
+function idbOpen(){return new Promise((ok,err)=>{if(_idb)return ok(_idb);const r=indexedDB.open(IDB_NAME,1);r.onupgradeneeded=e=>{e.target.result.createObjectStore(IDB_STORE,{keyPath:"ts"});};r.onsuccess=e=>{_idb=e.target.result;ok(_idb);};r.onerror=e=>err(e);});}
+function idbSnap(){
+  idbOpen().then(db=>{
+    const snap={ts:Date.now(),label:new Date().toLocaleString("en-IN"),data:JSON.stringify(DB)};
+    const tx=db.transaction(IDB_STORE,"readwrite");const st=tx.objectStore(IDB_STORE);
+    st.add(snap);
+    // prune: keep only last IDB_MAX
+    const cr=st.openCursor(null,"prev");let skip=0;
+    cr.onsuccess=e=>{const c=e.target.result;if(!c)return;if(skip++<IDB_MAX)c.continue();else{c.delete();c.continue();}};
+  }).catch(()=>{});
+}
+function idbList(){return idbOpen().then(db=>new Promise((ok,err)=>{const tx=db.transaction(IDB_STORE,"readonly");const st=tx.objectStore(IDB_STORE);const all=st.getAll();all.onsuccess=e=>ok(e.target.result.reverse());all.onerror=err;}));}
+function idbRestore(ts){idbOpen().then(db=>new Promise((ok,err)=>{const tx=db.transaction(IDB_STORE,"readonly");const req=tx.objectStore(IDB_STORE).get(ts);req.onsuccess=e=>ok(e.target.result);req.onerror=err;})).then(snap=>{if(!snap)return;if(!confirm("Restore backup from "+snap.label+"? Current data will be replaced.")){return;}DB=JSON.parse(snap.data);save();fillBranches();render();alert("Restored! ✅");});}
+function showBackups(){
+  idbList().then(snaps=>{
+    if(!snaps.length){alert("No automatic backups found yet.");return;}
+    const rows=snaps.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><span style="font-size:13px">${s.label}</span><button class="btn sm sec" onclick="idbRestore(${s.ts});closeModal()">Restore</button></div>`).join("");
+    openModal(`<div class="modal-h"><h3>Auto-backups (last ${snaps.length})</h3><button class="x" onclick="closeModal()">×</button></div><div class="modal-b">${rows}<div class="muted" style="font-size:12px;margin-top:10px">Snapshots are saved automatically inside this browser every time data changes. Maximum ${IDB_MAX} kept.</div></div><div class="modal-f"><button class="btn sec" onclick="closeModal()">Close</button></div>`,true);
+  });}
+// 7-day download nudge
+(function(){const K="pm_last_dl";const last=+localStorage.getItem(K)||0;const days=(Date.now()-last)/(864e5);if(last&&days>7){setTimeout(()=>{const b=document.createElement("div");b.id="backup_nudge";b.style.cssText="position:fixed;bottom:18px;right:18px;z-index:9999;background:#1a1a2e;color:#fff;border-radius:12px;padding:12px 16px;max-width:300px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.3)";b.innerHTML=`<b>📥 Backup reminder</b><div style="margin:6px 0 10px;color:#ccc">It's been ${Math.floor(days)} days since your last data backup.</div><div style="display:flex;gap:8px"><button class="btn sm" onclick="exportDB();localStorage.setItem('${K}',Date.now());document.getElementById('backup_nudge').remove()">Download now</button><button class="btn sm sec" style="background:transparent;color:#ccc;border:1px solid #555" onclick="document.getElementById('backup_nudge').remove()">Later</button></div>`;document.body.appendChild(b);},2000);}})();
+function exportDB(){const b=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="PhysioMind_backup_"+todayISO+".json";a.click();localStorage.setItem("pm_last_dl",Date.now());}
+function importDB(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!d.patients||!d.plans){alert("Invalid backup file");return;}DB=d;save();fillBranches();render();alert("Data imported successfully ✅");}catch{alert("Could not read file");}};r.readAsText(f);}
 load();
 
 const DXLIST=["Mechanical low back pain","Lumbar disc prolapse (PIVD)","Sacroiliac joint dysfunction","Cervical spondylosis","Cervical radiculopathy","Postural neck pain","Frozen shoulder (adhesive capsulitis)","Rotator cuff tendinopathy","Subacromial impingement","Tennis elbow (lateral epicondylitis)","Golfer's elbow (medial epicondylitis)","Carpal tunnel syndrome","De Quervain's tenosynovitis","Knee osteoarthritis","ACL reconstruction rehab","Meniscal injury","Patellofemoral pain syndrome","Plantar fasciitis","Ankle sprain (lateral ligament)","Achilles tendinopathy","Sciatica","Post-fracture stiffness","Stroke (hemiplegia) rehab","Bell's palsy","Parkinson's — balance & gait","Post-natal back pain"];
@@ -1854,7 +1881,12 @@ views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel
   <div class="field"><label>Clinic name</label><input value="${DB.settings.clinic}" onchange="DB.settings.clinic=this.value;save()"></div>
   <div class="field"><label>GSTIN</label><input value="${DB.settings.gstin}" onchange="DB.settings.gstin=this.value;save()"></div>
   <hr class="sep">
-  <b>Data</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">All demo data is stored locally in this browser. Resetting restores the sample clinic.</div>
+  <b>Data &amp; Backup</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">Data is auto-saved in this browser. Snapshots are taken automatically every time you save — up to 7 kept. Download a JSON file for an offline copy.</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+   <button class="btn sm" onclick="exportDB()">📥 Download backup (.json)</button>
+   <button class="btn sm sec" onclick="showBackups()">🕐 View auto-snapshots</button>
+   <label class="btn sm sec" style="cursor:pointer">📤 Import backup<input type="file" accept=".json" style="display:none" onchange="importDB(event)"></label>
+  </div>
   <button class="btn danger sm" onclick="resetDB()">↺ Reset demo data</button>
  </div></div>
  <div class="panel" style="max-width:640px"><div class="panel-h"><h3>About this build</h3></div><div class="panel-b muted" style="font-size:13px">
