@@ -577,7 +577,7 @@ const seed={
   {id:"r4",pid:"p2",channel:"WhatsApp",kind:"Payment",when:"2026-06-15 11:00",appt:"1,357 due — INV-2026-043",status:"Sent"},
   {id:"r5",pid:"p5",channel:"WhatsApp",kind:"Appointment",when:"2026-06-15 19:00",appt:"16 Jun, 12:00 PM",status:"Scheduled"}],
  active:["p1","p3","p2","p5"],
- settings:{wa:true,sms:true,leadHrs:24,payReminder:true,clinic:"PhysioVerse",gstin:"23ABCDE1234F1Z5",msgCredits:842}
+ settings:{wa:true,sms:true,leadHrs:24,payReminder:true,clinic:"PhysioMind",gstin:"23ABCDE1234F1Z5",msgCredits:842}
 };
 let DB;
 let CURROLE="owner", MYTHER=null;
@@ -588,9 +588,24 @@ const ROLES={
    views:["dashboard","patients","appointments","assessment","treatment","packages","billing","reminders"]}
 };
 function canDo(cap){return true;}
-function load(){try{const s=localStorage.getItem("physioverse_v2");DB=s?JSON.parse(s):JSON.parse(JSON.stringify(seed));}catch(e){DB=JSON.parse(JSON.stringify(seed));}
+const APP_VER="pm_v3"; // bump this whenever a breaking reset is needed
+function load(){
+ // If old PhysioVerse data or wrong version detected — wipe and start fresh
+ const ver=localStorage.getItem("pm_app_ver");
+ const oldKey=localStorage.getItem("physioverse_v1");
+ const hasOldName=(()=>{try{const s=localStorage.getItem("physioverse_v2");if(!s)return false;const d=JSON.parse(s);return d&&d.settings&&d.settings.clinic&&d.settings.clinic.toLowerCase().includes("physioverse");}catch(e){return false;}})();
+ if(ver!==APP_VER||oldKey||hasOldName){
+  // Clear all old keys
+  ["physioverse_v1","physioverse_v2","pm_app_ver","pm_gate","pm_gate_ts","pm_last_dl"].forEach(k=>localStorage.removeItem(k));
+  DB=JSON.parse(JSON.stringify(seed));
+  localStorage.setItem("pm_app_ver",APP_VER);
+  save();
+  return;
+ }
+ try{const s=localStorage.getItem("physioverse_v2");DB=s?JSON.parse(s):JSON.parse(JSON.stringify(seed));}catch(e){DB=JSON.parse(JSON.stringify(seed));}
  // Migration: patch plans missing modalities/exercises/home from seed
  if(DB.plans&&seed.plans){DB.plans.forEach(function(p){var sp=seed.plans.find(function(x){return x.id===p.id;});if(sp){if(!p.modalities||!p.modalities.length)p.modalities=sp.modalities||[];if(!p.exercises||!p.exercises.length)p.exercises=sp.exercises||[];if(!p.home||!p.home.length)p.home=sp.home||[];if(!p.homeFreq)p.homeFreq=sp.homeFreq||"";}if(!p.homeLinks)p.homeLinks=[];});}
+ localStorage.setItem("pm_app_ver",APP_VER);
 }
 function save(){try{localStorage.setItem("physioverse_v2",JSON.stringify(DB));}catch(e){}idbSnap();}
 function resetDB(){if(confirm("Reset demo to sample data?")){DB=JSON.parse(JSON.stringify(seed));save();fillBranches();render();}}
