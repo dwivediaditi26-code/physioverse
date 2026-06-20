@@ -1154,7 +1154,7 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
  const visits=[];plans.forEach(t=>(t.visits||[]).forEach(s=>visits.push({...s,planId:t.id})));visits.sort((a,b)=>a.date.localeCompare(b.date)||a.n-b.n);
  const show=t=>T===t?"block":"none";
  const dobStr=p.dob?` · DOB: ${fmtDate(p.dob)}`:'';
- openModal(`<div class="modal-h"><h3><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${p.name} <span style="background:#e0f2fe;color:#0369a1;border-radius:5px;font-size:11px;padding:2px 7px;font-weight:700;white-space:nowrap">${patientCode(p)}</span></div><div class="mt muted">${p.age||ageFromDob(p.dob)||'?'}y · ${p.gender==='M'?'Male':p.gender==='F'?'Female':'Other'} · ${p.phone} · ${p.therapist}${dobStr}</div></div></div></h3><div style="display:flex;align-items:center;gap:6px;flex-shrink:0"><button class="btn sm sec" style="border-color:#7c3aed;color:#7c3aed;font-size:12px;padding:4px 10px" onclick="printDischargeSummary('${id}')">📄 Discharge</button><button class="x" onclick="closeModal()">×</button></div></div>
+ openModal(`<div class="modal-h"><h3><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${p.name} <span style="background:#e0f2fe;color:#0369a1;border-radius:5px;font-size:11px;padding:2px 7px;font-weight:700;white-space:nowrap">${patientCode(p)}</span></div><div class="mt muted" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${p.age||ageFromDob(p.dob)||'?'}y · ${p.gender==='M'?'Male':p.gender==='F'?'Female':'Other'} · <a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none;font-weight:600">📞 ${p.phone}</a> · ${p.therapist}${dobStr}</div></div></div></h3><div style="display:flex;align-items:center;gap:6px;flex-shrink:0"><button class="btn sm sec" style="border-color:#7c3aed;color:#7c3aed;font-size:12px;padding:4px 10px" onclick="printDischargeSummary('${id}')">📄 Discharge</button><button class="x" onclick="closeModal()">×</button></div></div>
  <div class="modal-b">
   <div class="tabs" id="pvtabs">
    <button class="${T==='assess'?'active':''}" onclick="pvtab(this,'assess')">📋 Assessment</button>
@@ -1512,7 +1512,10 @@ function apptView(id){const a=DB.appointments.find(x=>x.id===id);const p=pById(a
  <div class="modal-b">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
    <div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt muted">${p.phone}</div></div></div>
-   <a href="${waLink_}" target="_blank" onclick="sendWA('${a.pid}','Appointment','${when}','${waMsg.replace(/'/g,"\\'")}');return true;" class="btn sm sec" style="gap:5px;white-space:nowrap;display:flex;align-items:center">🔔 Remind on WA</a>
+   <div style="display:flex;gap:6px;flex-wrap:wrap">
+     <a href="${waLink_}" target="_blank" onclick="sendWA('${a.pid}','Appointment','${when}','${waMsg.replace(/'/g,"\\'")}');return true;" class="btn sm sec" style="gap:5px;white-space:nowrap;display:flex;align-items:center">🔔 Remind on WA</a>
+     <a href="tel:${(p.phone||'').replace(/\D/g,'')}" class="btn sm sec" style="gap:5px;white-space:nowrap;display:flex;align-items:center;text-decoration:none">📞 Call</a>
+   </div>
   </div>
   <div class="grid2"><div><b class="muted">Date</b><div>${fmtDate(a.date)}</div></div><div><b class="muted">Time</b><div>${a.time}</div></div></div>
   <div class="grid2" style="margin-top:8px"><div><b class="muted">Type</b><div>${a.type}</div></div><div><b class="muted">Therapist</b><div>${a.therapist}</div></div></div>
@@ -2707,7 +2710,10 @@ views.reminders=()=>{
    ${toSend.map(x=>{const p=pById(x.pid);return `<div class="reminder"><div class="r-ico wa">💬</div>
      <div class="r-body"><div style="display:flex;justify-content:space-between;align-items:center"><b>${p.name} <span class="tag ${x.kind==='Payment'?'amber':'blue'}" style="margin-left:5px">${x.kind}</span></b><span class="muted" style="font-size:12px">${p.phone}</span></div>
      <div class="r-msg">${x.text}</div>
-     <div style="margin-top:7px;display:flex;gap:7px"><button class="btn sm" onclick="sendWA('${x.pid}','${x.kind}','${x.when.replace(/'/g,"")}',this.parentNode.previousElementSibling.innerText)">📲 Send on WhatsApp</button></div></div></div>`;}).join("")||'<div class="empty">Nothing to send right now 🎉</div>'}
+     <div style="margin-top:7px;display:flex;gap:7px;flex-wrap:wrap">
+       <button class="btn sm" onclick="sendWA('${x.pid}','${x.kind}','${x.when.replace(/'/g,"")}',this.parentNode.previousElementSibling.innerText)">📲 Send on WhatsApp</button>
+       <a href="tel:${(p.phone||'').replace(/\D/g,'')}" class="btn sm sec" style="display:inline-flex;align-items:center;gap:4px;text-decoration:none">📞 Call ${p.phone}</a>
+     </div></div></div>`;}).join("")||'<div class="empty">Nothing to send right now 🎉</div>'}
   </div></div>
   <div>
    <div class="panel"><div class="panel-h"><h3>Automatic reminders</h3><span class="tag gray">Off</span></div><div class="panel-b">
