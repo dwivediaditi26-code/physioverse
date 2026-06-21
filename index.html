@@ -97,11 +97,11 @@ tr.clk:hover{background:#f7fafc;cursor:pointer}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:13px}
 .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:flex-start;justify-content:center;padding:40px 20px;z-index:50;overflow:auto}
 .overlay.show{display:flex}
-.modal{background:#fff;border-radius:15px;width:100%;max-width:540px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal{background:#fff;border-radius:15px;width:100%;max-width:540px;box-shadow:0 20px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;max-height:90vh}
 .modal.wide{max-width:740px}
 .modal-h{padding:16px 21px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
 .modal-h h3{font-size:16px}
-.modal-b{padding:21px;max-height:66vh;overflow:auto}
+.modal-b{padding:21px;overflow-y:auto;flex:1 1 auto}
 .modal-f{padding:15px 21px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:9px}
 .x{background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1}
 .two-col{display:grid;grid-template-columns:1.6fr 1fr;gap:18px;align-items:start}
@@ -199,9 +199,9 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
  .panel-h .tools{gap:5px}
  .panel-b{padding:12px}
  /* Modals slide up from bottom */
- .modal,.modal.wide{max-width:100%;border-radius:18px 18px 0 0;position:fixed;bottom:0;left:0;right:0;margin:0}
+ .modal,.modal.wide{max-width:100%;border-radius:18px 18px 0 0;position:fixed;bottom:0;left:0;right:0;margin:0;max-height:92vh;display:flex;flex-direction:column}
  .overlay{padding:0;align-items:flex-end}
- .modal-b{padding:16px;max-height:78vh}
+ .modal-b{padding:16px;overflow-y:auto;flex:1 1 auto}
  .modal-f{padding:12px 14px}
  /* Bigger touch targets */
  .btn{padding:10px 14px;font-size:13.5px;min-height:42px}
