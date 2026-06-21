@@ -178,10 +178,14 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
  .main{margin-left:0;padding-bottom:72px} /* room for bottom nav */
  .hamburger{display:none!important} /* use bottom nav instead */
  /* Top bar — compact */
- .topbar{padding:10px 13px}
- .topbar h2{font-size:16px}
+ .topbar{padding:8px 12px;min-height:52px}
+ .topbar h2{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw}
  .topbar .sub{display:none}
- .topbar .right{gap:6px}
+ .topbar .right{gap:5px;flex-shrink:0}
+ .topbar .right .btn.sm{padding:6px 9px;font-size:12px;min-height:34px}
+ #branchSel{display:none}
+ .userchip{max-width:32px;overflow:hidden}
+ .uc-text{display:none}
  .content{padding:12px}
  /* Cards 2-col */
  .cards{grid-template-columns:1fr 1fr!important;gap:9px}
@@ -209,7 +213,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
  /* Inputs bigger */
  .field input,.field select,.field textarea{padding:11px 12px;font-size:15px}
  /* Branch selector */
- #branchSel{max-width:38vw;font-size:12px}
+ #branchSel{max-width:110px;font-size:12px}
  .pill-row{gap:5px}
  .tag{font-size:11px;padding:2px 7px}
  .pcell .nm{font-size:13px}
@@ -228,6 +232,9 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
  .cards{grid-template-columns:1fr!important}
  .uc-text{display:none}
  .more-drawer-grid{grid-template-columns:repeat(3,1fr)}
+ .topbar h2{max-width:42vw;font-size:14px}
+ .topbar .right .btn.sm{padding:5px 7px;font-size:11px;min-height:30px}
+ .userchip{width:30px;height:30px;font-size:12px}
 }
 @media print{
   body > *:not(#print-only-sheet){display:none!important}
@@ -521,14 +528,17 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
   <div class="main">
     <div class="apphead">
     <div class="topbar">
-      <div style="display:flex;align-items:center;gap:11px">
+      <div style="display:flex;align-items:center;gap:9px;min-width:0;flex:1">
         <button class="hamburger" onclick="toggleNav()" aria-label="Menu">☰</button>
-        <div><h2 id="pageTitle">Dashboard</h2><div class="sub" id="pageSub">Clinic overview at a glance</div></div>
+        <div style="min-width:0;flex:1">
+          <h2 id="pageTitle" style="margin:0">Dashboard</h2>
+          <div class="sub" id="pageSub">Clinic overview at a glance</div>
+        </div>
       </div>
-      <div class="right">
+      <div class="right" style="flex-shrink:0">
         <select id="branchSel" class="clinic-chip" onchange="render()" style="cursor:pointer"></select>
         <div id="userChip" class="userchip"></div>
-        <button class="btn sec sm" onclick="logout()" title="Switch user">Switch</button>
+        <button class="btn sec sm" onclick="logout()" title="Switch user">⇄ Switch</button>
       </div>
     </div>
     <div id="activeBar" class="activebar"></div>
