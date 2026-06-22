@@ -489,7 +489,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
       <button data-v="branches"><span class="ico">🏢</span> Branches</button>
       <button data-v="settings"><span class="ico">⚙️</span> Settings</button>
     </nav>
-    <div class="side-foot"><b>Demo v2.0</b><br>Built for PhysioMind, Indore</div>
+    <div class="side-foot" id="sideFoot"></div>
   </aside>
   <div class="main">
     <div class="apphead">
@@ -593,11 +593,11 @@ let CURROLE="owner", MYTHER=null;
 const ROLES={
  owner:{name:"Dr. Neha Verma",title:"Owner / Senior Physiotherapist",init:"NV",color:"#2563eb",home:"dashboard",scope:null,
    views:["dashboard","reports","patients","appointments","assessment","treatment","packages","billing","expenses","reminders","staff","branches","settings"]},
- staff:{name:"Dr. Amit Joshi",title:"Therapist & Front Desk",init:"AJ",color:"#0d9488",home:"appointments",scope:null,
+ staff:{name:"Dr. Amit Joshi",title:"Therapist & Front Desk",init:"AJ",color:"#0d9488",home:"appointments",scope:"Dr. Amit Joshi",
    views:["dashboard","patients","appointments","assessment","treatment","packages","billing","reminders"]}
 };
 function canDo(cap){return true;}
-const APP_VER="pm_v6"; // bump this whenever a breaking reset is needed
+const APP_VER="pm_v7"; // bump this whenever a breaking reset is needed
 function load(){
  // If old PhysioVerse data or wrong version detected — wipe and start fresh
  const ver=localStorage.getItem("pm_app_ver");
@@ -1995,6 +1995,10 @@ window._aForm = null;
 views.assessment=()=>{
   if(!DB.assessments) DB.assessments=[];
   return `<div class="panel"><div class="panel-h"><h3>Assessment Notes</h3><button class="btn" onclick="assessForm()">+ New Assessment</button></div>
+     <div style="display:flex;gap:8px;align-items:center;padding:10px 17px 0;flex-wrap:wrap">
+      <input id="assessSearch" type="search" placeholder="🔍 Search patient or diagnosis…" style="flex:1;min-width:180px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" oninput="filterAssessTable()">
+      ${MYTHER?'':'<select id="assessTherFilter" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onchange="filterAssessTable()"><option value="">All therapists</option>'+therOpts+'</select>'}
+     </div>
  <div class="panel-b flush"><table><thead><tr><th>Date</th><th>Patient</th><th>Diagnosis</th><th>Therapist</th><th></th></tr></thead><tbody>
  ${(DB.assessments||[]).filter(c=>inBranch(pById(c.pid))).filter(c=>!MYTHER||c.therapist===MYTHER).sort((a,b)=>b.date.localeCompare(a.date)).map(c=>{const p=pById(c.pid);return `<tr class="clk" onclick="assessView('${c.id}')"><td>${fmtDate(c.date)}</td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div class="nm">${p.name}</div></div></td><td>${c.dx||'—'}</td><td>${c.therapist}</td><td style="text-align:right"><button class="btn sm sec" onclick="event.stopPropagation();printRx('${c.id}','assessment')">🖨 Rx</button></td></tr>`;}).join("")||'<tr><td colspan=5 class=empty>No assessments yet</td></tr>'}
  </tbody></table></div></div>`;
@@ -2810,6 +2814,15 @@ function login(role){CURROLE=role;const r=ROLES[role];MYTHER=r.scope;
 }
 function logout(){document.getElementById("login").classList.remove("hide");}
 fillBranches();document.getElementById("branchSel").value="b1";
+
+function filterAssessTable(){
+  const q=(document.getElementById("assessSearch")?.value||"").toLowerCase();
+  const th=(document.getElementById("assessTherFilter")?.value||"").toLowerCase();
+  document.querySelectorAll("#assessTbody tr").forEach(row=>{
+    const txt=row.textContent.toLowerCase();
+    row.style.display=((!q||txt.includes(q))&&(!th||txt.includes(th)))?"":"none";
+  });
+}
 </script>
 </body>
 </html>
