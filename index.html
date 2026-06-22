@@ -594,7 +594,7 @@ const ROLES={
    views:["dashboard","patients","appointments","assessment","treatment","packages","billing","reminders"]}
 };
 function canDo(cap){return true;}
-const APP_VER="pm_v3"; // bump this whenever a breaking reset is needed
+const APP_VER="pm_v6"; // bump this whenever a breaking reset is needed
 function load(){
  // If old PhysioVerse data or wrong version detected — wipe and start fresh
  const ver=localStorage.getItem("pm_app_ver");
@@ -613,6 +613,9 @@ function load(){
  if(DB.plans&&seed.plans){DB.plans.forEach(function(p){var sp=seed.plans.find(function(x){return x.id===p.id;});if(sp){if(!p.modalities||!p.modalities.length)p.modalities=sp.modalities||[];if(!p.exercises||!p.exercises.length)p.exercises=sp.exercises||[];if(!p.home||!p.home.length)p.home=sp.home||[];if(!p.homeFreq)p.homeFreq=sp.homeFreq||"";}if(!p.homeLinks)p.homeLinks=[];});}
  localStorage.setItem("pm_app_ver",APP_VER);
 }
+
+let _toastTimer=null;
+function toast(msg,dur){dur=dur||2200;const el=document.getElementById("toast");if(!el)return;el.textContent=msg;el.classList.add("show");clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>el.classList.remove("show"),dur);}
 function save(){try{localStorage.setItem("physioverse_v2",JSON.stringify(DB));}catch(e){}idbSnap();}
 function resetDB(){if(confirm("Reset demo to sample data?")){DB=JSON.parse(JSON.stringify(seed));save();fillBranches();render();}}
 
@@ -807,7 +810,7 @@ views.patients=()=>{
     <button class="btn" onclick="patientForm()">+ New Patient</button>
    </div>
   </div>
-  <div class="panel-b flush"><table><thead><tr><th>Patient</th><th>Patient ID</th><th>Age/Sex</th><th>Phone</th><th>Condition</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody id="prows">${patientRows(list)}</tbody></table></div>
+  <div class="panel-b flush" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>Patient</th><th>Patient ID</th><th>Age/Sex</th><th>Phone</th><th>Condition</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody id="prows">${patientRows(list)}</tbody></table></div>
  </div>`;
 };
 function patientRows(list){
@@ -1207,7 +1210,7 @@ function nextSessionForm(planId){
  var regOpts=REGIONS.map(function(r){return '<option>'+r+'</option>';}).join("");
  openModal('<div class="modal-h"><h3>Session #'+nextN+' — '+p.name+'</h3><button class="x" onclick="closeModal()">×</button></div>'
   +'<div class="modal-b">'
-  +'<div class="grid2"><div class="field"><label>Date</label><input id="s_date" type="date" value="'+todayISO+'"></div>'
+  +'<div class="grid2"><div class="field"><label>Date</label><div style="display:flex;gap:6px;align-items:center"><input id="s_date" type="date" value="'+todayISO+'" style="flex:1"><button type="button" class="btn sm sec" onclick="document.getElementById(\'s_date\').value=todayISO">Today</button></div></div>'
   +'<div class="field"><label>Therapist</label><select id="s_ther">'+DB.staff.filter(function(x){return x.role.includes("Physio");}).map(function(x){return '<option>'+(x.name)+'</option>';}).join("")+'</select></div></div>'
   +'<div class="field"><label>Treatments / modalities — remove or add</label><div style="display:flex;gap:6px;margin:6px 0"><select id="s_modsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">'+modOpts()+'</select><button type="button" class="btn sm" onclick="addLine(\'s_modsel\',\'s_mod\')">+ Add</button></div><textarea id="s_mod" rows="3" placeholder="One per line">'+mods.join("\n")+'</textarea></div>'
   +'<div class="field"><label>Exercises done today — remove or add</label><div style="display:flex;gap:6px;margin:6px 0"><select id="s_region" onchange="fillEx(\'s_region\',\'s_exsel\')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">'+regOpts+'</select><select id="s_exsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo(\'s_exsel\',\'s_ex\')">+ Add</button></div><textarea id="s_ex" rows="4" placeholder="One per line">'+exs.join("\n")+'</textarea></div>'
@@ -1304,7 +1307,7 @@ function sessionForm(planId,sid){const t=DB.plans.find(x=>x.id===planId);const p
  const regOpts=REGIONS.map(r=>`<option>${r}</option>`).join("");
  openModal(`<div class="modal-h"><h3>Session #${nextN} — ${p.name}</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
-  <div class="grid2"><div class="field"><label>Date</label><input id="s_date" type="date" value="${s?s.date:todayISO}"></div>
+  <div class="grid2"><div class="field"><label>Date</label><div style="display:flex;gap:6px;align-items:center"><input id="s_date" type="date" value="${s?s.date:todayISO}" style="flex:1"><button type="button" class="btn sm sec" onclick="document.getElementById('s_date').value=todayISO">Today</button></div></div>
    <div class="field"><label>Therapist (logged by)</label><select id="s_ther">${DB.staff.filter(x=>x.role.includes("Physio")).map(x=>`<option ${ (s?s.therapist:(MYTHER||t.diagnosis&&p.therapist))===x.name?'selected':''}>${x.name}</option>`).join("")}</select></div></div>
   <div class="field"><label>Treatments / modalities given today — remove or add</label><div style="display:flex;gap:6px;margin:6px 0"><select id="s_modsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">${modOpts()}</select><button type="button" class="btn sm" onclick="addLine('s_modsel','s_mod')">+ Add</button></div><textarea id="s_mod" rows="3" placeholder="One per line">${mods.join("\n")}</textarea></div>
   <div class="field"><label>Exercises done today — remove or add (${EXCOUNT}+ library)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="s_region" onchange="fillEx('s_region','s_exsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${regOpts}</select><select id="s_exsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('s_exsel','s_ex')">+ Add</button></div><textarea id="s_ex" rows="4" placeholder="One per line">${exs.join("\n")}</textarea></div>
@@ -2249,7 +2252,7 @@ function saveAssess(){
   if(!a.pid){alert("Select a patient.");return;}
   const idx=DB.assessments.findIndex(x=>x.id===a.id);
   if(idx>-1)DB.assessments[idx]=a; else DB.assessments.push(a);
-  save();closeModal();
+  save();closeModal();toast("✓ Assessment saved");
   // Go straight to the document view
   window._viewAssessId=a.id;
   current="assessment";
