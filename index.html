@@ -597,7 +597,7 @@ const ROLES={
    views:["dashboard","patients","appointments","assessment","treatment","packages","billing","reminders"]}
 };
 function canDo(cap){return true;}
-const APP_VER="pm_v7"; // bump this whenever a breaking reset is needed
+const APP_VER="pm_v8"; // bump this whenever a breaking reset is needed
 function load(){
  // If old PhysioVerse data or wrong version detected — wipe and start fresh
  const ver=localStorage.getItem("pm_app_ver");
@@ -724,14 +724,14 @@ function go(v){current=v;document.querySelectorAll("#nav button").forEach(b=>b.c
 document.getElementById("nav").addEventListener("click",e=>{const b=e.target.closest("button");if(b){go(b.dataset.v);toggleNav(false);}});
 function toggleNav(force){const sb=document.querySelector(".sidebar"),bd=document.getElementById("backdrop");const open=force!==undefined?force:!sb.classList.contains("open");sb.classList.toggle("open",open);bd.classList.toggle("show",open);}
 function render(){document.getElementById("view").innerHTML=views[current]();renderActiveBar();}
-function activePids(){return (DB.active||[]).filter(pid=>DB.patients.some(p=>p.id===pid)).filter(pid=>!MYTHER||pById(pid).therapist===MYTHER);}
+function activePids(){return (DB.active||[]).map(x=>typeof x==='string'?x:x.pid).filter(pid=>DB.patients.some(p=>p.id===pid)).filter(pid=>!MYTHER||pById(pid).therapist===MYTHER);}
 function renderActiveBar(){const el=document.getElementById("activeBar");if(!el)return;const pids=activePids();
  if(!pids.length){el.style.display="none";el.innerHTML="";return;}el.style.display="block";
  el.innerHTML=`<div class="abar-inner"><span class="abar-title">🟢 Active now <span class="tag blue">${pids.length} in session</span></span><div class="abar-chips">${pids.map(pid=>{const p=pById(pid);const nm=p.name.split(" ");return `<div class="achip" onclick="openConsole('${pid}')"><span class="achip-av">${initials(p.name)}</span>${nm[0]}${nm[1]?" "+nm[1][0]+".":""}<span class="achip-x" title="End session" onclick="event.stopPropagation();endSession('${pid}')">✕</span></div>`;}).join("")}</div><button class="btn sec sm" onclick="endAllSessions()" style="margin-left:auto;white-space:nowrap">End all</button></div>`;}
 function startSession(pid){DB.active=DB.active||[];if(!DB.active.includes(pid))DB.active.push(pid);save();renderActiveBar();}
 function completeTodayAppt(pid){const a=DB.appointments.find(x=>x.pid===pid&&x.date===todayISO&&(x.status==="Checked-in"||x.status==="Confirmed"));if(a)a.status="Completed";}
-function endSession(pid){DB.active=(DB.active||[]).filter(x=>x!==pid);completeTodayAppt(pid);save();render();}
-function endAllSessions(){(DB.active||[]).forEach(completeTodayAppt);DB.active=[];save();render();}
+function endSession(pid){DB.active=(DB.active||[]).filter(x=>(typeof x==='string'?x:x.pid)!==pid);completeTodayAppt(pid);save();render();setTimeout(()=>invForm(pid),80);}
+function endAllSessions(){const pids=(DB.active||[]).map(x=>typeof x==='string'?x:x.pid);pids.forEach(completeTodayAppt);DB.active=[];save();render();if(pids.length===1){setTimeout(()=>invForm(pids[0]),80);}else if(pids.length>1){setTimeout(()=>invForm(),80);}}
 function openConsole(pid){const t=DB.plans.find(x=>x.pid===pid);if(!t){if(confirm(pById(pid).name+" has no active treatment plan. Create one now?")){closeModal();go("treatment");setTimeout(planForm,40);}return;}sessionForm(t.id);}
 const ov=document.getElementById("overlay"),md=document.getElementById("modal");
 function openModal(html,wide){md.className="modal"+(wide?" wide":"");md.innerHTML=html;ov.classList.add("show");}
@@ -1588,8 +1588,8 @@ views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.
  const paid=inv.filter(i=>i.status==='Paid').reduce((s,i)=>s+invTotals(i).total,0);
  const pend=inv.filter(i=>i.status==='Pending').reduce((s,i)=>s+invTotals(i).total,0);
  const gst=inv.reduce((s,i)=>s+invTotals(i).gst,0);
- const todayInv=inv.filter(i=>i.date===todayISO&&i.status==='Paid');
- const byMode={};todayInv.forEach(i=>{byMode[i.mode]=(byMode[i.mode]||0)+invTotals(i).total;});
+ const todayInv=inv.filter(i=>i.status==='Paid'&&(i.paidAt||i.date)===todayISO);
+ const byMode={};todayInv.forEach(i=>{const m=i.mode||'—';byMode[m]=(byMode[m]||0)+invTotals(i).total;});
  const collToday=todayInv.reduce((s,i)=>s+invTotals(i).total,0);
  const expToday=DB.expenses.filter(inBranch).filter(e=>e.date===todayISO).reduce((s,e)=>s+e.amount,0);
  const q=_invSearch.toLowerCase().trim();
@@ -1659,7 +1659,7 @@ function markPaid(id){
 function doMarkPaid(id){const mode=document.getElementById("mp_mode").value;const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);
  if(mode==="Wallet (advance)"){const gross=invTotals(i).total;if((p.wallet||0)<gross){alert("Wallet balance ("+inr(p.wallet||0)+") is insufficient for "+inr(gross)+". Top up first.");return;}p.wallet-=gross;i.mode="Wallet";}
  else i.mode=mode;
- i.status="Paid";save();closeModal();render();}
+ i.status="Paid";i.paidAt=todayISO;if(!i.total){i.total=invTotals(i).total;}save();closeModal();render();}
 function payRemind(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);sendWA(i.pid,"Payment",inr(invTotals(i).total)+" due — "+i.id,payMsg(p,inr(invTotals(i).total)+" pending for "+i.id));}
 function viewInvoice(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);const t=invTotals(i);
  openModal(`<div class="modal-h"><h3>Tax Invoice — ${i.id}</h3><button class="x" onclick="closeModal()">×</button></div>
@@ -1728,11 +1728,11 @@ function saveInv(){
  const items=rows.map(r=>({d:r.querySelector(".inv-d").value||"Service",qty:+(r.querySelector(".inv-q").value)||1,rate:+(r.querySelector(".inv-r").value)||0}));
  const subtotal=items.reduce((s,i)=>s+i.rate*i.qty,0);
  const gross=Math.round(subtotal*1.18);
- let inv={id:nextInvNo(),pid,date:todayISO,items,gst:18,branch:p.branch};
- if(mode==="Package session"){const pk=DB.patientPkgs.find(k=>k.pid===pid&&k.status==="Active"&&k.used<k.total);if(!pk){alert("No active package with sessions left for this patient.");return;}pk.used++;inv.items=items.map(i=>({...i,d:i.d+" (package)",rate:0}));inv.status="Paid";inv.mode="Package";}
- else if(mode==="Wallet"){if((p.wallet||0)<gross){alert("Insufficient wallet balance ("+inr(p.wallet||0)+"). Top up first.");return;}p.wallet-=gross;inv.status="Paid";inv.mode="Wallet";}
+ let inv={id:nextInvNo(),pid,date:todayISO,items,gst:18,branch:p.branch,total:gross};
+ if(mode==="Package session"){const pk=DB.patientPkgs.find(k=>k.pid===pid&&k.status==="Active"&&k.used<k.total);if(!pk){alert("No active package with sessions left for this patient.");return;}pk.used++;inv.items=items.map(i=>({...i,d:i.d+" (package)",rate:0}));inv.total=0;inv.status="Paid";inv.mode="Package";inv.paidAt=todayISO;}
+ else if(mode==="Wallet"){if((p.wallet||0)<gross){alert("Insufficient wallet balance ("+inr(p.wallet||0)+"). Top up first.");return;}p.wallet-=gross;inv.status="Paid";inv.mode="Wallet";inv.paidAt=todayISO;}
  else if(mode==="Pending"){inv.status="Pending";inv.mode="—";}
- else{inv.status="Paid";inv.mode=mode;}
+ else{inv.status="Paid";inv.mode=mode;inv.paidAt=todayISO;}
  DB.invoices.push(inv);save();closeModal();render();}
 
 /* EXPENSES */
