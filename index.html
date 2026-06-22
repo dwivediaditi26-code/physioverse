@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PhysioVerse — Clinic Management</title>
+<title>PhysioMind — Clinic OS</title>
 <style>
 :root{
   --bg:#f4f6fb; --card:#fff; --ink:#1a2233; --muted:#6b7589;
@@ -455,7 +455,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 <body>
 <div id="login">
   <div class="login-card">
-    <div class="lhead"><div class="logo">PV</div><div><h1>PhysioVerse</h1><small>CLINIC OS</small></div></div>
+    <div class="lhead"><div class="logo">PM</div><div><h1>PhysioMind</h1><small>CLINIC OS</small></div></div>
     <div class="login-sub">Sign in — choose your role to see what that person can access. (Demo: no password needed.)</div>
     <button class="role-opt" onclick="login('owner')"><div class="ra" style="background:#2563eb">NV</div><div><div class="rn">Dr. Neha Verma</div><div class="rt">Owner / Senior Physiotherapist</div><div class="rsee">Full access — incl. revenue, payroll & reports</div></div><div class="arr">→</div></button>
     <button class="role-opt" onclick="login('staff')"><div class="ra" style="background:#0d9488">AJ</div><div><div class="rn">Dr. Amit Joshi</div><div class="rt">Therapist & Front Desk</div><div class="rsee">Patients, appointments, treatments & billing — no payroll/reports</div></div><div class="arr">→</div></button>
@@ -464,8 +464,8 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 <div class="app">
   <aside class="sidebar">
     <div class="brand">
-      <div class="logo">PV</div>
-      <div><h1>PhysioVerse</h1><small>CLINIC OS</small></div>
+      <div class="logo">PM</div>
+      <div><h1>PhysioMind</h1><small>CLINIC OS</small></div>
     </div>
     <nav class="nav" id="nav">
       <div class="grp">OVERVIEW</div>
@@ -487,7 +487,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
       <button data-v="branches"><span class="ico">🏢</span> Branches</button>
       <button data-v="settings"><span class="ico">⚙️</span> Settings</button>
     </nav>
-    <div class="side-foot"><b>Demo v2.0</b><br>Built for PhysioVerse, Indore</div>
+    <div class="side-foot"><b>Demo v2.0</b><br>Built for PhysioMind, Indore</div>
   </aside>
   <div class="main">
     <div class="apphead">
@@ -510,11 +510,11 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 <div class="backdrop" id="backdrop" onclick="toggleNav(false)"></div>
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 <script>
-const todayISO="2026-06-15";
+const todayISO=new Date().toISOString().slice(0,10);
 function uid(p){return p+Math.random().toString(36).slice(2,8)}
 const seed={
- branches:[{id:"b1",name:"PhysioVerse — Vijay Nagar",address:"12 Vijay Nagar, Indore, MP 452010",phone:"+91 731 400 1100"},
-           {id:"b2",name:"PhysioVerse — Palasia",address:"5 New Palasia, Indore, MP 452001",phone:"+91 731 400 2200"}],
+ branches:[{id:"b1",name:"PhysioMind — Vijay Nagar",address:"12 Vijay Nagar, Indore, MP 452010",phone:"+91 731 400 1100"},
+           {id:"b2",name:"PhysioMind — Palasia",address:"5 New Palasia, Indore, MP 452001",phone:"+91 731 400 2200"}],
  staff:[
   {id:"s1",name:"Dr. Neha Verma",role:"Senior Physiotherapist",phone:"+91 98260 10101",branch:"b1",salary:55000,present:24,leave:2},
   {id:"s2",name:"Dr. Amit Joshi",role:"Physiotherapist",phone:"+91 98260 20202",branch:"b1",salary:42000,present:23,leave:3},
@@ -572,7 +572,7 @@ const seed={
   {id:"INV-2026-043",pid:"p2",date:"2026-06-14",items:[{d:"Therapy session — frozen shoulder",qty:1,rate:800},{d:"Ultrasound therapy",qty:1,rate:350}],gst:18,status:"Pending",mode:"—",branch:"b1"},
   {id:"INV-2026-044",pid:"p4",date:"2026-06-14",items:[{d:"Initial assessment & consultation",qty:1,rate:600}],gst:18,status:"Pending",mode:"—",branch:"b1"}],
  expenses:[
-  {id:"e1",date:"2026-06-02",cat:"Rent",amount:45000,note:"Clinic rent — June",branch:"b1"},
+  {id:"e1",date:"2026-06-02",cat:"Rent",amount:9000,note:"Clinic rent — June (shared space)",branch:"b1"},
   {id:"e2",date:"2026-06-05",cat:"Equipment",amount:8500,note:"TENS electrodes + gel",bill:"electrodes-bill.jpg",branch:"b1"},
   {id:"e3",date:"2026-06-10",cat:"Utilities",amount:3200,note:"Electricity bill",branch:"b1"},
   {id:"e4",date:"2026-06-11",cat:"Marketing",amount:5000,note:"Google Ads — local",branch:"b1"}],
@@ -1801,7 +1801,7 @@ views.reports=()=>{
 views.staff=()=>{const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===curBranch());
  return `<div class="panel"><div class="panel-h"><h3>Clinic Members</h3><button class="btn" onclick="staffForm()">+ Add Member</button></div>
  <div class="panel-b flush"><table><thead><tr><th>Member</th><th>Role</th><th>Phone</th><th>Branch</th><th>Attendance</th><th>Leaves</th><th style="text-align:right">Salary</th></tr></thead><tbody>
- ${list.map(s=>`<tr><td><div class="pcell"><div class="avatar t">${initials(s.name)}</div><div class="nm">${s.name}</div></div></td><td><span class="tag ${s.role.includes('Senior')?'purple':s.role.includes('Physio')?'blue':'gray'}">${s.role}</span></td><td>${s.phone}</td><td>${bName(s.branch).replace('PhysioVerse — ','')}</td><td><b style="color:var(--ok)">${s.present}</b> days</td><td>${s.leave}</td><td style="text-align:right"><b>${inr(s.salary)}</b></td></tr>`).join("")}
+ ${list.map(s=>`<tr><td><div class="pcell"><div class="avatar t">${initials(s.name)}</div><div class="nm">${s.name}</div></div></td><td><span class="tag ${s.role.includes('Senior')?'purple':s.role.includes('Physio')?'blue':'gray'}">${s.role}</span></td><td>${s.phone}</td><td>${bName(s.branch).replace('PhysioMind — ','')}</td><td><b style="color:var(--ok)">${s.present}</b> days</td><td>${s.leave}</td><td style="text-align:right"><b>${inr(s.salary)}</b></td></tr>`).join("")}
  </tbody></table></div></div>
  <div class="two-col">
   <div class="panel"><div class="panel-h"><h3>Attendance (June)</h3></div><div class="panel-b">
@@ -1833,13 +1833,13 @@ views.branches=()=>`<div class="panel"><div class="panel-h"><h3>Branches</h3><bu
    <div class="panel-b"><div class="kpi-mini"><div><b>${st}</b><span>Staff</span></div><div><b>${pts}</b><span>Patients</span></div><div><b>${b.phone}</b><span>Phone</span></div></div></div></div>`;}).join("")}
  </div></div>`;
 function branchForm(){openModal(`<div class="modal-h"><h3>Add Branch</h3><button class="x" onclick="closeModal()">×</button></div>
- <div class="modal-b"><div class="field"><label>Branch name</label><input id="br_name" value="PhysioVerse — "></div>
+ <div class="modal-b"><div class="field"><label>Branch name</label><input id="br_name" value="PhysioMind — "></div>
   <div class="field"><label>Address</label><input id="br_addr"></div><div class="field"><label>Phone</label><input id="br_phone"></div></div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveBranch()">Save</button></div>`);}
 function saveBranch(){const v=k=>document.getElementById(k).value;DB.branches.push({id:uid("b"),name:v("br_name"),address:v("br_addr"),phone:v("br_phone")});save();closeModal();fillBranches();render();}
 
 /* REMINDERS */
-function apptMsg(p,when){return `Namaste ${p.name.split(" ")[0]} ji 🙏\nReminder: Your physiotherapy appointment at ${DB.settings.clinic} is on ${when}.\nReply 1 to confirm, 2 to reschedule.\n— Team PhysioVerse, Indore`;}
+function apptMsg(p,when){return `Namaste ${p.name.split(" ")[0]} ji 🙏\nReminder: Your physiotherapy appointment at ${DB.settings.clinic} is on ${when}.\nReply 1 to confirm, 2 to reschedule.\n— Team ${DB.settings.clinic}, Indore`;}
 function payMsg(p,txt){return `Namaste ${p.name.split(" ")[0]} ji 🙏\nGentle reminder from ${DB.settings.clinic}: ${txt}.\nYou can pay via UPI or at reception. Thank you!`;}
 function waLink(phone,text){return "https://wa.me/"+(phone||"").replace(/\D/g,"")+"?text="+encodeURIComponent(text);}
 function sendWA(pid,kind,when,text){const p=pById(pid);try{window.open(waLink(p.phone,text),"_blank");}catch(e){}
@@ -1852,7 +1852,7 @@ views.reminders=()=>{
  const dues=DB.invoices.filter(inBranch).filter(i=>i.status==="Pending");
  const toSend=[...upcoming.map(a=>({pid:a.pid,kind:"Appointment",when:fmtAppt(a),text:apptMsg(pById(a.pid),fmtAppt(a))})),
    ...dues.map(i=>({pid:i.pid,kind:"Payment",when:inr(invTotals(i).total)+" due — "+i.id,text:payMsg(pById(i.pid),inr(invTotals(i).total)+" pending for "+i.id)}))];
- const clinic=DB.settings.clinic||"PhysioVerse Clinic";
+ const clinic=DB.settings.clinic||"PhysioMind";
  const TEMPLATES=[
   {label:"Appointment Reminder — Day Before",tag:"blue",icon:"📅",msg:`Hi [Patient Name] 👋, this is a reminder that your physiotherapy appointment is scheduled for *tomorrow, [Date]* at *[Time]* with *[Therapist Name]* at *${clinic}*. Please arrive 5 minutes early. For any changes, call us at [Phone]. See you soon! 🙏`},
   {label:"Appointment Reminder — Same Day",tag:"teal",icon:"⏰",msg:`Good morning [Patient Name] 😊, just a reminder that you have your physio session *today at [Time]* with *[Therapist Name]*. We're looking forward to seeing you at ${clinic}. Please call [Phone] if you need to reschedule.`},
@@ -1911,7 +1911,7 @@ views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel
   <button class="btn danger sm" onclick="resetDB()">↺ Reset demo data</button>
  </div></div>
  <div class="panel" style="max-width:640px"><div class="panel-h"><h3>About this build</h3></div><div class="panel-b muted" style="font-size:13px">
-  PhysioVerse Clinic OS — demo v2.0. Feature-complete UI prototype covering patients, appointments, consultations & prescriptions, treatments, packages, GST billing, expenses, reports, staff payroll, multi-branch, and WhatsApp/SMS reminders. For a clinic relying on it daily, the production version adds a secure cloud backend, user logins with role-based access, and live messaging integrations.
+  PhysioMind Clinic OS — demo v2.0. Feature-complete UI prototype covering patients, appointments, consultations & prescriptions, treatments, packages, GST billing, expenses, reports, staff payroll, multi-branch, and WhatsApp/SMS reminders. For a clinic relying on it daily, the production version adds a secure cloud backend, user logins with role-based access, and live messaging integrations.
  </div></div>`;
 
 /* ══════════════════════════════════════════════════════
