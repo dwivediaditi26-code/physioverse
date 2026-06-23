@@ -597,7 +597,7 @@ const ROLES={
    views:["dashboard","patients","appointments","assessment","treatment","packages","billing","reminders"]}
 };
 function canDo(cap){return true;}
-const APP_VER="pm_v10"; // bump this whenever a breaking reset is needed
+const APP_VER="pm_v11"; // bump this whenever a breaking reset is needed
 function load(){
  // If old PhysioVerse data or wrong version detected — wipe and start fresh
  const ver=localStorage.getItem("pm_app_ver");
@@ -1780,52 +1780,76 @@ function previewBill(inp){const f=inp.files[0];if(!f)return;const r=new FileRead
 function saveExp(){const v=k=>document.getElementById(k).value;const f=document.getElementById("x_bill").files[0];DB.expenses.push({id:uid("e"),date:v("x_date"),cat:v("x_cat")||"Other",amount:+v("x_amt")||0,note:v("x_note"),bill:f?f.name:"",branch:curBranch()==="all"?"b1":curBranch()});save();closeModal();render();}
 
 /* REPORTS */
+let _rptMonth="";
 views.reports=()=>{
- const inv=DB.invoices.filter(inBranch);
- const paid=inv.filter(i=>i.status==='Paid'),pend=inv.filter(i=>i.status==='Pending');
- const rev=paid.reduce((s,i)=>s+invTotals(i).total,0);
- const exp=DB.expenses.filter(inBranch).reduce((s,e)=>s+e.amount,0);
- const months=[{m:"Feb",v:118000},{m:"Mar",v:132000},{m:"Apr",v:145000},{m:"May",v:161000},{m:"Jun",v:rev||94000}];
- const mx=Math.max(...months.map(m=>m.v));
- const therStats={};DB.appointments.filter(inBranch).forEach(a=>{therStats[a.therapist]=(therStats[a.therapist]||0)+1;});
- const mxT=Math.max(1,...Object.values(therStats));
- const appts=DB.appointments.filter(inBranch);
- const noShow=appts.filter(a=>a.status==='Cancelled').length;
- const noShowRate=Math.round(noShow/(appts.length||1)*100);
- const newPts=DB.patients.filter(inBranch).filter(p=>p.since>="2026-06-01").length;
- const retPts=DB.patients.filter(inBranch).length-newPts;
- const aging=pend.map(i=>({i,days:Math.max(0,Math.round((new Date(todayISO)-new Date(i.date))/86400000))})).sort((a,b)=>b.days-a.days);
- return `<div class="cards">
-  <div class="stat"><div class="lbl">Revenue (paid)</div><div class="val" style="color:var(--ok)">${inr(rev)}</div><div class="delta">This month</div></div>
-  <div class="stat"><div class="lbl">Expenses</div><div class="val" style="color:var(--danger)">${inr(exp)}</div></div>
-  <div class="stat"><div class="lbl">Net (profit)</div><div class="val" style="color:var(--brand)">${inr(rev-exp)}</div></div>
-  <div class="stat"><div class="lbl">No-show / cancel rate</div><div class="val">${noShowRate}%</div><div class="delta" style="color:var(--muted)">${newPts} new · ${retPts} returning</div></div>
- </div>
- <div class="two-col">
-  <div class="panel"><div class="panel-h"><h3>Monthly Revenue Trend</h3></div><div class="panel-b">
-   <div class="mini-bars">${months.map(m=>`<div class="col"><div class="b" style="height:${Math.round(m.v/mx*100)}%"></div><small>${m.m}</small><small style="font-weight:600;color:var(--ink)">${Math.round(m.v/1000)}k</small></div>`).join("")}</div>
-  </div></div>
-  <div class="panel"><div class="panel-h"><h3>Therapist Performance</h3></div><div class="panel-b">
-   ${Object.keys(therStats).map(t=>`<div class="list-row"><div style="display:flex;justify-content:space-between"><b>${t}</b><span class="muted">${therStats[t]} appts</span></div><div class="bar"><div style="width:${Math.round(therStats[t]/mxT*100)}%;background:${therColor(t)}"></div></div></div>`).join("")||'<div class=muted>No data</div>'}
-  </div></div>
- </div>
- <div class="panel"><div class="panel-h"><h3>Quick Reports</h3></div><div class="panel-b">
-  <div class="kpi-mini" style="gap:30px">
-   <div><b>${DB.patients.filter(inBranch).length}</b><span>Total patients</span></div>
-   <div><b>${DB.appointments.filter(inBranch).length}</b><span>Appointments</span></div>
-   <div><b>${DB.patientPkgs.filter(x=>inBranch(pById(x.pid))).length}</b><span>Active packages</span></div>
-   <div><b>${DB.consultations.length}</b><span>Consultations</span></div>
-   <div><b>${inr(pend.reduce((s,i)=>s+invTotals(i).total,0))}</b><span>Outstanding dues</span></div>
+  const MNAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const allInv=DB.invoices.filter(inBranch);
+  const allExp=DB.expenses.filter(inBranch);
+  // Month options from invoices + expenses
+  const allMonths=[...new Set([...allInv.map(i=>i.date?i.date.slice(0,7):''),...allExp.map(e=>e.date?e.date.slice(0,7):'')].filter(Boolean))].sort().reverse();
+  if(!_rptMonth&&allMonths.length)_rptMonth=allMonths[0];
+  // Filter by selected month
+  const inv=_rptMonth?allInv.filter(i=>(i.date||'').startsWith(_rptMonth)):allInv;
+  const ex=_rptMonth?allExp.filter(e=>(e.date||'').startsWith(_rptMonth)):allExp;
+  const paid=inv.filter(i=>i.status==='Paid');
+  const pend=inv.filter(i=>i.status==='Pending');
+  const rev=paid.reduce((s,i)=>s+invTotals(i).total,0);
+  const expTotal=ex.reduce((s,e)=>s+e.amount,0);
+  const profit=rev-expTotal;
+  // Income by mode
+  const byMode={};paid.forEach(i=>{const m=i.mode||'Other';byMode[m]=(byMode[m]||0)+invTotals(i).total;});
+  // Expenses by category
+  const byCat={};ex.forEach(e=>{byCat[e.cat]=(byCat[e.cat]||0)+e.amount;});
+  // Week-wise revenue for selected month
+  const weekRev=[0,0,0,0,0];
+  paid.forEach(i=>{if(!i.date)return;const d=new Date(i.date);const w=Math.min(Math.floor((d.getDate()-1)/7),4);weekRev[w]+=invTotals(i).total;});
+  const maxW=Math.max(...weekRev,1);
+  // Therapist stats (all time or filtered)
+  const therStats={};DB.appointments.filter(inBranch).forEach(a=>{therStats[a.therapist]=(therStats[a.therapist]||0)+1;});
+  const monthLabel=_rptMonth?MNAMES[+_rptMonth.slice(5,7)-1]+' '+_rptMonth.slice(0,4):'All time';
+  return `<div class="panel-h" style="flex-wrap:wrap;gap:8px"><h3>Reports &amp; Analytics</h3>
+  <select style="padding:7px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px" onchange="_rptMonth=this.value;render()">
+    ${allMonths.map(m=>`<option value="${m}" ${_rptMonth===m?'selected':''}>${MNAMES[+m.slice(5,7)-1]} ${m.slice(0,4)}</option>`).join('')}
+    <option value="" ${!_rptMonth?'selected':''}>All time</option>
+  </select>
+</div>
+<div class="cards" style="grid-template-columns:repeat(3,1fr);margin-top:0">
+  <div class="stat"><div class="lbl">Revenue</div><div class="val">${inr(rev)}</div><div class="sub">${paid.length} paid invoices</div></div>
+  <div class="stat"><div class="lbl">Expenses</div><div class="val">${inr(expTotal)}</div><div class="sub">${ex.length} entries</div></div>
+  <div class="stat" style="${profit>=0?'background:#e8f5e9':'background:#fdecea'}"><div class="lbl">Net profit</div><div class="val" style="${profit>=0?'color:#2e7d32':'color:#c62828'}">${inr(profit)}</div><div class="sub">${rev?Math.round(profit/rev*100):0}% margin</div></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 17px 17px">
+  <div class="panel" style="margin:0">
+    <div class="panel-h"><h3>Income by mode</h3></div>
+    <div class="panel-b">
+      ${Object.keys(byMode).length?Object.entries(byMode).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`<div class="list-row"><div style="display:flex;justify-content:space-between"><b>${m}</b><span>${inr(v)}</span></div><div style="background:var(--line);border-radius:4px;height:6px;margin-top:4px"><div style="width:${Math.round(v/rev*100)}%;background:var(--brand);height:6px;border-radius:4px"></div></div></div>`).join(''):'<p class="muted" style="padding:12px">No paid invoices this month</p>'}
+      ${pend.length?`<div class="list-row" style="opacity:.6"><div style="display:flex;justify-content:space-between"><span class="muted">Pending</span><span>${inr(pend.reduce((s,i)=>s+invTotals(i).total,0))}</span></div></div>`:''}
+    </div>
   </div>
-  <hr class="sep"><div class="muted" style="font-size:12.5px">Demo: full version exports day/month/custom-range reports to Excel & PDF.</div>
- </div></div>
- <div class="panel"><div class="panel-h"><h3>Outstanding dues — aging</h3><span class="tag amber">${inr(pend.reduce((s,i)=>s+invTotals(i).total,0))} total</span></div>
- <div class="panel-b flush"><table><thead><tr><th>Patient</th><th>Invoice</th><th>Date</th><th>Amount</th><th>Age</th><th></th></tr></thead><tbody>
- ${aging.map(({i,days})=>{const p=pById(i.pid);return `<tr><td>${p.name}</td><td>${i.id}</td><td>${fmtDate(i.date)}</td><td><b>${inr(invTotals(i).total)}</b></td><td><span class="tag ${days>7?'red':days>3?'amber':'gray'}">${days} day${days===1?'':'s'}</span></td><td style="text-align:right"><button class="btn sm sec" onclick="payRemind('${i.id}')">🔔 Remind</button></td></tr>`;}).join("")||'<tr><td colspan=6 class=empty>No outstanding dues 🎉</td></tr>'}
- </tbody></table></div></div>`;
+  <div class="panel" style="margin:0">
+    <div class="panel-h"><h3>Expenses by category</h3></div>
+    <div class="panel-b">
+      ${Object.keys(byCat).length?Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<div class="list-row"><div style="display:flex;justify-content:space-between"><b>${c}</b><span>${inr(v)}</span></div><div style="background:var(--line);border-radius:4px;height:6px;margin-top:4px"><div style="width:${Math.round(v/expTotal*100)}%;background:#e57373;height:6px;border-radius:4px"></div></div></div>`).join(''):'<p class="muted" style="padding:12px">No expenses this month</p>'}
+    </div>
+  </div>
+</div>
+${_rptMonth?`<div class="panel" style="margin:0 17px 17px">
+  <div class="panel-h"><h3>Week-wise revenue — ${monthLabel}</h3></div>
+  <div class="panel-b" style="display:flex;gap:12px;align-items:flex-end;height:100px;padding:12px 17px">
+    ${weekRev.map((w,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+      <div style="width:100%;background:var(--brand);opacity:${w?1:0.15};border-radius:4px 4px 0 0;height:${Math.round(w/maxW*80)}px;min-height:4px"></div>
+      <span style="font-size:11px;color:var(--muted)">Wk ${i+1}</span>
+      <span style="font-size:11px;font-weight:600">${w?inr(w):'-'}</span>
+    </div>`).join('')}
+  </div>
+</div>`:''}
+<div class="panel" style="margin:0 17px 17px">
+  <div class="panel-h"><h3>Therapist performance</h3></div>
+  <div class="panel-b">
+    ${Object.keys(therStats).map(t=>`<div class="list-row"><div style="display:flex;justify-content:space-between"><b>${t}</b><span class="muted">${therStats[t]} appts</span></div></div>`).join('')||'<p class="muted" style="padding:12px">No appointments yet</p>'}
+  </div>
+</div>`;
 };
-
-/* STAFF */
 views.staff=()=>{const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===curBranch());
  return `<div class="panel"><div class="panel-h"><h3>Clinic Members</h3><button class="btn" onclick="staffForm()">+ Add Member</button></div>
  <div class="panel-b flush"><table><thead><tr><th>Member</th><th>Role</th><th>Phone</th><th>Branch</th><th>Attendance</th><th>Leaves</th><th style="text-align:right">Salary</th></tr></thead><tbody>
