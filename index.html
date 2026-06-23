@@ -597,7 +597,7 @@ const ROLES={
    views:["dashboard","patients","appointments","assessment","treatment","packages","billing","reminders"]}
 };
 function canDo(cap){return true;}
-const APP_VER="pm_v8"; // bump this whenever a breaking reset is needed
+const APP_VER="pm_v9"; // bump this whenever a breaking reset is needed
 function load(){
  // If old PhysioVerse data or wrong version detected — wipe and start fresh
  const ver=localStorage.getItem("pm_app_ver");
@@ -795,7 +795,14 @@ function therapistDash(){
 }
 
 /* PATIENTS */
-let _ptab="active";
+let _ptab="active",_patPage=0;
+const PG=50;
+function pgBar(total,page,setFn){
+  if(total<=PG)return'';
+  const pages=Math.ceil(total/PG);
+  const start=page*PG+1,end=Math.min((page+1)*PG,total);
+  return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 17px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)"><span>Showing ${start}–${end} of ${total}</span><div style="display:flex;gap:6px"><button class="btn sm sec" ${page===0?'disabled':''} onclick="${setFn}(${page-1})">← Prev</button><span style="padding:6px 10px;font-weight:600">${page+1} / ${pages}</span><button class="btn sm sec" ${page>=pages-1?'disabled':''} onclick="${setFn}(${page+1})">Next →</button></div></div>`;
+}
 views.patients=()=>{
  const all=DB.patients.filter(inBranch).filter(p=>!MYTHER||p.therapist===MYTHER);
  const active=all.filter(p=>(p.status||"Active")==="Active");
@@ -804,16 +811,16 @@ views.patients=()=>{
  return `<div class="panel">
   <div class="panel-h" style="flex-wrap:wrap;gap:8px">
    <div style="display:flex;gap:6px">
-    <button class="btn sm${_ptab==="active"?"":' sec'}" onclick="_ptab='active';render()">🟢 Active <span class="tag blue" style="margin-left:4px">${active.length}</span></button>
-    <button class="btn sm${_ptab==="inactive"?"":' sec'}" onclick="_ptab='inactive';render()">⛔ Inactive <span class="tag gray" style="margin-left:4px">${inactive.length}</span></button>
-    <button class="btn sm${_ptab==="all"?"":' sec'}" onclick="_ptab='all';render()">All <span class="tag gray" style="margin-left:4px">${all.length}</span></button>
+    <button class="btn sm${_ptab==="active"?"":' sec'}" onclick="_ptab='active';_patPage=0;render()">🟢 Active <span class="tag blue" style="margin-left:4px">${active.length}</span></button>
+    <button class="btn sm${_ptab==="inactive"?"":' sec'}" onclick="_ptab='inactive';_patPage=0;render()">⛔ Inactive <span class="tag gray" style="margin-left:4px">${inactive.length}</span></button>
+    <button class="btn sm${_ptab==="all"?"":' sec'}" onclick="_ptab='all';_patPage=0;render()">All <span class="tag gray" style="margin-left:4px">${all.length}</span></button>
    </div>
    <div style="display:flex;gap:8px;margin-left:auto">
     <div class="search">🔍<input id="psearch" placeholder="Search name, phone, DOB..." oninput="filterPatients(this.value)"></div>
     <button class="btn" onclick="patientForm()">+ New Patient</button>
    </div>
   </div>
-  <div class="panel-b flush" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>Patient</th><th>Patient ID</th><th>Age/Sex</th><th>Phone</th><th>Condition</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody id="prows">${patientRows(list)}</tbody></table></div>
+  <div class="panel-b flush" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>Patient</th><th>Patient ID</th><th>Age/Sex</th><th>Phone</th><th>Condition</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody id="prows">${patientRows(list.slice(_patPage*PG,(_patPage+1)*PG))}</tbody></table><div id="patPgBar">${pgBar(list.length,_patPage,'setPatPage')}</div></div>
  </div>`;
 };
 function patientRows(list){
@@ -1583,7 +1590,7 @@ function savePkgPayment(pid){const v=k=>document.getElementById(k).value;const p
  save();closeModal();render();}
 
 /* BILLING */
-let _invSearch="",_invDate="";
+let _invSearch="",_invDate="",_invPage=0;
 views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.date.localeCompare(a.date)||(b.id>a.id?1:-1));
  const paid=inv.filter(i=>i.status==='Paid').reduce((s,i)=>s+invTotals(i).total,0);
  const pend=inv.filter(i=>i.status==='Pending').reduce((s,i)=>s+invTotals(i).total,0);
@@ -1601,20 +1608,34 @@ views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.
  </div>
  <div class="panel"><div class="panel-h" style="flex-wrap:wrap;gap:8px"><h3>Invoices</h3>
   <div style="display:flex;gap:6px;flex:1;min-width:0;flex-wrap:wrap">
-   <input id="inv_search" placeholder="🔍 Search patient or invoice #" value="${_invSearch}" oninput="_invSearch=this.value;render()" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
-   <input id="inv_date" type="date" value="${_invDate}" onchange="_invDate=this.value;render()" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
-   ${(_invSearch||_invDate)?`<button class="btn sm sec" onclick="_invSearch='';_invDate='';render()">✕ Clear</button>`:''}
+   <input id="inv_search" placeholder="🔍 Search patient or invoice #" value="${_invSearch}" oninput="_invSearch=this.value;_invPage=0;render()" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+   <input id="inv_date" type="date" value="${_invDate}" onchange="_invDate=this.value;_invPage=0;render()" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+   ${(_invSearch||_invDate)?`<button class="btn sm sec" onclick="_invSearch='';_invDate='';_invPage=0;render()">✕ Clear</button>`:''}
   </div>
   <div class="tools"><button class="btn sm sec" onclick="walletForm()">💳 Wallet top-up</button><button class="btn sm sec" onclick="consultInvForm()">🩺 Consult invoice</button><button class="btn sm" onclick="invForm()">+ Session invoice</button></div>
  </div>
  <div class="panel-b flush"><table><thead><tr><th>Invoice #</th><th>Patient</th><th>Date</th><th>Amount</th><th>Mode</th><th>Status</th><th></th></tr></thead><tbody>
- ${filtered.length?filtered.map(i=>{const p=pById(i.pid);return `<tr class="clk" onclick="viewInvoice('${i.id}')"><td><b>${i.id}</b></td><td>${p.name}</td><td>${fmtDate(i.date)}</td><td><b>${inr(invTotals(i).total)}</b></td><td>${i.mode}</td><td><span class="tag ${statusTag(i.status)}">${i.status}</span></td><td style="text-align:right">${i.status==='Pending'?`<button class="btn sm" onclick="event.stopPropagation();markPaid('${i.id}')">Mark paid</button> <button class="btn sm sec" onclick="event.stopPropagation();payRemind('${i.id}')">🔔</button>`:'<span class="muted">✓</span>'}</td></tr>`;}).join(""):'<tr><td colspan=7 class="empty">No invoices match your search</td></tr>'}
- </tbody></table></div></div>
+ ${filtered.length?filtered.slice(_invPage*PG,(_invPage+1)*PG).map(i=>{const p=pById(i.pid);return `<tr class="clk" onclick="viewInvoice('${i.id}')"><td><b>${i.id}</b></td><td>${p.name}</td><td>${fmtDate(i.date)}</td><td><b>${inr(invTotals(i).total)}</b></td><td>${i.mode}</td><td><span class="tag ${statusTag(i.status)}">${i.status}</span></td><td style="text-align:right">${i.status==='Pending'?`<button class="btn sm" onclick="event.stopPropagation();markPaid('${i.id}')">Mark paid</button> <button class="btn sm sec" onclick="event.stopPropagation();payRemind('${i.id}')">🔔</button>`:'<span class="muted">✓</span>'}</td></tr>`;}).join(""):'<tr><td colspan=7 class="empty">No invoices match your search</td></tr>'}
+ </tbody></table><div id="invPgBar">${pgBar(filtered.length,_invPage,'setInvPage')}</div></div></div>
  <div class="panel"><div class="panel-h"><h3>Day close — ${fmtDate(todayISO)}</h3><button class="btn sm sec" onclick="alert('Demo: day-close report generated, saved & emailed to owner')">Close day & report</button></div><div class="panel-b">
   <div class="kpi-mini" style="gap:24px">${['Cash','UPI','Card','Wallet','Package','Corporate'].map(m=>`<div><b>${inr(byMode[m]||0)}</b><span>${m}</span></div>`).join("")}</div>
   <hr class="sep">
   <div class="kpi-mini" style="gap:24px"><div><b style="color:var(--ok)">${inr(collToday)}</b><span>Collected today</span></div><div><b style="color:var(--danger)">${inr(expToday)}</b><span>Expenses today</span></div><div><b style="color:var(--brand)">${inr(collToday-expToday)}</b><span>Net in hand</span></div></div>
  </div></div>`;};
+let _patFiltered=null;
+function setPatPage(n){_patPage=n;const list=_patFiltered||[];const tbody=document.getElementById("prows");if(tbody){tbody.innerHTML=patientRows(list.slice(_patPage*PG,(_patPage+1)*PG));}const pg=document.getElementById("patPgBar");if(pg)pg.outerHTML=`<div id="patPgBar">${pgBar(list.length,_patPage,'setPatPage')}</div>`;}
+function filterPatients(q){
+  const raw=q.trim().toLowerCase();const dig=q.replace(/\D/g,"");
+  const all=DB.patients.filter(inBranch).filter(p=>!MYTHER||p.therapist===MYTHER);
+  const base=_ptab==="active"?all.filter(p=>(p.status||"Active")==="Active"):_ptab==="inactive"?all.filter(p=>p.status==="Inactive"):all;
+  _patFiltered=base.filter(p=>{
+    const hay=(p.name+" "+(p.dob||"")+" "+patientCode(p)+" "+p.condition).toLowerCase();
+    const phone=(p.phone||"").replace(/\D/g,"");
+    return hay.includes(raw)||(dig.length>=2&&(phone.includes(dig)||patientCode(p).includes(dig)||(p.dob||"").replace(/\D/g,"").includes(dig)));
+  });
+  _patPage=0;setPatPage(0);
+}
+function setInvPage(n){_invPage=n;render();}
 function walletForm(pid){openModal(`<div class="modal-h"><h3>Wallet Top-up (advance)</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="field"><label>Patient</label><select id="w_pid">${DB.patients.map(p=>`<option value="${p.id}" ${pid===p.id?'selected':''}>${p.name} — balance ${inr(p.wallet||0)}</option>`).join("")}</select></div>
@@ -1994,14 +2015,19 @@ window._aForm = null;
 // Assessment stored in DB.assessments (same pattern as consultations)
 views.assessment=()=>{
   if(!DB.assessments) DB.assessments=[];
+  const therOpts=DB.staff.filter(st=>st.role.includes("Physio")).map(st=>`<option value="${st.name}">${st.name}</option>`).join("");
+  const all=(DB.assessments||[]).filter(c=>inBranch(pById(c.pid))).filter(c=>!MYTHER||c.therapist===MYTHER).sort((a,b)=>b.date.localeCompare(a.date));
+  const filtered=all.filter(c=>{const p=pById(c.pid);const txt=(p.name+" "+(c.dx||"")+" "+c.therapist).toLowerCase();return (!_assessQ||txt.includes(_assessQ))&&(!_assessTher||c.therapist===_assessTher);});
+  const pg2=filtered.slice(_assessPage*PG,(_assessPage+1)*PG);
+  const rows=pg2.map(c=>{const p=pById(c.pid);return `<tr class="clk" onclick="assessView('${c.id}')"><td>${fmtDate(c.date)}</td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div class="nm">${p.name}</div></div></td><td>${c.dx||'—'}</td><td>${c.therapist}</td><td style="text-align:right"><button class="btn sm sec" onclick="event.stopPropagation();printRx('${c.id}','assessment')">🖨 Rx</button></td></tr>`;}).join("")||'<tr><td colspan=5 class=empty>No assessments found</td></tr>';
   return `<div class="panel"><div class="panel-h"><h3>Assessment Notes</h3><button class="btn" onclick="assessForm()">+ New Assessment</button></div>
-     <div style="display:flex;gap:8px;align-items:center;padding:10px 17px 0;flex-wrap:wrap">
-      <input id="assessSearch" type="search" placeholder="🔍 Search patient or diagnosis…" style="flex:1;min-width:180px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" oninput="filterAssessTable()">
-      ${MYTHER?'':'<select id="assessTherFilter" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onchange="filterAssessTable()"><option value="">All therapists</option>'+therOpts+'</select>'}
-     </div>
- <div class="panel-b flush"><table><thead><tr><th>Date</th><th>Patient</th><th>Diagnosis</th><th>Therapist</th><th></th></tr></thead><tbody>
- ${(DB.assessments||[]).filter(c=>inBranch(pById(c.pid))).filter(c=>!MYTHER||c.therapist===MYTHER).sort((a,b)=>b.date.localeCompare(a.date)).map(c=>{const p=pById(c.pid);return `<tr class="clk" onclick="assessView('${c.id}')"><td>${fmtDate(c.date)}</td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div class="nm">${p.name}</div></div></td><td>${c.dx||'—'}</td><td>${c.therapist}</td><td style="text-align:right"><button class="btn sm sec" onclick="event.stopPropagation();printRx('${c.id}','assessment')">🖨 Rx</button></td></tr>`;}).join("")||'<tr><td colspan=5 class=empty>No assessments yet</td></tr>'}
- </tbody></table></div></div>`;
+ <div style="display:flex;gap:8px;align-items:center;padding:10px 17px 0;flex-wrap:wrap">
+  <input id="assessSearch" type="search" placeholder="🔍 Search patient or diagnosis…" value="${_assessQ}" style="flex:1;min-width:180px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" oninput="_assessQ=this.value.toLowerCase();_assessPage=0;renderAssessTable()">
+  ${MYTHER?'':'<select id="assessTherFilter" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onchange="_assessTher=this.value;_assessPage=0;renderAssessTable()"><option value="">All therapists</option>'+therOpts+'</select>'}
+ </div>
+ <div class="panel-b flush"><table id="assessTable"><thead><tr><th>Date</th><th>Patient</th><th>Diagnosis</th><th>Therapist</th><th></th></tr></thead><tbody id="assessTbody">
+ ${rows}
+ </tbody></table><div id="assessPgBar">${pgBar(filtered.length,_assessPage,'setAssessPage')}</div></div></div>`;
 };
 
 // aInitView now initialises the modal form after it's opened
@@ -2815,14 +2841,17 @@ function login(role){CURROLE=role;const r=ROLES[role];MYTHER=r.scope;
 function logout(){document.getElementById("login").classList.remove("hide");}
 fillBranches();document.getElementById("branchSel").value="b1";
 
-function filterAssessTable(){
-  const q=(document.getElementById("assessSearch")?.value||"").toLowerCase();
-  const th=(document.getElementById("assessTherFilter")?.value||"").toLowerCase();
-  document.querySelectorAll("#assessTbody tr").forEach(row=>{
-    const txt=row.textContent.toLowerCase();
-    row.style.display=((!q||txt.includes(q))&&(!th||txt.includes(th)))?"":"none";
-  });
+let _assessPage=0,_assessQ="",_assessTher="";
+function setAssessPage(n){_assessPage=n;renderAssessTable();}
+function renderAssessTable(){
+  const all=(DB.assessments||[]).filter(c=>inBranch(pById(c.pid))).filter(c=>!MYTHER||c.therapist===MYTHER).sort((a,b)=>b.date.localeCompare(a.date));
+  const filtered=all.filter(c=>{const p=pById(c.pid);const txt=(p.name+" "+(c.dx||"")+" "+c.therapist).toLowerCase();return (!_assessQ||txt.includes(_assessQ))&&(!_assessTher||c.therapist===_assessTher);});
+  const pg2=filtered.slice(_assessPage*PG,(_assessPage+1)*PG);
+  const rows=pg2.map(c=>{const p=pById(c.pid);return `<tr class="clk" onclick="assessView('${c.id}')"><td>${fmtDate(c.date)}</td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div class="nm">${p.name}</div></div></td><td>${c.dx||'—'}</td><td>${c.therapist}</td><td style="text-align:right"><button class="btn sm sec" onclick="event.stopPropagation();printRx('${c.id}','assessment')">🖨 Rx</button></td></tr>`;}).join("")||'<tr><td colspan=5 class=empty>No assessments found</td></tr>';
+  const tbody=document.getElementById("assessTbody");
+  if(tbody){tbody.innerHTML=rows;const pgEl=document.getElementById("assessPgBar");if(pgEl)pgEl.innerHTML=pgBar(filtered.length,_assessPage,'setAssessPage');}
 }
+function filterAssessTable(){_assessQ=(document.getElementById("assessSearch")?.value||"").toLowerCase();_assessTher=(document.getElementById("assessTherFilter")?.value||"");_assessPage=0;renderAssessTable();}
 </script>
 </body>
 </html>
