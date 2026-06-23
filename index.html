@@ -597,7 +597,7 @@ const ROLES={
    views:["dashboard","patients","appointments","assessment","treatment","packages","billing","reminders"]}
 };
 function canDo(cap){return true;}
-const APP_VER="pm_v9"; // bump this whenever a breaking reset is needed
+const APP_VER="pm_v10"; // bump this whenever a breaking reset is needed
 function load(){
  // If old PhysioVerse data or wrong version detected — wipe and start fresh
  const ver=localStorage.getItem("pm_app_ver");
@@ -1590,7 +1590,7 @@ function savePkgPayment(pid){const v=k=>document.getElementById(k).value;const p
  save();closeModal();render();}
 
 /* BILLING */
-let _invSearch="",_invDate="",_invPage=0;
+let _invSearch="",_invDate="",_invMonth="",_invPage=0;
 views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.date.localeCompare(a.date)||(b.id>a.id?1:-1));
  const paid=inv.filter(i=>i.status==='Paid').reduce((s,i)=>s+invTotals(i).total,0);
  const pend=inv.filter(i=>i.status==='Pending').reduce((s,i)=>s+invTotals(i).total,0);
@@ -1600,7 +1600,7 @@ views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.
  const collToday=todayInv.reduce((s,i)=>s+invTotals(i).total,0);
  const expToday=DB.expenses.filter(inBranch).filter(e=>e.date===todayISO).reduce((s,e)=>s+e.amount,0);
  const q=_invSearch.toLowerCase().trim();
- const filtered=inv.filter(i=>{const p=pById(i.pid);const nameMatch=!q||p.name.toLowerCase().includes(q)||i.id.toLowerCase().includes(q);const dateMatch=!_invDate||i.date===_invDate;return nameMatch&&dateMatch;});
+ const filtered=inv.filter(i=>{const p=pById(i.pid);const nameMatch=!q||p.name.toLowerCase().includes(q)||i.id.toLowerCase().includes(q);const dateMatch=!_invDate||i.date===_invDate;const monthMatch=!_invMonth||(i.date||"").startsWith(_invMonth);return nameMatch&&monthMatch&&dateMatch;});
  return `<div class="cards" style="grid-template-columns:repeat(3,1fr)">
   <div class="stat"><div class="lbl">Collected</div><div class="val" style="color:var(--ok)">${inr(paid)}</div></div>
   <div class="stat"><div class="lbl">Outstanding</div><div class="val" style="color:var(--warn)">${inr(pend)}</div></div>
@@ -1608,9 +1608,10 @@ views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.
  </div>
  <div class="panel"><div class="panel-h" style="flex-wrap:wrap;gap:8px"><h3>Invoices</h3>
   <div style="display:flex;gap:6px;flex:1;min-width:0;flex-wrap:wrap">
-   <input id="inv_search" placeholder="🔍 Search patient or invoice #" value="${_invSearch}" oninput="_invSearch=this.value;_invPage=0;render()" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
-   <input id="inv_date" type="date" value="${_invDate}" onchange="_invDate=this.value;_invPage=0;render()" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
-   ${(_invSearch||_invDate)?`<button class="btn sm sec" onclick="_invSearch='';_invDate='';_invPage=0;render()">✕ Clear</button>`:''}
+   <input id="inv_search" placeholder="🔍 Search patient or invoice #" value="${_invSearch}" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" oninput="_invSearch=this.value;_invPage=0;render()">
+   <select style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onchange="_invMonth=this.value;_invDate='';_invPage=0;render()"><option value="">All months</option>${[...new Set((DB.invoices||[]).map(i=>i.date?i.date.slice(0,7):'').filter(Boolean))].sort().reverse().map(m=>`<option value="${m}" ${_invMonth===m?'selected':''}>${['January','February','March','April','May','June','July','August','September','October','November','December'][+m.slice(5,7)-1]} ${m.slice(0,4)}</option>`).join('')}</select>
+   <input id="inv_date" type="date" value="${_invDate}" onchange="_invDate=this.value;_invMonth='';_invPage=0;render()" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+   ${(_invSearch||_invDate||_invMonth)?`<button class="btn sm sec" onclick="_invSearch='';_invDate='';_invMonth='';_invPage=0;render()">✕ Clear</button>`:''}
   </div>
   <div class="tools"><button class="btn sm sec" onclick="walletForm()">💳 Wallet top-up</button><button class="btn sm sec" onclick="consultInvForm()">🩺 Consult invoice</button><button class="btn sm" onclick="invForm()">+ Session invoice</button></div>
  </div>
