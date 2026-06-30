@@ -449,30 +449,11 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 .role-opt .rt{color:var(--muted);font-size:12px}
 .role-opt .rsee{font-size:11px;color:var(--brand);font-weight:600;margin-top:2px}
 .role-opt .arr{margin-left:auto;color:var(--muted);font-size:18px}
-.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:60px;background:var(--sidebar);border-top:1px solid var(--line);z-index:70;flex-direction:row;align-items:stretch}
-.bottom-nav-inner{display:flex;width:100%;align-items:stretch}
-.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;cursor:pointer;color:var(--muted);padding:4px 2px;font-size:10px;transition:color 0.15s}
-.bnav-btn.active{color:var(--accent)}
-.bnav-btn .bico{font-size:20px;line-height:1}
-.more-drawer{position:fixed;bottom:60px;left:0;right:0;background:var(--sidebar);border-top:1px solid var(--line);border-radius:16px 16px 0 0;z-index:76;transform:translateY(100%);transition:transform 0.25s ease;padding:16px}
-.more-drawer.open{transform:translateY(0)}
-.more-drawer-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
-.more-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px 4px;cursor:pointer;font-size:11px;color:var(--tx);transition:background 0.15s}
-.more-item:hover,.more-item:active{background:var(--accent);color:#fff}
-.mico{font-size:22px;line-height:1}
-.more-drawer-handle{width:40px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 12px}
-@media(max-width:640px){.bottom-nav{display:flex!important}.app{padding-bottom:64px}}
-</style>
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:60px;background:var(--sidebar);border-top:1px solid var(--line);z-index:70;flex-direction:row;align-items:stretch}.bottom-nav-inner{display:flex;width:100%;align-items:stretch}.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;cursor:pointer;color:var(--muted);padding:4px 2px;font-size:10px;transition:color 0.15s}.bnav-btn.active{color:var(--accent)}.bnav-btn .bico{font-size:20px;line-height:1}.more-drawer{position:fixed;bottom:60px;left:0;right:0;background:var(--sidebar);border-top:1px solid var(--line);border-radius:16px 16px 0 0;z-index:76;transform:translateY(100%);transition:transform 0.25s ease;padding:16px}.more-drawer.open{transform:translateY(0)}.more-drawer-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.more-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px 4px;cursor:pointer;font-size:11px;color:var(--tx);transition:background 0.15s}.more-item:hover,.more-item:active{background:var(--accent);color:#fff}.mico{font-size:22px;line-height:1}.more-drawer-handle{width:40px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 12px}@media(max-width:640px){.bottom-nav{display:flex!important}.app{padding-bottom:64px}}</style>
 <!-- PDF generation -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<meta name="theme-color" content="#0b1b3d">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="PhysioMind">
-<link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;PhysioMind Clinic OS&quot;,&quot;short_name&quot;:&quot;PhysioMind&quot;,&quot;start_url&quot;:&quot;/&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230b1b3d&quot;,&quot;theme_color&quot;:&quot;%230b1b3d&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;https://img.icons8.com/fluency/192/heart-with-pulse.png&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/png&quot;}]}">
-</head>
+<meta name="theme-color" content="#0b1b3d"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="PhysioMind"><link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;PhysioMind Clinic OS&quot;,&quot;short_name&quot;:&quot;PhysioMind&quot;,&quot;start_url&quot;:&quot;/&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230b1b3d&quot;,&quot;theme_color&quot;:&quot;%230b1b3d&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;https://img.icons8.com/fluency/192/heart-with-pulse.png&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/png&quot;}]}"></head>
 <body>
 <div id="demoGate" style="position:fixed;inset:0;z-index:300;background:linear-gradient(135deg,#0b1b3d,#2563eb);display:flex;align-items:center;justify-content:center;padding:20px">
   <div class="login-card" style="max-width:380px;text-align:center">
@@ -2812,32 +2793,7 @@ function viewDoc(pid,idx){
   const p=pById(pid);if(!p||!p.docs)return;
   const d=p.docs[idx];if(!d||!d.data)return;
   const w=window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html><head><title>${d.n}</title><style>body,html{margin:0;padding:0;height:100%}iframe{border:none;width:100%;height:100vh}</style></head><body><iframe src="${d.data}"></iframe>
-<nav class="bottom-nav" id="bottomNav">
-  <div class="bottom-nav-inner">
-    <button class="bnav-btn active" id="bn-dashboard" onclick="go('dashboard');bnav('dashboard')"><span class="bico">📊</span><span>Home</span></button>
-    <button class="bnav-btn" id="bn-patients" onclick="go('patients');bnav('patients')"><span class="bico">👤</span><span>Patients</span></button>
-    <button class="bnav-btn" id="bn-appointments" onclick="go('appointments');bnav('appointments')"><span class="bico">📅</span><span>Calendar</span></button>
-    <button class="bnav-btn" id="bn-billing" onclick="go('billing');bnav('billing')"><span class="bico">🧾</span><span>Billing</span></button>
-    <button class="bnav-btn" id="bn-more" onclick="toggleMoreDrawer()"><span class="bico">☰</span><span>More</span></button>
-  </div>
-</nav>
-<div class="more-drawer" id="moreDrawer">
-  <div class="more-drawer-handle"></div>
-  <div class="more-drawer-grid">
-    <button class="more-item" onclick="go('assessment');bnav('assessment');closeMoreDrawer()"><span class="mico">📝</span>Assessment</button>
-    <button class="more-item" onclick="go('treatment');bnav('treatment');closeMoreDrawer()"><span class="mico">📋</span>Treatments</button>
-    <button class="more-item" onclick="go('packages');bnav('packages');closeMoreDrawer()"><span class="mico">🎁</span>Packages</button>
-    <button class="more-item" onclick="go('reminders');bnav('reminders');closeMoreDrawer()"><span class="mico">🔔</span>Reminders</button>
-    <button class="more-item" onclick="go('reports');bnav('reports');closeMoreDrawer()"><span class="mico">📈</span>Reports</button>
-    <button class="more-item" onclick="go('expenses');bnav('expenses');closeMoreDrawer()"><span class="mico">💸</span>Expenses</button>
-    <button class="more-item" onclick="go('staff');bnav('staff');closeMoreDrawer()"><span class="mico">👥</span>Staff</button>
-    <button class="more-item" onclick="go('audit');bnav('audit');closeMoreDrawer()"><span class="mico">📋</span>Audit Log</button>
-    <button class="more-item" onclick="go('settings');bnav('settings');closeMoreDrawer()"><span class="mico">⚙️</span>Settings</button>
-  </div>
-</div>
-<div id="moreBackdrop" onclick="closeMoreDrawer()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:75"></div>
-</body></html>`);
+  w.document.write(`<!DOCTYPE html><html><head><title>${d.n}</title><style>body,html{margin:0;padding:0;height:100%}iframe{border:none;width:100%;height:100vh}</style></head><body><iframe src="${d.data}"></iframe></body></html>`);
   w.document.close();
 }
 function dlDoc(pid,idx){
@@ -2962,60 +2918,13 @@ function renderAssessTable(){
 }
 function filterAssessTable(){_assessQ=(document.getElementById("assessSearch")?.value||"").toLowerCase();_assessTher=(document.getElementById("assessTherFilter")?.value||"");_assessPage=0;renderAssessTable();}
 
-function logAudit(action,detail,patientName){
-  DB.auditLog=DB.auditLog||[];
-  DB.auditLog.unshift({id:uid("al"),ts:new Date().toISOString(),action,detail,user:CURROLE||"owner",patient:patientName||""});
-  if(DB.auditLog.length>500)DB.auditLog=DB.auditLog.slice(0,500);
-  save();
-}
-views.audit=function(){
-  var log=DB.auditLog||[];
-  return '<div class="pg-head"><h2>Audit Log</h2><div class="sub">'+log.length+' events recorded</div></div>'
-  +'<div class="card" style="margin-bottom:16px"><input id="audit_q" placeholder="Search actions, patients..." oninput="filterAudit()" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg2)"></div>'
-  +'<div id="audit_list">'+renderAuditList(log)+'</div>';
-};
-function renderAuditList(log){
-  if(!log||!log.length)return '<div class="card" style="text-align:center;color:var(--muted);padding:40px">No audit events yet. Patient additions, appointments and invoices will appear here.</div>';
-  return log.map(function(e){
-    var d=new Date(e.ts);
-    var dt=d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})+" "+d.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
-    var color="#6b7280";
-    if(e.action.indexOf("Patient")>=0)color="#0d9488";
-    else if(e.action.indexOf("Appoint")>=0)color="#2563eb";
-    else if(e.action.indexOf("Invoice")>=0)color="#7c3aed";
-    else if(e.action.indexOf("Login")>=0)color="#64748b";
-    return "<div class=\"card\" style=\"margin-bottom:8px;display:flex;gap:14px;align-items:flex-start\">"
-      +"<div style=\"min-width:8px;height:8px;border-radius:50%;background:"+color+";margin-top:6px;flex-shrink:0\"></div>"
-      +"<div style=\"flex:1;min-width:0\">"
-      +"<div style=\"display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px\"><b style=\"font-size:14px\">"+e.action+"</b><span class=\"muted\" style=\"font-size:12px\">"+dt+"</span></div>"
-      +(e.detail?"<div style=\"font-size:13px;color:var(--tx);margin-top:2px\">"+e.detail+"</div>":"")
-      +"<div style=\"font-size:12px;color:var(--muted);margin-top:3px;display:flex;gap:12px\">"
-      +(e.patient?"<span>Patient: "+e.patient+"</span>":"")
-      +"<span>User: "+e.user+"</span></div></div></div>";
-  }).join("");
-}
-function filterAudit(){
-  var q=(document.getElementById("audit_q").value||"").toLowerCase();
-  var log=(DB.auditLog||[]).filter(function(e){return !q||(e.action+e.detail+e.patient).toLowerCase().indexOf(q)>=0;});
-  document.getElementById("audit_list").innerHTML=renderAuditList(log);
-}
-function bnav(v){
-  document.querySelectorAll(".bnav-btn").forEach(function(b){b.classList.remove("active");});
-  var btn=document.getElementById("bn-"+v);
-  if(btn)btn.classList.add("active");
-}
-function toggleMoreDrawer(){
-  var d=document.getElementById("moreDrawer");
-  var b=document.getElementById("moreBackdrop");
-  if(d&&d.classList.contains("open")){closeMoreDrawer();}
-  else{if(d)d.classList.add("open");if(b)b.style.display="block";}
-}
-function closeMoreDrawer(){
-  var d=document.getElementById("moreDrawer");
-  var b=document.getElementById("moreBackdrop");
-  if(d)d.classList.remove("open");
-  if(b)b.style.display="none";
-}
+function logAudit(a,d,p){DB.auditLog=DB.auditLog||[];DB.auditLog.unshift({id:uid("al"),ts:new Date().toISOString(),action:a,detail:d,user:CURROLE||"owner",patient:p||""});if(DB.auditLog.length>500)DB.auditLog=DB.auditLog.slice(0,500);save();}
+views.audit=function(){var l=DB.auditLog||[];return'<div class="pg-head"><h2>Audit Log</h2><div class="sub">'+l.length+' events</div></div><div class="card" style="margin-bottom:16px"><input id="audit_q" placeholder="Search..." oninput="filterAudit()" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg2)"></div><div id="audit_list">'+renderAuditList(l)+'</div>';};
+function renderAuditList(l){if(!l||!l.length)return'<div class="card" style="text-align:center;color:var(--muted);padding:40px">No audit events yet.</div>';return l.map(function(e){var d=new Date(e.ts);var dt=d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})+" "+d.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});var c="#6b7280";if(e.action.indexOf("Patient")>=0)c="#0d9488";else if(e.action.indexOf("Appoint")>=0)c="#2563eb";else if(e.action.indexOf("Invoice")>=0)c="#7c3aed";var h='<div class="card" style="margin-bottom:8px;display:flex;gap:12px;align-items:flex-start"><div style="min-width:8px;height:8px;border-radius:50%;background:'+c+';margin-top:6px;flex-shrink:0"></div><div style="flex:1"><div style="display:flex;justify-content:space-between;flex-wrap:wrap"><b>'+e.action+'</b><span style="font-size:12px;color:var(--muted)">'+dt+'</span></div>';if(e.detail)h+='<div style="font-size:13px;margin-top:2px">'+e.detail+'</div>';h+='<div style="font-size:12px;color:var(--muted);margin-top:3px">';if(e.patient)h+='Patient: '+e.patient+' &bull; ';h+='User: '+e.user+'</div></div></div>';return h;}).join("");}
+function filterAudit(){var q=(document.getElementById("audit_q").value||"").toLowerCase();var l=(DB.auditLog||[]).filter(function(e){return !q||(e.action+e.detail+e.patient).toLowerCase().indexOf(q)>=0;});document.getElementById("audit_list").innerHTML=renderAuditList(l);}
+function bnav(v){document.querySelectorAll(".bnav-btn").forEach(function(b){b.classList.remove("active");});var btn=document.getElementById("bn-"+v);if(btn)btn.classList.add("active");}
+function toggleMoreDrawer(){var d=document.getElementById("moreDrawer"),b=document.getElementById("moreBackdrop");if(d&&d.classList.contains("open")){closeMoreDrawer();}else{if(d)d.classList.add("open");if(b)b.style.display="block";}}
+function closeMoreDrawer(){var d=document.getElementById("moreDrawer"),b=document.getElementById("moreBackdrop");if(d)d.classList.remove("open");if(b)b.style.display="none";}
 </script>
-</body>
+<nav class="bottom-nav" id="bottomNav"><div class="bottom-nav-inner"><button class="bnav-btn active" id="bn-dashboard" onclick="go('dashboard');bnav('dashboard')"><span class="bico">📊</span><span>Home</span></button><button class="bnav-btn" id="bn-patients" onclick="go('patients');bnav('patients')"><span class="bico">👤</span><span>Patients</span></button><button class="bnav-btn" id="bn-appointments" onclick="go('appointments');bnav('appointments')"><span class="bico">📅</span><span>Calendar</span></button><button class="bnav-btn" id="bn-billing" onclick="go('billing');bnav('billing')"><span class="bico">🧾</span><span>Billing</span></button><button class="bnav-btn" id="bn-more" onclick="toggleMoreDrawer()"><span class="bico">☰</span><span>More</span></button></div></nav><div class="more-drawer" id="moreDrawer"><div class="more-drawer-handle"></div><div class="more-drawer-grid"><button class="more-item" onclick="go('assessment');closeMoreDrawer()"><span class="mico">📝</span>Assessment</button><button class="more-item" onclick="go('treatment');closeMoreDrawer()"><span class="mico">📋</span>Treatments</button><button class="more-item" onclick="go('packages');closeMoreDrawer()"><span class="mico">🎁</span>Packages</button><button class="more-item" onclick="go('reminders');closeMoreDrawer()"><span class="mico">🔔</span>Reminders</button><button class="more-item" onclick="go('reports');closeMoreDrawer()"><span class="mico">📈</span>Reports</button><button class="more-item" onclick="go('expenses');closeMoreDrawer()"><span class="mico">💸</span>Expenses</button><button class="more-item" onclick="go('staff');closeMoreDrawer()"><span class="mico">👥</span>Staff</button><button class="more-item" onclick="go('audit');closeMoreDrawer()"><span class="mico">📋</span>Audit Log</button><button class="more-item" onclick="go('settings');closeMoreDrawer()"><span class="mico">⚙️</span>Settings</button></div></div><div id="moreBackdrop" onclick="closeMoreDrawer()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:75"></div></body>
 </html>
