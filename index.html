@@ -636,7 +636,7 @@ const ROLES={
    views:["dashboard","patients","appointments","assessment","treatment","packages","billing","reminders"]}
 };
 function canDo(cap){return true;}
-const APP_VER="pm_v12"; // bump this whenever a breaking reset is needed
+const APP_VER="pm_v13"; // bump this whenever a breaking reset is needed
 function load(){
  // If old PhysioVerse data or wrong version detected — wipe and start fresh
  const ver=localStorage.getItem("pm_app_ver");
@@ -904,7 +904,7 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
  const homePlans=plans.filter(t=>t.home&&t.home.length);
  const visits=[];plans.forEach(t=>(t.visits||[]).forEach(s=>visits.push({...s,planId:t.id})));visits.sort((a,b)=>b.date.localeCompare(a.date)||b.n-a.n);
  const show=t=>T===t?"block":"none";
- openModal(`<div class="modal-h"><h3><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div>${p.name}</div><div class="mt muted">ID ${patientCode(p)} · ${p.age}y · ${p.gender==='M'?'Male':'Female'} · ${p.phone} · ${p.therapist}</div></div></div></h3><button class="x" onclick="closeModal()">×</button></div>
+ openModal(`<div class="modal-h"><h3><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div>${p.name}</div><div class="mt muted">ID ${patientCode(p)} · ${p.age}y · ${p.gender==='M'?'Male':'Female'} · <a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a> · ${p.therapist}</div></div></div></h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="tabs" id="pvtabs">
    <button class="${T==='assess'?'active':''}" onclick="pvtab(this,'assess')">📋 Assessment</button>
@@ -1049,7 +1049,7 @@ views.appointments=()=>{
   const byDate={};list.forEach(a=>{(byDate[a.date]=byDate[a.date]||[]).push(a);});
   return `<div class="panel">${toolbar}<div class="panel-b flush">
    ${Object.keys(byDate).map(d=>`<div class="cal-day">${fmtDate(d)} ${d===todayISO?'<span class="tag teal" style="margin-left:6px">Today</span>':''}</div>
-     <table><tbody>${byDate[d].map(a=>{const p=pById(a.pid);return `<tr class="clk" onclick="apptView('${a.id}')"><td style="width:70px;border-left:4px solid ${therColor(a.therapist)}"><b>${a.time}</b></td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt">${p.phone}</div></div></div></td><td>${a.type}</td><td>${a.therapist}</td><td><span class="tag ${statusTag(a.status)}">${a.status}</span></td></tr>`;}).join("")}</tbody></table>`).join("")||'<div class=empty>No appointments</div>'}
+     <table><tbody>${byDate[d].map(a=>{const p=pById(a.pid);return `<tr class="clk" onclick="apptView('${a.id}')"><td style="width:70px;border-left:4px solid ${therColor(a.therapist)}"><b>${a.time}</b></td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt"><a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a></div></div></div></td><td>${a.type}</td><td>${a.therapist}</td><td><span class="tag ${statusTag(a.status)}">${a.status}</span></td></tr>`;}).join("")}</tbody></table>`).join("")||'<div class=empty>No appointments</div>'}
    </div></div>`;
  }
  const dayAppts=DB.appointments.filter(inBranch).filter(a=>a.date===calDate).filter(a=>!MYTHER||a.therapist===MYTHER);
@@ -1958,7 +1958,7 @@ views.reminders=()=>{
   <div class="panel"><div class="panel-h"><h3>Send reminders — manual</h3><span class="tag teal">${toSend.length} to send</span></div>
   <div class="panel-b">
    ${toSend.map(x=>{const p=pById(x.pid);return `<div class="reminder"><div class="r-ico wa">💬</div>
-     <div class="r-body"><div style="display:flex;justify-content:space-between;align-items:center"><b>${p.name} <span class="tag ${x.kind==='Payment'?'amber':'blue'}" style="margin-left:5px">${x.kind}</span></b><span class="muted" style="font-size:12px">${p.phone}</span></div>
+     <div class="r-body"><div style="display:flex;justify-content:space-between;align-items:center"><b>${p.name} <span class="tag ${x.kind==='Payment'?'amber':'blue'}" style="margin-left:5px">${x.kind}</span></b><span class="muted" style="font-size:12px"><a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a></span></div>
      <div class="r-msg">${x.text}</div>
      <div style="margin-top:7px;display:flex;gap:7px"><button class="btn sm" onclick="sendWA('${x.pid}','${x.kind}','${x.when.replace(/'/g,"")}',this.parentNode.previousElementSibling.innerText)">📲 Send on WhatsApp</button></div></div></div>`;}).join("")||'<div class="empty">Nothing to send right now 🎉</div>'}
   </div></div>
