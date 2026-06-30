@@ -449,10 +449,115 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 .role-opt .rt{color:var(--muted);font-size:12px}
 .role-opt .rsee{font-size:11px;color:var(--brand);font-weight:600;margin-top:2px}
 .role-opt .arr{margin-left:auto;color:var(--muted);font-size:18px}
+
+/* ── Bottom nav (mobile) ── */
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:70;background:#fff;border-top:1px solid var(--line);padding:6px 0 env(safe-area-inset-bottom,6px);box-shadow:0 -2px 12px rgba(0,0,0,.08)}
+.bottom-nav-inner{display:flex;justify-content:space-around;align-items:center}
+.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;padding:6px 4px;color:var(--muted);font-size:10px;font-weight:600;cursor:pointer;min-height:48px;border-radius:10px;transition:color .15s}
+.bnav-btn .bico{font-size:20px;line-height:1}
+.bnav-btn.active{color:var(--brand)}
+.bnav-btn.active .bico{filter:drop-shadow(0 0 4px rgba(37,99,235,.4))}
+/* More drawer */
+.more-drawer{display:none;position:fixed;bottom:0;left:0;right:0;z-index:80;background:#fff;border-radius:18px 18px 0 0;padding:16px 16px env(safe-area-inset-bottom,16px);box-shadow:0 -4px 30px rgba(0,0,0,.15);max-height:70vh;overflow-y:auto}
+.more-drawer.open{display:block}
+.more-drawer-handle{width:40px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 16px}
+.more-drawer-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.more-item{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:#f4f6fb;border-radius:12px;border:none;font-size:11px;font-weight:600;color:var(--ink);cursor:pointer}
+.more-item .mico{font-size:24px}
+.more-item:active{background:var(--brand-soft)}
+
+
+.more-drawer{display:none;position:fixed;bottom:0;left:0;right:0;z-index:80;background:#fff;border-radius:18px 18px 0 0;padding:16px 16px env(safe-area-inset-bottom,16px);box-shadow:0 -4px 30px rgba(0,0,0,.15);max-height:70vh;overflow-y:auto}
+.more-drawer.open{display:block}
+.more-drawer-handle{width:40px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 16px}
+.more-drawer-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.more-item{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:#f4f6fb;border-radius:12px;border:none;font-size:11px;font-weight:600;color:var(--ink);cursor:pointer}
+.more-item .mico{font-size:24px}
+.more-item:active{background:var(--brand-soft)}
+
+
+@media(max-width:640px){.bottom-nav{display:flex!important}.app{padding-bottom:64px}}
 </style>
 <!-- PDF generation -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js">
+// ── Audit log ──
+function logAudit(action,detail,patientName){
+  DB.auditLog=DB.auditLog||[];
+  DB.auditLog.unshift({id:uid("al"),ts:new Date().toISOString(),action,detail,user:CURROLE||"owner",patient:patientName||""});
+  if(DB.auditLog.length>500)DB.auditLog=DB.auditLog.slice(0,500);
+  save();
+}
+views.audit=()=>{
+  const log=DB.auditLog||[];
+  const actionTypes=[...new Set(log.map(e=>e.action))];
+  return `<div class="pg-head"><h2>Audit Log</h2><div class="sub">${log.length} events recorded</div></div>
+  <div class="card" style="margin-bottom:16px">
+    <input id="audit_q" placeholder="🔍 Search actions, patients, details..." oninput="filterAudit()" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg2)">
+  </div>
+  <div id="audit_list">${renderAuditList(log)}</div>`;
+};
+function renderAuditList(log){
+  if(!log.length)return '<div class="card" style="text-align:center;color:var(--muted);padding:40px">No audit events yet. Actions like adding patients, booking appointments and creating invoices will appear here.</div>';
+  return log.map(e=>{
+    const d=new Date(e.ts);
+    const dt=d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+    const badge={
+      'Patient Added':'#0d9488','Appointment':'#2563eb','Invoice':'#7c3aed',
+      'Session':'#ea580c','Login':'#64748b','Payment':'#16a34a','Expense':'#dc2626'
+    };
+    const color=Object.entries(badge).find(([k])=>e.action.includes(k))?.[1]||'#6b7280';
+    return `<div class="card" style="margin-bottom:8px;display:flex;gap:14px;align-items:flex-start">
+      <div style="min-width:8px;height:8px;border-radius:50%;background:${color};margin-top:6px;flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
+          <b style="font-size:14px">${e.action}</b>
+          <span class="muted" style="font-size:12px;white-space:nowrap">${dt}</span>
+        </div>
+        ${e.detail?'<div style="font-size:13px;color:var(--tx);margin-top:2px">'+e.detail+'</div>':''}
+        <div style="font-size:12px;color:var(--muted);margin-top:3px;display:flex;gap:12px">
+          ${e.patient?'<span>👤 '+e.patient+'</span>':''}
+          <span>🔑 ${e.user}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function filterAudit(){
+  const q=(document.getElementById('audit_q').value||'').toLowerCase();
+  const log=(DB.auditLog||[]).filter(e=>!q||(e.action+e.detail+e.patient).toLowerCase().includes(q));
+  document.getElementById('audit_list').innerHTML=renderAuditList(log);
+}
+// ── Bottom nav ──
+function bnav(v){
+  document.querySelectorAll('.bnav-btn').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('bn-'+v);
+  if(btn)btn.classList.add('active');
+}
+function toggleMoreDrawer(){
+  const d=document.getElementById('moreDrawer'),bd=document.getElementById('moreBackdrop');
+  const open=!d.classList.contains('open');
+  d.classList.toggle('open',open);
+  bd.style.display=open?'block':'none';
+}
+function closeMoreDrawer(){
+  document.getElementById('moreDrawer').classList.remove('open');
+  document.getElementById('moreBackdrop').style.display='none';
+}
+// Patch go() to also update bottom nav
+const _goOrig=go;
+// Override go after definition to sync bottom nav
+setTimeout(()=>{
+  const _origGo=window.go;
+  window.go=function(v){_origGo(v);bnav(v);closeMoreDrawer();};
+},0);
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<meta name="theme-color" content="#0b1b3d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PhysioMind">
+<link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;PhysioMind Clinic OS&quot;,&quot;short_name&quot;:&quot;PhysioMind&quot;,&quot;start_url&quot;:&quot;/&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230b1b3d&quot;,&quot;theme_color&quot;:&quot;%230b1b3d&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;https://img.icons8.com/fluency/192/heart-with-pulse.png&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/png&quot;}]}">
 </head>
 <body>
 <div id="demoGate" style="position:fixed;inset:0;z-index:300;background:linear-gradient(135deg,#0b1b3d,#2563eb);display:flex;align-items:center;justify-content:center;padding:20px">
@@ -504,6 +609,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
       <button data-v="staff"><span class="ico">👥</span> Staff & Payroll</button>
       <button data-v="branches"><span class="ico">🏢</span> Branches</button>
       <button data-v="settings"><span class="ico">⚙️</span> Settings</button>
+      <button data-v="audit"><span class="ico">📋</span> Audit Log</button>
     </nav>
     <div class="side-foot" id="sideFoot"></div>
   </aside>
@@ -636,7 +742,7 @@ const ROLES={
    views:["dashboard","patients","appointments","assessment","treatment","packages","billing","reminders"]}
 };
 function canDo(cap){return true;}
-const APP_VER="pm_v13"; // bump this whenever a breaking reset is needed
+const APP_VER="pm_v14"; // bump this whenever a breaking reset is needed
 function load(){
  // If old PhysioVerse data or wrong version detected — wipe and start fresh
  const ver=localStorage.getItem("pm_app_ver");
@@ -1019,7 +1125,7 @@ function patientForm(id){const p=id?pById(id):{name:"",dob:"",gender:"M",phone:"
 function savePatient(id){const v=k=>{const el=document.getElementById(k);return el?el.value:"";};const dob=v("f_dob");const obj={name:v("f_name"),dob,age:ageFromDob(dob),gender:v("f_gender"),phone:v("f_phone"),condition:v("f_cond"),email:v("f_email"),occ:v("f_occ"),addr:v("f_addr"),emName:v("f_emname"),emPhone:v("f_emphone"),refDr:v("f_refdr"),therapist:v("f_ther"),branch:v("f_branch")};
  if(!obj.name){alert("Name required");return;}
  if(!dob){alert("Date of birth required — it is the patient's ID");return;}
- if(id){Object.assign(pById(id),obj);}else{DB.patients.push({id:uid("p"),since:todayISO,wallet:0,docs:[],...obj});}save();closeModal();render();}
+ if(id){Object.assign(pById(id),obj);}else{const _np={id:uid("p"),since:todayISO,wallet:0,docs:[],...obj};DB.patients.push(_np);logAudit("Patient Added","New patient: "+(_np.name||""),_np.name||"");}save();closeModal();render();}
 
 /* APPOINTMENTS */
 const therColor=t=>({"Dr. Neha Verma":"#2563eb","Dr. Amit Joshi":"#0d9488","Dr. Karan Mehta":"#7c3aed"}[t]||"#6b7589");
@@ -1340,7 +1446,7 @@ function saveSessionPayment(planId,sid){
   var inv={id:invNum,pid:t.pid,date:todayISO,items:items,gst:18,status:status,mode:pay,branch:branch};
   if(partialAmt>0&&partialAmt<fee){inv.paid=partialAmt;inv.pending=fee-partialAmt;}
   if(corpName)inv.corp=corpName;
-  DB.invoices.push(inv);
+  DB.invoices.push(inv);logAudit("Invoice","Invoice created",inv.patient||"");
  }
  // Mark session as paid
  var sess=(t.visits||[]).find(function(x){return x.id===sid;});
@@ -2792,7 +2898,34 @@ function viewDoc(pid,idx){
   const p=pById(pid);if(!p||!p.docs)return;
   const d=p.docs[idx];if(!d||!d.data)return;
   const w=window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html><head><title>${d.n}</title><style>body,html{margin:0;padding:0;height:100%}iframe{border:none;width:100%;height:100vh}</style></head><body><iframe src="${d.data}"></iframe></body></html>`);
+  w.document.write(`<!DOCTYPE html><html><head><title>${d.n}</title><style>body,html{margin:0;padding:0;height:100%}iframe{border:none;width:100%;height:100vh}</style></head><body><iframe src="${d.data}"></iframe>
+<!-- Mobile bottom nav -->
+<nav class="bottom-nav" id="bottomNav">
+  <div class="bottom-nav-inner">
+    <button class="bnav-btn active" id="bn-dashboard" onclick="go('dashboard');bnav('dashboard')"><span class="bico">📊</span><span>Home</span></button>
+    <button class="bnav-btn" id="bn-patients" onclick="go('patients');bnav('patients')"><span class="bico">👤</span><span>Patients</span></button>
+    <button class="bnav-btn" id="bn-appointments" onclick="go('appointments');bnav('appointments')"><span class="bico">📅</span><span>Calendar</span></button>
+    <button class="bnav-btn" id="bn-billing" onclick="go('billing');bnav('billing')"><span class="bico">🧾</span><span>Billing</span></button>
+    <button class="bnav-btn" id="bn-more" onclick="toggleMoreDrawer()"><span class="bico">☰</span><span>More</span></button>
+  </div>
+</nav>
+<!-- More drawer -->
+<div class="more-drawer" id="moreDrawer" onclick="event.stopPropagation()">
+  <div class="more-drawer-handle"></div>
+  <div class="more-drawer-grid">
+    <button class="more-item" onclick="go('assessment');bnav('assessment');closeMoreDrawer()"><span class="mico">📝</span>Assessment</button>
+    <button class="more-item" onclick="go('treatment');bnav('treatment');closeMoreDrawer()"><span class="mico">📋</span>Treatments</button>
+    <button class="more-item" onclick="go('packages');bnav('packages');closeMoreDrawer()"><span class="mico">🎁</span>Packages</button>
+    <button class="more-item" onclick="go('reminders');bnav('reminders');closeMoreDrawer()"><span class="mico">🔔</span>Reminders</button>
+    <button class="more-item" onclick="go('reports');bnav('reports');closeMoreDrawer()"><span class="mico">📈</span>Reports</button>
+    <button class="more-item" onclick="go('expenses');bnav('expenses');closeMoreDrawer()"><span class="mico">💸</span>Expenses</button>
+    <button class="more-item" onclick="go('staff');bnav('staff');closeMoreDrawer()"><span class="mico">👥</span>Staff</button>
+    <button class="more-item" onclick="go('audit');bnav('audit');closeMoreDrawer()"><span class="mico">📋</span>Audit Log</button>
+    <button class="more-item" onclick="go('settings');bnav('settings');closeMoreDrawer()"><span class="mico">⚙️</span>Settings</button>
+  </div>
+</div>
+<div class="backdrop" id="moreBackdrop" onclick="closeMoreDrawer()" style="display:none;z-index:75"></div>
+</body></html>`);
   w.document.close();
 }
 function dlDoc(pid,idx){
@@ -2894,7 +3027,7 @@ printRx=function(id,src){
 /* ══════════════════════════════════════════════════════ */
 
 function fillBranches(){const sel=document.getElementById("branchSel");const cur=sel.value;sel.innerHTML='<option value="all">🏥 All Branches</option>'+DB.branches.map(b=>`<option value="${b.id}">🏥 ${b.name}</option>`).join("");sel.value=cur||"b1";}
-function login(role){CURROLE=role;const r=ROLES[role];MYTHER=r.scope;
+function login(role){CURROLE=role;const r=ROLES[role];MYTHER=r.scope;logAudit&&logAudit("Login","Role: "+role);
  document.getElementById("login").classList.add("hide");
  document.querySelectorAll("#nav button").forEach(b=>{b.style.display=r.views.includes(b.dataset.v)?"":"none";});
  const kids=[...document.getElementById("nav").children];
