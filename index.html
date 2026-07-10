@@ -765,7 +765,7 @@ const initials=n=>n.split(" ").filter(w=>!/^(dr\.?|mr\.?|ms\.?)$/i.test(w)).map(
 const inr=n=>"₹"+(+n).toLocaleString("en-IN");
 const MM=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const fmtDate=iso=>{if(!iso)return"—";const[y,m,d]=iso.split("-");return +d+" "+MM[+m-1]+" "+y;};
-function invTotals(inv){const sub=inv.items.reduce((s,i)=>s+i.qty*i.rate,0);const gst=Math.round(sub*inv.gst)/100;return{sub,gst,total:sub+gst};}
+function invTotals(inv){const items=Array.isArray(inv.items)?inv.items:[];const sub=items.reduce((s,i)=>s+(+i.qty||0)*(+i.rate||0),0);const gst=Math.round(sub*(+inv.gst||0))/100;return{sub,gst,total:sub+gst};}
 function nextInvNo(){let max=40;DB.invoices.forEach(i=>{const m=(i.id||"").match(/(\d+)$/);if(m)max=Math.max(max,+m[1]);});return "INV-2026-"+String(max+1).padStart(3,"0");}
 function painTrendSVG(visits){
  const v=(visits||[]).filter(s=>s.pain!==""&&s.pain!=null&&!isNaN(+s.pain)).slice().sort((a,b)=>(a.date+("0"+a.n).slice(-2)).localeCompare(b.date+("0"+b.n).slice(-2)));
@@ -3091,7 +3091,7 @@ views.audit=function(){
   return '<div class="panel"><div class="panel-h" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3>\uD83D\uDCCB Audit Log</h3><span style="font-size:12px;color:var(--muted)">'+l.length+' total events</span></div>'
    +'<div class="panel-b"><div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">'
    +'<input id="audit_q" placeholder="\uD83D\uDD0D Search action, patient, detail..." value="'+q+'" oninput="filterAudit()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--bg2)">'
-   +'<button onclick="if(!confirm('Clear audit log?'))return;DB.auditLog=[];save();render();" style="padding:8px 14px;background:var(--danger);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Clear</button>'
+   +'<button onclick="if(!confirm(\'Clear audit log?\'))return;DB.auditLog=[];save();render();" style="padding:8px 14px;background:var(--danger);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Clear Log</button>'
    +'</div><div id="audit_list">'+renderAuditList(filtered)+'</div></div></div>';
 };
 function renderAuditList(l){
