@@ -983,7 +983,7 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
     <button class="btn sm sec" onclick="pkgPayment('${id}')">📦 Pay pkg balance</button>
    </div>
    <hr class="sep"><b class="muted">Packages taken</b>
-   ${pkgs.length?pkgs.map(k=>{const bal=(k.price||0)-(k.paidAmount||k.price||0);return `<div class="list-row"><div style="display:flex;justify-content:space-between;align-items:start"><b>${k.pkg}</b><span class="tag ${statusTag(k.status)}">${k.status}</span></div><div class="bar" style="margin:5px 0"><div style="width:${Math.round(k.used/k.total*100)}%"></div></div><div class="mt muted">${k.used}/${k.total} used · ${inr(k.paidAmount||k.price)} paid of ${inr(k.price)}${bal>0?` · <b style="color:var(--danger)">₹${bal.toLocaleString('en-IN')} due</b>`:' · <b style="color:var(--ok)">Fully paid</b>'} · expires ${fmtDate(k.expires)}</div></div>`}).join(""):'<div class=muted style="padding:6px 0">No packages taken.</div>'}
+   ${pkgs.length?pkgs.map(k=>{const bal=(k.price||0)-(k.paidAmount!=null?k.paidAmount:(k.price||0));const pct=k.total?Math.round((k.used||0)/k.total*100):0;return `<div class="list-row"><div style="display:flex;justify-content:space-between;align-items:start"><b>${k.pkg||k.name||'Package'}</b><span class="tag ${statusTag(k.status)}">${k.status}</span></div><div class="bar" style="margin:5px 0"><div style="width:${pct}%"></div></div><div class="mt muted">${k.used||0}/${k.total||0} used · ${inr((k.paidAmount!=null?k.paidAmount:(k.price||0)))} paid of ${inr(k.price||0)}${bal>0?` · <b style="color:var(--danger)">₹${bal.toLocaleString('en-IN')} due</b>`:' · <b style="color:var(--ok)">Fully paid</b>'} · expires ${fmtDate(k.expires)}</div></div>`}).join(""):'<div class=muted style="padding:6px 0">No packages taken.</div>'}
    <hr class="sep"><b class="muted">Invoices</b>
    ${invs.length?invs.map(i=>`<div class="list-row clk" style="display:flex;justify-content:space-between;align-items:center" onclick="viewInvoice('${i.id}')"><span>${i.id} · ${fmtDate(i.date)}<br><span class="muted" style="font-size:11.5px">${i.items&&i.items[0]?i.items[0].d:''}</span></span><span style="text-align:right">${inr(invTotals(i).total)} <span class="tag ${statusTag(i.status)}">${i.status}</span>${i.status==='Pending'?`<br><button class="btn sm" style="margin-top:4px" onclick="event.stopPropagation();markPaid('${i.id}')">Mark paid</button>`:''}</span></div>`).join(""):'<div class=muted>No invoices.</div>'}
   </div>
@@ -1635,7 +1635,7 @@ function savePlan(id){const v=k=>document.getElementById(k).value;
 views.packages=()=>`
  <div class="panel"><div class="panel-h"><h3>Package Templates</h3><button class="btn sm sec" onclick="alert('Demo: add custom package template')">+ Template</button></div>
  <div class="panel-b flush"><table><thead><tr><th>Package</th><th>Sessions</th><th>Price</th><th>Validity</th><th>Per session</th></tr></thead><tbody>
- ${DB.pkgTemplates.map(k=>`<tr><td><b>${k.name}</b></td><td>${k.sessions}</td><td>${inr(k.price)}</td><td>${k.validity} days</td><td class="muted">${inr(Math.round(k.price/k.sessions))}</td></tr>`).join("")}
+ ${DB.pkgTemplates.map(k=>`<tr><td><b>${k.name}</b></td><td>${k.sessions}</td><td>${inr(k.price||0)}</td><td>${k.validity} days</td><td class="muted">${k.sessions?inr(Math.round((k.price||0)/k.sessions)):'—'}</td></tr>`).join("")}
  </tbody></table></div></div>
  <div class="two-col" style="gap:15px">
   <div class="panel" style="margin-bottom:0"><div class="panel-h"><h3>Patient Packages</h3><button class="btn sm" onclick="assignPkg()">+ Assign</button></div>
@@ -1647,8 +1647,8 @@ function pkgListHTML(){
  var pkgs=DB.patientPkgs.filter(function(x){return inBranch(pById(x.pid));});
  if(!pkgs.length)return'<div class="empty">No packages assigned</div>';
  return pkgs.map(function(k){
-  var p=pById(k.pid);var pct=Math.round(k.used/k.total*100);
-  var paidAmt=k.paidAmount!=null?k.paidAmount:k.price;var bal=k.price-paidAmt;
+  var p=pById(k.pid);var pct=k.total?Math.round((k.used||0)/k.total*100):0;
+  var paidAmt=k.paidAmount!=null?k.paidAmount:(k.price||0);var bal=(k.price||0)-paidAmt;
   var balBtn=bal>0?'<button class="btn sm" style="font-size:11px;padding:3px 9px" onclick="pkgPayment(\''+p.id+'\')">Pay balance</button>':'';
   return '<div class="list-row" style="padding:11px 14px">'
    +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
@@ -1660,8 +1660,8 @@ function pkgListHTML(){
    +'<span class="muted">'+k.used+'/'+k.total+' sessions</span><span class="muted">'+pct+'%</span></div>'
    +'<div class="bar"><div style="width:'+pct+'%"></div></div></div>'
    +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">'
-   +'<span style="font-size:12px;color:'+(bal>0?'var(--danger)':'var(--ok)')+'"><b>'+inr(paidAmt)+'</b>'
-   +'<span class="muted"> / '+inr(k.price)+'</span>'+(bal>0?' &bull; <b>'+inr(bal)+' due</b>':' ✓')+'</span>'
+   +'<span style="font-size:12px;color:'+(bal>0?'var(--danger)':'var(--ok)')+'"><b>'+inr(paidAmt||0)+'</b>'
+   +'<span class="muted"> / '+inr(k.price||0)+'</span>'+(bal>0?' &bull; <b>'+inr(bal||0)+' due</b>':' ✓')+'</span>'
    +balBtn+'</div>'
    +'<div style="font-size:11.5px;color:var(--muted);margin-top:3px">Expires '+fmtDate(k.expires)+'</div>'
   +'</div>';
@@ -1727,7 +1727,7 @@ function savePkg(){const v=k=>document.getElementById(k);const pid=v("k_pid").va
 // Package balance payment form
 function pkgPayment(pid){const pkgs=DB.patientPkgs.filter(k=>k.pid===pid&&k.status==="Active"&&(k.paidAmount||k.price)<k.price);
  if(!pkgs.length){alert("No package balance outstanding for this patient.");return;}
- const opts=pkgs.map(k=>`<option value="${k.id}">${k.pkg} — balance ${inr(k.price-(k.paidAmount||0))}</option>`).join("");
+ const opts=pkgs.map(k=>`<option value="${k.id}">${k.pkg||k.name||'Package'} — balance ${inr((k.price||0)-(k.paidAmount||0))}</option>`).join("");
  openModal(`<div class="modal-h"><h3>Package Balance Payment</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="field"><label>Package</label><select id="pp_id">${opts}</select></div>
