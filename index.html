@@ -1101,21 +1101,71 @@ function apptView(id){const a=DB.appointments.find(x=>x.id===id);const p=pById(a
   <div class="pcell" style="margin-bottom:12px"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt muted">${p.phone}</div></div></div>
   <div class="grid2"><div><b class="muted">Date</b><div>${fmtDate(a.date)}</div></div><div><b class="muted">Time</b><div>${a.time}</div></div></div>
   <div class="grid2" style="margin-top:8px"><div><b class="muted">Type</b><div>${a.type}</div></div><div><b class="muted">Therapist</b><div>${a.therapist}</div></div></div>
-  <div class="field" style="margin-top:12px"><label>Status</label><select onchange="setApptStatus('${a.id}',this.value)">${["Pending","Confirmed","Checked-in","Completed","Cancelled"].map(s=>`<option ${a.status===s?'selected':''}>${s}</option>`).join("")}</select></div>
+  <div class="field" style="margin-top:12px"><label>Status</label><select onchange="setApptStatus('${a.id}',this.value)">${["Pending","Confirmed","Checked-in","Completed","Cancelled"].map(s=>`<option ${a.status===s?'selected':''}>` + `${s}</option>`).join("")}</select></div>
  </div>
- <div class="modal-f"><button class="btn sec" onclick="closeModal();patientView('${a.pid}')">View patient</button>${(DB.active||[]).includes(a.pid)?`<button class="btn sec" onclick="endSession('${a.pid}');closeModal()">End session</button>`:`<button class="btn" onclick="startSession('${a.pid}');closeModal()">▶ Start session</button>`}<button class="btn sec" onclick="closeModal()">Done</button></div>`);}
-function apptForm(date,time,ther){openModal(`<div class="modal-h"><h3>Book Appointment</h3><button class="x" onclick="closeModal()">×</button></div>
+ <div class="modal-f" style="flex-wrap:wrap;gap:6px">
+  <button class="btn danger sec" style="margin-right:auto" onclick="deleteAppt('${a.id}')">🗑 Delete</button>
+  <button class="btn sec" onclick="editApptForm('${a.id}')">✏️ Reschedule</button>
+  <button class="btn sec" onclick="closeModal();patientView('${a.pid}')">Patient</button>
+  ${(DB.active||[]).includes(a.pid)?`<button class="btn sec" onclick="endSession('${a.pid}');closeModal()">End session</button>`:`<button class="btn" onclick="startSession('${a.pid}');closeModal()">▶ Start</button>`}
+ </div>`);
+}
+function deleteAppt(id){if(CURROLE!=='owner'){alert("Only the owner can delete appointments.");return;}if(!confirm("Delete this appointment permanently?"))return;DB.appointments=DB.appointments.filter(x=>x.id!==id);save();closeModal();render();logAudit("Appointment","Deleted");}
+function editApptForm(id){const a=DB.appointments.find(x=>x.id===id);
+ openModal(`<div class="modal-h"><h3>✏️ Reschedule</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
-  <div class="field"><label>Patient</label><select id="a_pid">${DB.patients.filter(p=>!MYTHER||p.therapist===MYTHER).map(p=>`<option value="${p.id}">${p.name} — ${p.condition}</option>`).join("")}</select></div>
+  <div class="grid2"><div class="field"><label>Date</label><input id="ea_date" type="date" value="${a.date}"></div><div class="field"><label>Time</label><input id="ea_time" type="time" value="${a.time}"></div></div>
+  <div class="grid2"><div class="field"><label>Type</label><select id="ea_type">${["Therapy session","Follow-up","Assessment","Consultation"].map(t=>`<option ${a.type===t?'selected':''}>` + `${t}</option>`).join("")}</select></div>
+   <div class="field"><label>Therapist</label><select id="ea_ther">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${a.therapist===s.name?'selected':''}>` + `${s.name}</option>`).join("")}</select></div></div>
+ </div>
+ <div class="modal-f"><button class="btn sec" onclick="apptView('${id}')">Cancel</button><button class="btn" onclick="saveEditAppt('${id}')">Save</button></div>`);}
+function saveEditAppt(id){const v=k=>document.getElementById(k).value;const a=DB.appointments.find(x=>x.id===id);a.date=v("ea_date");a.time=v("ea_time");a.type=v("ea_type");a.therapist=v("ea_ther");calDate=a.date;logAudit("Appointment","Rescheduled to "+a.date+" "+a.time,pById(a.pid).name);save();closeModal();render();}
+function apptForm(date,time,ther){const pts=DB.patients.filter(p=>!MYTHER||p.therapist===MYTHER);
+ openModal(`<div class="modal-h"><h3>Book Appointment</h3><button class="x" onclick="closeModal()">×</button></div>
+ <div class="modal-b">
+  <div class="field"><label>Patient</label>
+   <input id="a_pt_search" placeholder="Type name or phone..." oninput="filterApptPatients()" autocomplete="off"
+    style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;margin-bottom:4px">
+   <select id="a_pid" size="4" style="width:100%;border:1px solid var(--line);border-radius:8px;font-size:13px;padding:4px">
+    ${pts.map(p=>`<option value="${p.id}">${p.name} — ${p.phone||''} · ${p.condition}</option>`).join("")}
+   </select>
+  </div>
   <div class="grid2"><div class="field"><label>Date</label><input id="a_date" type="date" value="${date||calDate}"></div><div class="field"><label>Time</label><input id="a_time" type="time" value="${time||'10:00'}"></div></div>
   <div class="grid2"><div class="field"><label>Type</label><select id="a_type"><option>Therapy session</option><option>Follow-up</option><option>Assessment</option><option>Consultation</option></select></div>
-   <div class="field"><label>Therapist</label><select id="a_ther">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${ther===s.name||MYTHER===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div></div>
-  <div class="muted" style="font-size:12.5px">🔔 Send a WhatsApp reminder anytime from the Reminders tab.</div>
+   <div class="field"><label>Therapist</label><select id="a_ther">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${ther===s.name||MYTHER===s.name?'selected':''}>` + `${s.name}</option>`).join("")}</select></div></div>
+  <hr class="sep">
+  <div style="font-size:12.5px;font-weight:600;margin-bottom:6px">🔁 Repeat (optional)</div>
+  <div class="grid2">
+   <div class="field"><label>Days of week</label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+     ${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=>`<label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer"><input type="checkbox" class="rep_day" value="${d}"> ${d}</label>`).join("")}
+    </div>
+   </div>
+   <div class="field"><label>For how many weeks?</label><input id="rep_weeks" type="number" min="1" max="12" value="1" style="width:80px"></div>
+  </div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveAppt()">Book</button></div>`);}
-function saveAppt(){const v=k=>document.getElementById(k).value;const p=pById(v("a_pid"));const dt=v("a_date");
+function filterApptPatients(){const q=(document.getElementById("a_pt_search").value||"").toLowerCase();const sel=document.getElementById("a_pid");Array.from(sel.options).forEach(o=>{o.style.display=q&&!o.text.toLowerCase().includes(q)?"none":"";});}
+function saveAppt(){const v=k=>document.getElementById(k).value;
+ const selEl=document.getElementById("a_pid");const pid=selEl.value;const p=pById(pid);const dt=v("a_date");
  if(DB.appointments.some(a=>a.date===dt&&a.time===v("a_time")&&a.therapist===v("a_ther"))){if(!confirm("That therapist already has an appointment at this time. Book anyway?"))return;}
- DB.appointments.push({id:uid("a"),pid:v("a_pid"),date:dt,time:v("a_time"),type:v("a_type"),therapist:v("a_ther"),status:"Confirmed",branch:p.branch});calDate=dt;save();closeModal();render();}
+ // Collect repeat settings
+ const repDays=Array.from(document.querySelectorAll(".rep_day:checked")).map(x=>x.value);
+ const repWeeks=Math.max(1,+(v("rep_weeks")||1));
+ const dayMap={Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6,Sun:0};
+ const addAppt=(dateStr)=>{
+  if(DB.appointments.some(a=>a.date===dateStr&&a.time===v("a_time")&&a.therapist===v("a_ther")))return;
+  DB.appointments.push({id:uid("a"),pid,date:dateStr,time:v("a_time"),type:v("a_type"),therapist:v("a_ther"),status:"Confirmed",branch:p.branch});
+ };
+ addAppt(dt);
+ if(repDays.length>0){
+  const base=new Date(dt+"T00:00:00");let count=0;
+  for(let w=0;w<repWeeks;w++){for(let d=1;d<=7;d++){const nd=new Date(base);nd.setDate(base.getDate()+w*7+d);
+   const dayN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][nd.getDay()];
+   if(repDays.includes(dayN)){addAppt(nd.toISOString().split("T")[0]);count++;}}}
+  if(count>0)alert(count+" additional appointment"+(count>1?"s":"")+" booked ("+repDays.join(", ")+" for "+repWeeks+" week"+(repWeeks>1?"s":"")+").");
+ }
+ calDate=dt;save();closeModal();render();}
 
 /* CONSULTATIONS */
 views.consultations=()=>`<div class="panel"><div class="panel-h"><h3>Consultation Notes</h3><button class="btn" onclick="consultForm()">+ New Consultation</button></div>
@@ -1790,14 +1840,72 @@ function payRemind(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pi
 function viewInvoice(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);const t=invTotals(i);
  openModal(`<div class="modal-h"><h3>Tax Invoice — ${i.id}</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b"><div class="inv">
-  <div class="inv-h"><div><h2>${DB.settings.clinic}</h2><div class="muted">${bName(i.branch)}</div><div class="muted">GSTIN: ${DB.settings.gstin}</div></div><div style="text-align:right"><b>${i.id}</b><div class="muted">${fmtDate(i.date)}</div><span class="tag ${statusTag(i.status)}">${i.status}</span></div></div>
-  <div><b>Bill to:</b> ${p.name} · ${p.phone}</div>
-  <table><thead><tr><th>Description</th><th>Qty</th><th class="tot">Rate</th><th class="tot">Amount</th></tr></thead><tbody>
-  ${i.items.map(it=>`<tr><td>${it.d}</td><td>${it.qty}</td><td class="tot">${inr(it.rate)}</td><td class="tot">${inr(it.qty*it.rate)}</td></tr>`).join("")}</tbody></table>
-  <div class="tot"><div><span>Subtotal</span><span>${inr(t.sub)}</span></div><div><span>CGST (9%)</span><span>${inr(t.gst/2)}</span></div><div><span>SGST (9%)</span><span>${inr(t.gst/2)}</span></div><div class="grand"><span>Total</span><span>${inr(t.total)}</span></div></div>
-  <hr class="sep"><div class="muted" style="font-size:12px">Payment: ${i.mode} · Thank you for choosing ${DB.settings.clinic}. Computer-generated GST invoice.</div>
+  <div class="inv-h"><div><h2>${DB.settings.clinic}</h2><div class="muted">${bName(i.branch)}</div><div class="muted">GSTIN: ${DB.settings.gstin||"—"}</div><div class="muted">SAC: 999311</div></div><div style="text-align:right"><b>${i.id}</b><div class="muted">${fmtDate(i.date)}</div><span class="tag ${statusTag(i.status)}">${i.status}</span></div></div>
+  <div style="margin:6px 0"><b>Bill to:</b> ${p.name} · ${p.phone}${p.addr?`<br><span class="muted">${p.addr}</span>`:""}</div>
+  <table><thead><tr><th>Description</th><th>SAC</th><th>Qty</th><th class="tot">Rate</th><th class="tot">Amount</th></tr></thead><tbody>
+  ${i.items.map(it=>`<tr><td>${it.d}</td><td class="muted">999311</td><td>${it.qty}</td><td class="tot">${inr(it.rate)}</td><td class="tot">${inr(it.qty*it.rate)}</td></tr>`).join("")}</tbody></table>
+  <div class="tot"><div><span>Subtotal</span><span>${inr(t.sub)}</span></div><div><span>CGST (9%)</span><span>${inr(t.gst/2)}</span></div><div><span>SGST (9%)</span><span>${inr(t.gst/2)}</span></div><div class="grand"><span>Total</span><span>${inr(t.total)}</span></div>${i.paid&&i.paid<t.total?`<div><span style="color:var(--ok)">Paid</span><span style="color:var(--ok)">${inr(i.paid)}</span></div><div><span style="color:var(--danger)">Balance due</span><span style="color:var(--danger)">${inr(t.total-i.paid)}</span></div>`:""}</div>
+  <hr class="sep"><div class="muted" style="font-size:12px">Payment mode: ${i.mode||"—"} ${i.paidAt?"· Paid on "+fmtDate(i.paidAt):""} · ${DB.settings.clinic} · Computer-generated GST invoice.</div>
  </div></div>
- <div class="modal-f"><button class="btn sec" onclick="window.print()">🖨 Print / WhatsApp PDF</button><button class="btn" onclick="closeModal()">Close</button></div>`,true);}
+ <div class="modal-f" style="flex-wrap:wrap;gap:6px">
+  <button class="btn danger sec" style="margin-right:auto" onclick="deleteInvoice('${id}')">🗑 Delete</button>
+  ${i.status==="Pending"?`<button class="btn sec" onclick="editInvoiceForm('${id}')">✏️ Edit</button>`:""}
+  <button class="btn sec" onclick="downloadReceiptPDF('${id}')">📄 Receipt PDF</button>
+  <button class="btn sec" onclick="window.print()">🖨 Print</button>
+  <button class="btn" onclick="closeModal()">Close</button>
+ </div>`,true);}
+function deleteInvoice(id){if(CURROLE!=='owner'){alert("Only the owner can delete invoices.");return;}if(!confirm("Delete this invoice permanently? This cannot be undone."))return;DB.invoices=DB.invoices.filter(x=>x.id!==id);save();closeModal();render();logAudit("Invoice","Deleted "+id);}
+function editInvoiceForm(id){const i=DB.invoices.find(x=>x.id===id);if(i.status!=="Pending"&&!confirm("This invoice is already "+i.status+". Edit anyway?"))return;
+ openModal(`<div class="modal-h"><h3>Edit Invoice ${i.id}</h3><button class="x" onclick="closeModal()">×</button></div>
+ <div class="modal-b">
+  <div class="field"><label>Fee total (₹) — edit line items in full invoice flow</label>
+   ${i.items.map((it,idx)=>`<div class="grid2" style="margin-bottom:6px"><div class="field" style="margin:0"><label style="font-size:11px">${it.d}</label><input type="number" id="eit_r${idx}" value="${it.rate}" oninput="updEInvTotal()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;width:100%"></div><div class="field" style="margin:0"><label style="font-size:11px">Qty</label><input type="number" id="eit_q${idx}" value="${it.qty}" oninput="updEInvTotal()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;width:100%"></div></div>`).join("")}
+  </div>
+  <div class="field"><label>Payment mode</label><select id="ei_mode">${["UPI","Cash","Card","Corporate / Insurance","Bill later"].map(m=>`<option ${(i.mode||"")==m?"selected":""}>${m}</option>`).join("")}</select></div>
+  <div id="ei_total_preview" style="font-weight:700;font-size:15px;text-align:right;margin-top:6px"></div>
+ </div>
+ <div class="modal-f"><button class="btn sec" onclick="viewInvoice('${id}')">Cancel</button><button class="btn" onclick="saveEditInvoice('${id}',${i.items.length})">Save</button></div>`);
+ setTimeout(updEInvTotal,50);}
+function updEInvTotal(){let sub=0;let idx=0;while(document.getElementById("eit_r"+idx)){const r=+(document.getElementById("eit_r"+idx).value||0);const q=+(document.getElementById("eit_q"+idx).value||1);sub+=r*q;idx++;}const gst=Math.round(sub*18)/100;document.getElementById("ei_total_preview").textContent="Total: "+inr(sub+gst)+" (incl. 18% GST)";}
+function saveEditInvoice(id,n){const v=k=>document.getElementById(k);const i=DB.invoices.find(x=>x.id===id);for(let idx=0;idx<n;idx++){i.items[idx].rate=+(v("eit_r"+idx).value||0);i.items[idx].qty=+(v("eit_q"+idx).value||1);}i.mode=v("ei_mode").value;if(i.mode!=="Bill later")i.status="Pending";logAudit("Invoice","Edited "+id);save();closeModal();viewInvoice(id);}
+async function downloadReceiptPDF(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);const t=invTotals(i);
+ const jsPDFLib=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;if(!jsPDFLib){alert("PDF library not loaded. Refresh the page and try again.");return;}
+ const doc=new jsPDFLib({unit:"mm",format:"a5"});let y=15;
+ const W=148,M=14;
+ function ln(txt,size,bold,align){doc.setFontSize(size||11);doc.setFont("helvetica",bold?"bold":"normal");const x=align==="right"?W-M:(align==="center"?W/2:M);doc.text(txt,x,y,{align:align||"left"});y+=size?(size*0.45):5;}
+ function rule(){doc.setDrawColor(200);doc.line(M,y,W-M,y);y+=4;}
+ // Header
+ doc.setFillColor(11,27,61);doc.rect(0,0,W,22,'F');
+ doc.setTextColor(255,255,255);doc.setFontSize(15);doc.setFont("helvetica","bold");
+ doc.text(DB.settings.clinic||"PhysioMind",M,13);
+ doc.setFontSize(8);doc.setFont("helvetica","normal");
+ doc.text("GSTIN: "+(DB.settings.gstin||"—")+" | SAC: 999311",M,19);
+ doc.text("TAX INVOICE",W-M,13,{align:"right"});doc.text(i.id,W-M,19,{align:"right"});
+ doc.setTextColor(0,0,0);y=28;
+ // Patient info
+ doc.setFontSize(10);doc.setFont("helvetica","bold");doc.text("Bill To:",M,y);y+=5;
+ doc.setFont("helvetica","normal");doc.setFontSize(10);
+ doc.text(p.name,M,y);y+=4.5;
+ doc.text(p.phone||' ',M,y);y+=4.5;
+ doc.text("Date: "+fmtDate(i.date)+" | Mode: "+(i.mode||"—"),M,y);
+ doc.setFontSize(10);doc.text("Status: "+i.status,W-M,y,{align:"right"});y+=7;
+ rule();
+ // Table header
+ doc.setFont("helvetica","bold");doc.setFontSize(9);
+ doc.text("Description",M,y);doc.text("Qty",100,y);doc.text("Rate",115,y);doc.text("Amount",W-M,y,{align:"right"});y+=5;
+ rule();
+ doc.setFont("helvetica","normal");doc.setFontSize(9);
+ i.items.forEach(it=>{doc.text(String(it.d||""),M,y,{maxWidth:82});doc.text(String(it.qty||1),100,y);doc.text(inr(it.rate||0),115,y);doc.text(inr((it.qty||1)*(it.rate||0)),W-M,y,{align:"right"});y+=5.5;});
+ rule();
+ // Totals
+ doc.setFontSize(10);
+ const rows=[['Subtotal',inr(t.sub)],['CGST (9%)',inr(t.gst/2)],['SGST (9%)',inr(t.gst/2)]];
+ rows.forEach(r=>{doc.setFont("helvetica","normal");doc.text(r[0],100,y);doc.text(r[1],W-M,y,{align:"right"});y+=5;});
+ rule();
+ doc.setFont("helvetica","bold");doc.setFontSize(12);doc.text("TOTAL",100,y);doc.text(inr(t.total),W-M,y,{align:"right"});y+=7;
+ doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(100);
+ doc.text("Thank you for choosing "+DB.settings.clinic+". Computer-generated GST invoice. SAC Code: 999311",M,y,{maxWidth:W-2*M});
+ doc.save("Receipt_"+i.id+"_"+p.name.replace(/ /g,"_")+".pdf");}
 const INV_SVCS=[
  {d:"Physiotherapy session",r:800},{d:"Post-op rehab session",r:1000},
  {d:"Initial assessment",r:600},{d:"Follow-up consultation",r:400},
