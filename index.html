@@ -1055,6 +1055,7 @@ function savePatient(id){const v=k=>{const el=document.getElementById(k);return 
 /* APPOINTMENTS */
 const therColor=t=>({"Dr. Neha Verma":"#2563eb","Dr. Amit Joshi":"#0d9488","Dr. Karan Mehta":"#7c3aed"}[t]||"#6b7589");
 let calDate=todayISO, calView="day";
+let _remTab="appts";
 const pad2=h=>String(h).padStart(2,"0");
 function shiftDate(iso,n){const d=new Date(iso+"T00:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
 function dayName(iso){return new Date(iso+"T00:00:00").toLocaleDateString("en-IN",{weekday:"long"});}
@@ -2111,56 +2112,139 @@ function sendWA(pid,kind,when,text){const p=pById(pid);try{window.open(waLink(p.
 function copyTemplate(i){const el=document.getElementById("tmpl_"+i);if(!el)return;navigator.clipboard.writeText(el.innerText).then(function(){const btn=el.nextElementSibling.querySelector("button");const orig=btn.textContent;btn.textContent="✓ Copied!";setTimeout(function(){btn.textContent=orig;},1800);});}
 function sendTemplateWA(i){const el=document.getElementById("tmpl_"+i);if(!el)return;const msg=el.innerText;window.open("https://wa.me/?text="+encodeURIComponent(msg),"_blank");}
 views.reminders=()=>{
- const fmtAppt=a=>fmtDate(a.date).replace(/ \d{4}$/,'')+", "+a.time;
- const upcoming=DB.appointments.filter(inBranch).filter(a=>!MYTHER||a.therapist===MYTHER).filter(a=>a.date>=todayISO&&a.status!=="Cancelled"&&a.status!=="Completed").sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
- const dues=DB.invoices.filter(inBranch).filter(i=>i.status==="Pending");
- const toSend=[...upcoming.map(a=>({pid:a.pid,kind:"Appointment",when:fmtAppt(a),text:apptMsg(pById(a.pid),fmtAppt(a))})),
-   ...dues.map(i=>({pid:i.pid,kind:"Payment",when:inr(invTotals(i).total)+" due — "+i.id,text:payMsg(pById(i.pid),inr(invTotals(i).total)+" pending for "+i.id)}))];
  const clinic=DB.settings.clinic||"PhysioMind";
+ const fmtAppt=a=>fmtDate(a.date).replace(/ \d{4}$/,'')+", "+a.time;
+ // Data sets for each tab
+ const upcoming=DB.appointments.filter(inBranch).filter(a=>!MYTHER||a.therapist===MYTHER).filter(a=>a.date>=todayISO&&a.status!=="Cancelled"&&a.status!=="Completed").sort((a,b=>(a.date+a.time).localeCompare(b.date+b.time)));
+ const dues=DB.invoices.filter(inBranch).filter(i=>i.status==="Pending"||i.status==="Partial");
+ const missed=DB.appointments.filter(inBranch).filter(a=>a.date<todayISO&&a.status==="Pending").sort((a,b)=>b.date.localeCompare(a.date));
+ const cancelled=DB.appointments.filter(inBranch).filter(a=>a.status==="Cancelled").sort((a,b)=>b.date.localeCompare(a.date));
+ const reschedList=[...missed,...cancelled].slice(0,30);
+ const sent=DB.reminders||[];
  const TEMPLATES=[
-  {label:"Appointment Reminder — Day Before",tag:"blue",icon:"📅",msg:`Hi [Patient Name] 👋, this is a reminder that your physiotherapy appointment is scheduled for *tomorrow, [Date]* at *[Time]* with *[Therapist Name]* at *${clinic}*. Please arrive 5 minutes early. For any changes, call us at [Phone]. See you soon! 🙏`},
-  {label:"Appointment Reminder — Same Day",tag:"teal",icon:"⏰",msg:`Good morning [Patient Name] 😊, just a reminder that you have your physio session *today at [Time]* with *[Therapist Name]*. We're looking forward to seeing you at ${clinic}. Please call [Phone] if you need to reschedule.`},
-  {label:"Appointment Confirmation",tag:"green",icon:"✅",msg:`Dear [Patient Name], your appointment has been *confirmed* ✅ at *${clinic}* on *[Date]* at *[Time]* with *[Therapist Name]*. Address: [Clinic Address]. For queries, call [Phone]. Thank you for choosing us!`},
-  {label:"Appointment Cancelled — By Patient",tag:"amber",icon:"❌",msg:`Dear [Patient Name], your appointment on *[Date]* at *[Time]* has been *cancelled* as per your request. To reschedule, please call [Phone] or reply to this message. We hope to see you soon 🙏 — Team ${clinic}`},
-  {label:"Cancellation + Due Amount",tag:"red",icon:"💰",msg:`Dear [Patient Name], your appointment on *[Date]* has been cancelled. As per our cancellation policy, a *cancellation fee of ₹[Amount]* is applicable. Your outstanding balance is *₹[Due Amount]*. Please clear this at your next visit or via UPI: [UPI ID]. For queries, call [Phone]. Thank you — ${clinic}`},
-  {label:"Outstanding Payment Reminder",tag:"amber",icon:"🔔",msg:`Dear [Patient Name] 🙏, we hope your recovery is going well. This is a gentle reminder that an amount of *₹[Due Amount]* is outstanding for your treatment at *${clinic}*. Kindly clear this at your earliest convenience. Pay via UPI: [UPI ID] or visit us at [Clinic Address]. Thank you!`},
-  {label:"Payment Received Confirmation",tag:"green",icon:"🧾",msg:`Dear [Patient Name], we have received your payment of *₹[Amount]* on *[Date]*. Your updated balance is *₹[Remaining]*. Thank you! For your invoice or queries, call [Phone] — Team ${clinic} 🙏`},
-  {label:"Missed Appointment — No Show",tag:"gray",icon:"😔",msg:`Hi [Patient Name], we missed you today at your *[Time]* appointment on *[Date]* 😔. Please call [Phone] to reschedule your session. Continuing your treatment regularly gives the best results. Take care — ${clinic}`}
+  {label:"Appointment Reminder — Day Before",tag:"blue",icon:"📅",msg:`Hi [Patient Name] 👋, your physiotherapy appointment is scheduled for *tomorrow, [Date]* at *[Time]* with *[Therapist Name]* at *${clinic}*. Please arrive 5 min early. For changes call [Phone]. See you! 🙏`},
+  {label:"Appointment Reminder — Same Day",tag:"teal",icon:"⏰",msg:`Good morning [Patient Name] 😊, reminder: you have your physio session *today at [Time]* with *[Therapist Name]* at ${clinic}. Call [Phone] if you need to reschedule.`},
+  {label:"Appointment Confirmed",tag:"green",icon:"✅",msg:`Dear [Patient Name], your appointment is *confirmed* ✅ at *${clinic}* on *[Date]* at *[Time]* with *[Therapist Name]*. For queries call [Phone]. Thank you 🙏`},
+  {label:"Reschedule Request",tag:"amber",icon:"🔄",msg:`Hi [Patient Name], we noticed you missed your appointment on *[Date]*. No worries! Please reply or call [Phone] to book a new slot at *${clinic}*. We're here to help — Team ${clinic} 🙏`},
+  {label:"Appointment Cancelled",tag:"red",icon:"❌",msg:`Dear [Patient Name], your appointment on *[Date]* at *[Time]* has been cancelled as per your request. Call [Phone] to reschedule. We hope to see you soon — ${clinic}`},
+  {label:"Outstanding Payment Reminder",tag:"amber",icon:"💰",msg:`Dear [Patient Name] 🙏, gentle reminder that *₹[Due Amount]* is outstanding for your treatment at *${clinic}*. Pay via UPI: [UPI ID] or visit us. Thank you!`},
+  {label:"Partial Payment — Balance Due",tag:"amber",icon:"🔔",msg:`Hi [Patient Name], your payment of *₹[Paid]* was received. A balance of *₹[Remaining]* is still pending for invoice [Invoice ID] at ${clinic}. Please clear at your next visit or UPI: [UPI ID]. Thank you!`},
+  {label:"Payment Received",tag:"green",icon:"🧾",msg:`Dear [Patient Name], we received your payment of *₹[Amount]* on *[Date]*. Thank you! For receipts or queries call [Phone] — Team ${clinic} 🙏`},
+  {label:"Missed Appointment — No Show",tag:"gray",icon:"😔",msg:`Hi [Patient Name], we missed you at your *[Time]* appointment on *[Date]* 😔. Call [Phone] to reschedule. Regular sessions give the best results — ${clinic}`},
+  {label:"Treatment Course Complete",tag:"green",icon:"🎉",msg:`Congratulations [Patient Name]! 🎉 You've completed your treatment course at *${clinic}*. We're proud of your progress! For follow-ups or any concerns, call [Phone]. Stay healthy! — Team ${clinic} 🙏`},
  ];
- return `<div class="two-col">
-  <div class="panel"><div class="panel-h"><h3>Send reminders — manual</h3><span class="tag teal">${toSend.length} to send</span></div>
-  <div class="panel-b">
-   ${toSend.map(x=>{const p=pById(x.pid);return `<div class="reminder"><div class="r-ico wa">💬</div>
-     <div class="r-body"><div style="display:flex;justify-content:space-between;align-items:center"><b>${p.name} <span class="tag ${x.kind==='Payment'?'amber':'blue'}" style="margin-left:5px">${x.kind}</span></b><span class="muted" style="font-size:12px"><a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a></span></div>
-     <div class="r-msg">${x.text}</div>
-     <div style="margin-top:7px;display:flex;gap:7px"><button class="btn sm" onclick="sendWA('${x.pid}','${x.kind}','${x.when.replace(/'/g,"")}',this.parentNode.previousElementSibling.innerText)">📲 Send on WhatsApp</button></div></div></div>`;}).join("")||'<div class="empty">Nothing to send right now 🎉</div>'}
-  </div></div>
-  <div>
-   <div class="panel"><div class="panel-h"><h3>Automatic reminders</h3><span class="tag gray">Off</span></div><div class="panel-b">
-     <div class="list-row" style="display:flex;justify-content:space-between;align-items:center"><span><b>Auto WhatsApp / SMS</b><div class="muted" style="font-size:12px">WhatsApp Business API — activate when ready</div></span><label class="toggle"><input type="checkbox" disabled><span class="tk"></span></label></div>
-     <div class="muted" style="font-size:12.5px;margin-top:10px">For now reminders are sent <b>manually</b> — tap "Send on WhatsApp" and the message opens pre-filled in WhatsApp; you just press send. When you're ready to automate (auto-send before each appointment), we switch on the WhatsApp Business API + SMS gateway.</div>
-   </div></div>
-   <div class="panel"><div class="panel-h"><h3>Recently sent</h3></div><div class="panel-b">
-   ${DB.reminders.length?DB.reminders.slice(0,8).map(r=>{const p=pById(r.pid);return `<div class="list-row" style="display:flex;justify-content:space-between"><span>${p.name} <span class="tag ${r.kind==='Payment'?'amber':'blue'}">${r.kind}</span></span><span class="muted" style="font-size:12px">${r.when}</span></div>`;}).join(""):'<div class="muted" style="font-size:12.5px">No reminders sent yet.</div>'}
-   </div></div>
+ // Tab bar
+ const tabs=[
+  {id:"appts",label:"📅 Appointments",count:upcoming.length},
+  {id:"payments",label:"💰 Payments",count:dues.length},
+  {id:"reschedule",label:"🔄 Reschedule",count:reschedList.length},
+  {id:"templates",label:"📋 Templates",count:TEMPLATES.length},
+  {id:"sent",label:"✅ Sent",count:sent.length},
+ ];
+ const tabBar=`<div style="display:flex;gap:0;border-bottom:2px solid var(--line);margin-bottom:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none">
+  ${tabs.map(t=>`<button onclick="_remTab='${t.id}';render()" style="border:none;background:none;padding:11px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;border-bottom:3px solid ${_remTab===t.id?'var(--brand)':'transparent'};color:${_remTab===t.id?'var(--brand)':'var(--muted)'};margin-bottom:-2px">${t.label}${t.count?' <span style="background:var(--line);border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700">'+t.count+'</span>':''}</button>`).join('')}
+ </div>`;
+
+ // ── TAB: APPOINTMENTS ─────────────────────────────────
+ const apptTab=`
+  <div style="padding:14px 17px 6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+   <span class="muted" style="font-size:12.5px">${upcoming.length} upcoming appointments need reminders</span>
   </div>
- </div>
- <div class="panel" style="margin-top:16px"><div class="panel-h"><h3>📋 Message Templates</h3><span class="muted" style="font-size:12.5px">Click Copy to edit & use — replace [brackets] with actual details</span></div>
- <div class="panel-b tmpl-grid">
+  ${upcoming.length?upcoming.map(a=>{const p=pById(a.pid);const msg=apptMsg(p,fmtAppt(a));return `<div class="reminder"><div class="r-ico wa">💬</div>
+   <div class="r-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+     <b>${p.name} <span class="tag blue" style="margin-left:5px">Appointment</span></b>
+     <span class="muted" style="font-size:12px"><a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a></span>
+    </div>
+    <div class="muted" style="font-size:12px;margin:2px 0">${fmtDate(a.date)} at ${a.time} · ${a.therapist} · <span class="tag ${statusTag(a.status)}">${a.status}</span></div>
+    <div class="r-msg" id="rmsg_a_${a.id}">${msg}</div>
+    <div style="margin-top:7px;display:flex;gap:7px;flex-wrap:wrap">
+     <button class="btn sm" onclick="sendWA('${a.pid}','Appointment','${fmtAppt(a).replace(/'/g,'')}',document.getElementById('rmsg_a_${a.id}').innerText)">📲 WhatsApp</button>
+     <button class="btn sm sec" onclick="setApptStatus('${a.id}','Confirmed');render()">✔ Confirm</button>
+    </div>
+   </div></div>`;}).join(''):'<div class="empty" style="padding:40px">No upcoming appointments 🎉</div>'}`;
+
+ // ── TAB: PAYMENTS ─────────────────────────────────────
+ const payTab=`
+  <div style="padding:14px 17px 6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+   <span class="muted" style="font-size:12.5px">${dues.length} pending/partial payments · Total outstanding: <b>${inr(dues.reduce((s,i)=>s+invTotals(i).total,0))}</b></span>
+  </div>
+  ${dues.length?dues.map(i=>{const p=pById(i.pid);const amt=invTotals(i).total;const msg=payMsg(p,inr(amt)+" pending for "+i.id);return `<div class="reminder"><div class="r-ico wa">💬</div>
+   <div class="r-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+     <b>${p.name} <span class="tag amber" style="margin-left:5px">${i.status}</span></b>
+     <span class="muted" style="font-size:12px"><a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a></span>
+    </div>
+    <div class="muted" style="font-size:12px;margin:2px 0">${i.id} · ${fmtDate(i.date)} · <b style="color:var(--danger)">${inr(amt)}</b>${i.paid?' · Paid: '+inr(i.paid)+', Balance: '+inr(amt-i.paid):''}</div>
+    <div class="r-msg" id="rmsg_p_${i.id}">${msg}</div>
+    <div style="margin-top:7px;display:flex;gap:7px;flex-wrap:wrap">
+     <button class="btn sm" onclick="sendWA('${i.pid}','Payment','${inr(amt)} due',document.getElementById('rmsg_p_${i.id}').innerText)">📲 WhatsApp</button>
+     <button class="btn sm sec" onclick="markPaid('${i.id}')">✔ Mark paid</button>
+     <button class="btn sm sec" onclick="viewInvoice('${i.id}')">🧾 Invoice</button>
+    </div>
+   </div></div>`;}).join(''):'<div class="empty" style="padding:40px">No outstanding payments 🎉</div>'}`;
+
+ // ── TAB: RESCHEDULE ───────────────────────────────────
+ const reschedTab=`
+  <div style="padding:14px 17px 6px">
+   <span class="muted" style="font-size:12.5px">${missed.length} missed (no-show) + ${cancelled.length} cancelled</span>
+  </div>
+  ${reschedList.length?reschedList.map(a=>{const p=pById(a.pid);const isNoShow=a.status==="Pending"&&a.date<todayISO;const msg=isNoShow?`Hi ${p.name.split(' ')[0]}, we missed you at your physio appointment on ${fmtDate(a.date)} at ${a.time} 😔. Please call us to reschedule — Team ${clinic}`:`Hi ${p.name.split(' ')[0]}, your appointment on ${fmtDate(a.date)} was cancelled. Would you like to book a new slot at ${clinic}? Call us anytime — Team ${clinic} 🙏`;return `<div class="reminder"><div class="r-ico wa">💬</div>
+   <div class="r-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+     <b>${p.name} <span class="tag ${isNoShow?'red':'gray'}" style="margin-left:5px">${isNoShow?'No-show':'Cancelled'}</span></b>
+     <span class="muted" style="font-size:12px"><a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a></span>
+    </div>
+    <div class="muted" style="font-size:12px;margin:2px 0">${fmtDate(a.date)} at ${a.time} · ${a.therapist}</div>
+    <div class="r-msg" id="rmsg_r_${a.id}">${msg}</div>
+    <div style="margin-top:7px;display:flex;gap:7px;flex-wrap:wrap">
+     <button class="btn sm" onclick="sendWA('${a.pid}','Reschedule','${fmtDate(a.date)}',document.getElementById('rmsg_r_${a.id}').innerText)">📲 WhatsApp</button>
+     <button class="btn sm sec" onclick="apptForm('${todayISO}','','');closeModal();apptForm(todayISO)">📅 Book new slot</button>
+    </div>
+   </div></div>`;}).join(''):'<div class="empty" style="padding:40px">No missed or cancelled appointments 🎉</div>'}`;
+
+ // ── TAB: TEMPLATES ────────────────────────────────────
+ const tmplTab=`<div class="panel-b tmpl-grid" style="padding-top:14px">
   ${TEMPLATES.map((t,i)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:13px">
    <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">
     <span style="font-size:18px">${t.icon}</span>
     <span style="font-weight:600;font-size:13px;flex:1">${t.label}</span>
-    <span class="tag ${t.tag}" style="font-size:10px;padding:2px 7px">${t.tag==='blue'?'Reminder':t.tag==='green'?'Confirm':t.tag==='amber'?'Alert':t.tag==='red'?'Urgent':'Info'}</span>
+    <span class="tag ${t.tag}" style="font-size:10px;padding:2px 7px">${t.tag==='blue'||t.tag==='teal'?'Reminder':t.tag==='green'?'Confirm':t.tag==='amber'?'Alert':t.tag==='red'?'Urgent':'Info'}</span>
    </div>
    <div id="tmpl_${i}" style="background:var(--bg2);border-radius:7px;padding:9px 11px;font-size:12.5px;line-height:1.55;color:var(--text);white-space:pre-wrap;margin-bottom:9px">${t.msg}</div>
    <div style="display:flex;gap:7px">
     <button class="btn sm sec" onclick="copyTemplate(${i})">📋 Copy</button>
     <button class="btn sm" style="background:#25D366" onclick="sendTemplateWA(${i})">📲 WhatsApp</button>
    </div>
-  </div>`).join("")}
- </div></div>`;};
+  </div>`).join('')}
+ </div>`;
 
+ // ── TAB: SENT ─────────────────────────────────────────
+ const sentTab=`<div style="padding:14px 17px">
+  ${sent.length?[...sent].reverse().slice(0,50).map(r=>{const p=pById(r.pid);return `<div class="list-row" style="display:flex;justify-content:space-between;align-items:center">
+   <div><b>${p.name}</b> <span class="tag ${r.kind==='Payment'?'amber':r.kind==='Reschedule'?'gray':'blue'}">${r.kind}</span><div class="muted" style="font-size:11.5px">${r.when}</div></div>
+   <span class="muted" style="font-size:11px">${r.sentAt?r.sentAt.slice(0,10):''}</span>
+  </div>`;}).join(''):'<div class="empty" style="padding:40px">No reminders sent yet.<br><span class="muted" style="font-size:12.5px">Sent reminders appear here.</span></div>'}
+ </div>`;
+
+ const tabContent={appts:apptTab,payments:payTab,reschedule:reschedTab,templates:tmplTab,sent:sentTab};
+
+ return `<div class="panel" style="padding:0">
+  <div style="padding:17px 17px 0">
+   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <h3 style="margin:0">🔔 Reminders</h3>
+    <div style="display:flex;gap:8px;align-items:center;font-size:12.5px">
+     <span class="muted">Auto-send:</span>
+     <span class="tag gray">Off — manual only</span>
+    </div>
+   </div>
+  </div>
+  ${tabBar}
+  <div style="padding:0 0 4px">
+   ${tabContent[_remTab]||tabContent.appts}
+  </div>
+ </div>`;
+};
 /* SETTINGS */
 views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel-h"><h3>Clinic Settings</h3></div><div class="panel-b">
   <div class="field"><label>Clinic name</label><input value="${DB.settings.clinic}" onchange="DB.settings.clinic=this.value;save()"></div>
