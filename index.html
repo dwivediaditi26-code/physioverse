@@ -931,7 +931,7 @@ function filterPatients(q){
 }
 function patientView(id,tab){const p=pById(id);const T=tab||"assess";
  const invs=DB.invoices.filter(i=>i.pid===id),asmts=(DB.assessments||[]).filter(c=>c.pid===id).sort((a,b)=>b.date.localeCompare(a.date)),pkgs=DB.patientPkgs.filter(x=>x.pid===id),plans=DB.plans.filter(t=>t.pid===id);
- const homePlans=plans.filter(t=>t.home&&t.home.length);
+ const homePlans=plans.filter(t=>t.home&&Array.isArray(t.home)&&t.home.length);
  const visits=[];plans.forEach(t=>(t.visits||[]).forEach(s=>visits.push({...s,planId:t.id})));visits.sort((a,b)=>b.date.localeCompare(a.date)||b.n-a.n);
  const show=t=>T===t?"block":"none";
  openModal(`<div class="modal-h"><h3><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div>${p.name}</div><div class="mt muted">ID ${patientCode(p)} · ${p.age}y · ${p.gender==='M'?'Male':'Female'} · <a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a> · ${p.therapist}</div></div></div></h3><button class="x" onclick="closeModal()">×</button></div>
@@ -956,7 +956,7 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
    ${visits.length?visits.map(s=>`<details style="border:0.5px solid var(--line);border-radius:8px;margin:8px 0"><summary style="padding:10px 12px;cursor:pointer"><b>Session #${s.n} · ${fmtDate(s.date)}</b><span style="float:right">${s.pain!==''&&s.pain!=null?'<span class="tag '+(+s.pain<=3?'green':+s.pain<=6?'amber':'red')+'">Pain '+s.pain+'/10</span> ':''}<span class="muted" style="font-size:12px">${s.therapist.replace('Dr. ','')}</span></span></summary><div style="padding:0 12px 12px">${s.modalities&&s.modalities.length?'<div style="margin-bottom:6px"><b class="muted" style="font-size:12px">Treatments: </b>'+s.modalities.map(m=>'<span class="tag teal">'+m+'</span> ').join("")+'</div>':''}${s.exercises&&s.exercises.length?'<div style="margin-bottom:6px"><b class="muted" style="font-size:12px">Exercises: </b>'+s.exercises.map(e=>'<span class="tag gray">'+e+'</span> ').join("")+'</div>':''}${s.note?'<div style="font-size:12.5px;margin-top:4px">📝 '+s.note+'</div>':''}<div style="margin-top:8px"><button class="btn sm sec" onclick="sessionForm('${s.planId}','${s.id}')">Edit session</button></div></div></details>`).join(""):'<div class=muted style="padding:6px 0">No sessions logged yet.</div>'}
    ${(()=>{const totalSess=plans.reduce((s,t)=>s+(t.sessions||0),0),doneSess=plans.reduce((s,t)=>s+(t.done||0),0),rem=Math.max(0,totalSess-doneSess);return rem>0?'<div class="muted" style="font-size:12px;padding:6px 10px;background:var(--bg2);border-radius:8px;margin:6px 0">📅 '+doneSess+' of '+totalSess+' sessions completed · <b>'+rem+' session'+(rem===1?'':'s')+' remaining</b> — not yet scheduled/logged.</div>':'';})()}
    <button class="btn sm" style="margin-top:6px" onclick="openConsole('${id}')">+ Log today's session</button>
-   ${homePlans.length?'<hr class="sep"><b class="muted">🏠 Home programme</b>'+homePlans.map(t=>`<div class="list-row"><span class="tag blue">${t.homeFreq||'as advised'}</span><div class="pill-row" style="margin-top:5px">${t.home.map(e=>'<span class="tag gray">'+e+'</span>').join("")}</div></div>`).join("")+`<button class="btn sm sec" style="margin-top:8px" onclick="printHome('${id}')">🖨 Print / WhatsApp home plan</button>`:''}
+   ${homePlans.length?'<hr class="sep"><b class="muted">🏠 Home programme</b>'+homePlans.map(t=>`<div class="list-row"><span class="tag blue">${t.homeFreq||'as advised'}</span><div class="pill-row" style="margin-top:5px">${(Array.isArray(t.home)?t.home:[]).map(e=>'<span class="tag gray">'+e+'</span>').join("")}</div></div>`).join("")+`<button class="btn sm sec" style="margin-top:8px" onclick="printHome('${id}')">🖨 Print / WhatsApp home plan</button>`:''}
   </div>
   <div id="pv-bill" style="display:${show('bill')}">
    ${(()=>{
@@ -990,25 +990,25 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Close</button><button class="btn sec" onclick="patientForm('${id}')">Edit patient</button></div>`,true);}
 function pvtab(btn,t){document.querySelectorAll("#pvtabs button").forEach(b=>b.classList.remove("active"));btn.classList.add("active");["assess","treat","bill"].forEach(x=>document.getElementById("pv-"+x).style.display=x===t?"block":"none");}
-function printHome(id){const p=pById(id);const hp=DB.plans.filter(t=>t.pid===id&&t.home&&t.home.length);
+function printHome(id){const p=pById(id);const hp=DB.plans.filter(t=>t.pid===id&&t.home&&Array.isArray(t.home)&&t.home.length);
  openModal(`<div class="modal-h"><h3>Home Exercise Programme</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b"><div class="inv">
   <div class="inv-h"><div><h2>${DB.settings.clinic}</h2><div class="muted">${DB.branches[0].address}</div></div><div style="text-align:right"><b>🏠 Home Programme</b><div class="muted">${fmtDate(todayISO)}</div></div></div>
   <div style="display:flex;justify-content:space-between;margin-bottom:10px"><b>${p.name}</b><span class="muted">${p.age}y / ${p.gender} · ${p.phone}</span></div>
-  ${hp.map(t=>`<div style="margin-bottom:12px"><b>${t.diagnosis}</b> <span class="muted">— ${t.homeFreq||'as advised'}</span><ul style="margin:6px 0 0 20px">${t.home.map(e=>`<li style="padding:3px 0">${e}</li>`).join("")}</ul></div>`).join("")}
+  ${hp.map(t=>`<div style="margin-bottom:12px"><b>${t.diagnosis}</b> <span class="muted">— ${t.homeFreq||'as advised'}</span><ul style="margin:6px 0 0 20px">${(Array.isArray(t.home)?t.home:[]).map(e=>`<li style="padding:3px 0">${e}</li>`).join("")}</ul></div>`).join("")}
   <hr class="sep"><div class="muted" style="font-size:12px">Do these at home as advised. Stop and contact us if pain increases. — Team ${DB.settings.clinic}, Indore</div>
  </div></div>
  <div class="modal-f"><button class="btn sec" onclick="window.print()">🖨 Print / PDF</button><button class="btn" style="background:#25D366" onclick="sendHomeWA('${id}')">📲 Send on WhatsApp</button></div>`,true);}
 function sendHomeWA(pid){
   const p=pById(pid);
-  const hp=DB.plans.filter(t=>t.pid===pid&&t.home&&t.home.length);
+  const hp=DB.plans.filter(t=>t.pid===pid&&t.home&&Array.isArray(t.home)&&t.home.length);
   const first=p.name.split(' ')[0];
   let msg=`Hi ${first} 👋\n\nHere are your home exercises from *${DB.settings.clinic}*:\n\n`;
   hp.forEach(t=>{
     msg+=`*${t.diagnosis}*`;
     if(t.homeFreq) msg+=` — ${t.homeFreq}`;
     msg+=`\n`;
-    t.home.forEach((e,i)=>{msg+=`${i+1}. ${e}\n`;});
+    (Array.isArray(t.home)?t.home:[]).forEach((e,i)=>{msg+=`${i+1}. ${e}\n`;});
     if(t.homeLinks&&t.homeLinks.length){
       msg+=`\n📎 *Exercise videos:*\n`;
       t.homeLinks.forEach(l=>{if(l.name&&l.link)msg+=`▶ ${l.name}: ${l.link}\n`;});
@@ -1288,14 +1288,14 @@ views.treatment=function(){
     if(remaining>0){html+='<div class="muted" style="font-size:12px;padding:6px 10px;background:var(--bg2);border-radius:8px;margin-bottom:8px">📅 '+t.done+' of '+t.sessions+' sessions completed · <b>'+remaining+' session'+(remaining===1?'':'s')+' remaining</b> — not yet scheduled/logged.</div>';}
    }
    // Home protocol — exercises, frequency & video links given to the patient, with last-updated date
-   if((t.home&&t.home.length)||(t.homeLinks&&t.homeLinks.length)){
+   if((t.home&&Array.isArray(t.home)&&t.home.length)||(t.homeLinks&&t.homeLinks.length)){
     var homeDate=maxN&&visitsByN[maxN]?fmtDate(visitsByN[maxN].date):'';
     html+='<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:10px 0;background:var(--bg2)">'
      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
      +'<b class="muted" style="font-size:12px">🏠 Home protocol given'+(t.homeFreq?' · '+t.homeFreq:'')+'</b>'
      +(homeDate?'<span class="muted" style="font-size:11px">Assigned/updated '+homeDate+'</span>':'')
      +'</div>'
-     +(t.home&&t.home.length?'<div class="pill-row">'+t.home.map(function(e){return '<span class="tag gray">'+e+'</span>';}).join("")+'</div>':'')
+     +(t.home&&Array.isArray(t.home)&&t.home.length?'<div class="pill-row">'+(Array.isArray(t.home)?t.home:[]).map(function(e){return '<span class="tag gray">'+e+'</span>';}).join("")+'</div>':'')
      +(t.homeLinks&&t.homeLinks.length?'<div style="margin-top:6px">'+t.homeLinks.filter(function(l){return l.name||l.link;}).map(function(l){return '<div style="font-size:12px;margin-top:2px">📎 '+(l.name||'Video')+(l.link?' — <a href="'+l.link+'" target="_blank" rel="noopener">'+l.link+'</a>':'')+'</div>';}).join("")+'</div>':'')
      +'<button class="btn sm sec" style="margin-top:8px" onclick="printHome(\''+t.pid+'\')">🖨 Print / WhatsApp home plan</button>'
     +'</div>';
@@ -2714,7 +2714,7 @@ function buildPDFHTML(id){
   const adviceRow=c.advice?`<div style="font-size:9.5px;color:#1e293b;padding:5px 8px;background:#f0f9ff;border-left:3px solid #0891b2;border-radius:2px;margin-bottom:6px"><b style="color:#0369a1">Advice:</b> ${c.advice}</div>`:'';
   const modRow=(c.modalities||[]).length?`<div style="margin-bottom:5px"><span style="font-size:9px;color:#64748b;font-weight:700;text-transform:uppercase;margin-right:6px">Modalities</span>${c.modalities.map(m=>chip(m,'#e0f2fe','#0369a1')).join('')}</div>`:'';
   const exRow=(c.exercises||[]).length?`<div style="margin-bottom:5px"><div style="font-size:9px;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:3px">Clinic exercises</div>${c.exercises.map((e,i)=>`<div style="font-size:9.5px;color:#1e293b;padding:2px 0;display:flex;gap:6px"><span style="color:#2563eb;font-weight:700;min-width:14px">${i+1}.</span>${e}</div>`).join('')}</div>`:'';
-  const homeRow=(c.home||[]).length?`<div style="margin-bottom:5px"><div style="font-size:9px;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:3px">Home programme${c.homeFreq?' · '+c.homeFreq:''}</div>${c.home.map((e,i)=>`<div style="font-size:9.5px;color:#1e293b;padding:2px 0;display:flex;gap:6px"><span style="color:#d97706;font-weight:700;min-width:14px">${i+1}.</span>${e}</div>`).join('')}</div>`:'';
+  const homeRow=(c.home||[]).length?`<div style="margin-bottom:5px"><div style="font-size:9px;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:3px">Home programme${c.homeFreq?' · '+c.homeFreq:''}</div>${(Array.isArray(c.home)?c.home:[]).map((e,i)=>`<div style="font-size:9.5px;color:#1e293b;padding:2px 0;display:flex;gap:6px"><span style="color:#d97706;font-weight:700;min-width:14px">${i+1}.</span>${e}</div>`).join('')}</div>`:'';
   const rxRow=(c.rx||[]).length?`<div><div style="font-size:9px;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:3px">Prescription (Rx)</div>${c.rx.map((r,i)=>`<div style="font-size:9.5px;color:#1e293b;padding:2px 0;display:flex;gap:6px"><span style="color:#1d4ed8;font-weight:700;min-width:14px">${i+1}.</span>${r}</div>`).join('')}</div>`:'';
   const pContent=goalsRow+sessRow+adviceRow+modRow+exRow+homeRow+rxRow;
 
@@ -2739,7 +2739,7 @@ function buildPDFHTML(id){
 
   <!-- BODY — scrollable line-by-line sections -->
   <div style="flex:1;padding:12px 28px;overflow:hidden;display:flex;flex-direction:column;gap:0">
-    ${sec('💬','S · Subjective','#2563eb',sHTML?sContent:'')}
+    ${sec('💬','S · Subjective','#2563eb',sContent||'')}
     ${sec('🩺','O · Objective','#16a34a',oContent||'')}
     ${sec('📋','A · Assessment','#7c3aed',(c.dx||c.problem||c.assessment)?aContent:'')}
     ${sec('✅','P · Plan','#0891b2',pContent||'')}
@@ -2774,53 +2774,152 @@ function assessPrint(id){
 
 // ── PDF: generate single-page & save to patient documents ──
 async function assessSavePDF(id){
-  const c=DB.assessments.find(x=>x.id===id);if(!c)return;
-  const p=pById(c.pid);
-  const toast=el=>{let t=document.getElementById('pdf-toast');if(!t){t=document.createElement('div');t.id='pdf-toast';t.style.cssText='position:fixed;bottom:24px;right:24px;background:#1e293b;color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;z-index:9999;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,.3)';document.body.appendChild(t);}t.innerHTML=el;t.style.display='flex';};
-  toast('⏳ Generating PDF…');
+  const c=DB.assessments.find(x=>x.id===id);
+  if(!c){alert('Assessment not found.');return;}
+  const p=pById(c.pid)||{};
+  const jsPDFLib=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+  if(!jsPDFLib){alert('PDF library not loaded. Please refresh and try again.');return;}
 
-  // Build hidden single-page element
-  const div=document.createElement('div');
-  div.style.cssText='position:fixed;left:-9999px;top:0;z-index:-1';
-  div.innerHTML=buildPDFHTML(id);
-  document.body.appendChild(div);
-  const wrap=div.querySelector('#pdf-single-page');
+  const doc=new jsPDFLib({orientation:'portrait',unit:'mm',format:'a4'});
+  const W=210,M=14,CW=W-2*M;let y=20;
 
-  try{
-    const {jsPDF}=window.jspdf;
-    // Render at exactly A4 pixel width (794px @ 96dpi ≈ 210mm)
-    const canvas=await html2canvas(wrap,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,width:794,height:1123});
-    div.remove();
-
-    const imgData=canvas.toDataURL('image/png');
-    const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    // Fill entire A4 page (210×297mm) with the image
-    pdf.addImage(imgData,'PNG',0,0,210,297);
-
-    const pdfBase64=pdf.output('datauristring');
-    const fileName=`Assessment_${p.name.replace(/\s+/g,'_')}_${c.date}.pdf`;
-
-    // Save to patient docs in DB
-    if(!p.docs)p.docs=[];
-    const existIdx=p.docs.findIndex(d=>d.assessId===id);
-    const docEntry={n:fileName,d:c.date,assessId:id,type:'assessment-pdf',data:pdfBase64};
-    if(existIdx>-1)p.docs[existIdx]=docEntry; else p.docs.push(docEntry);
-    save();
-
-    // Trigger download
-    const link=document.createElement('a');
-    link.href=pdfBase64;
-    link.download=fileName;
-    link.click();
-
-    toast(`✅ Saved as <b>${fileName}</b> — also in patient documents`);
-    setTimeout(()=>{const t=document.getElementById('pdf-toast');if(t)t.style.display='none';},4000);
-  }catch(e){
-    div.remove();
-    console.error(e);
-    toast('❌ PDF failed: '+e.message);
+  function chk(){if(y>270){doc.addPage();y=18;}}
+  function fld(lbl,val){
+    chk();
+    doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor('#0d9488');
+    doc.text(String(lbl)+':',M,y);
+    const lw=doc.getTextWidth(String(lbl)+': ');
+    doc.setFont('helvetica','normal');doc.setTextColor('#1a2233');
+    const lines=doc.splitTextToSize(String(val||'—'),CW-lw);
+    doc.text(lines,M+lw,y);y+=Math.max(lines.length*4.5,4.5)+1.5;
   }
+  function sec(t){
+    chk();y+=2;
+    doc.setFillColor('#0d9488');doc.roundedRect(M,y-3.5,CW,7.5,1.5,1.5,'F');
+    doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor('#ffffff');
+    doc.text(t,M+3,y+1);y+=8;
+  }
+  function textBlock(val){
+    if(!val)return;chk();
+    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor('#1a2233');
+    const lines=doc.splitTextToSize(String(val),CW);
+    lines.forEach(function(ln){chk();doc.text(ln,M,y);y+=4.5;});
+    y+=1;
+  }
+
+  // Header bar
+  doc.setFillColor('#0b1b3d');doc.rect(0,0,W,16,'F');
+  doc.setFontSize(13);doc.setFont('helvetica','bold');doc.setTextColor('#ffffff');
+  doc.text('PhysioMind Clinic OS',M,9);
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor('#aebcc7');
+  doc.text('Physiotherapy Assessment Report',M,14);
+  doc.setFontSize(7);doc.setTextColor('#7d93a0');
+  doc.text('Generated: '+new Date().toLocaleDateString('en-IN'),W-M-30,9);
+  y=22;
+
+  sec('PATIENT INFORMATION');
+  fld('Patient Name',p.name||'—');
+  fld('Age / Gender',(p.age||'—')+' yrs  |  '+(p.gender==='M'?'Male':p.gender==='F'?'Female':'—'));
+  fld('Phone',p.phone||'—');
+  fld('Assessment Date',c.date||'—');
+  fld('Therapist',c.therapist||'—');
+
+  sec('CHIEF COMPLAINT & HISTORY');
+  fld('Chief Complaint',c.complaint||'—');
+  fld('Onset',c.onset||'—');
+  fld('Pain Site',c.painsite||'—');
+  fld('VAS Pain Score',c.pain!=null?String(c.pain)+'/10':'—');
+  fld('Aggravating Factors',c.aggr||'—');
+  fld('Relieving Factors',c.reliev||'—');
+  fld('Past History',c.history||'—');
+  if(c.medications)fld('Medications',c.medications);
+
+  sec('OBJECTIVE FINDINGS');
+  fld('Posture',c.posture||'—');
+  fld('Gait',c.gait||'—');
+  fld('Swelling/Oedema',c.swelling||'—');
+
+  // ROM
+  if(c.rom&&Object.keys(c.rom).length){
+    const romLines=[];
+    Object.keys(c.rom).forEach(function(region){
+      const rv=c.rom[region];
+      Object.keys(rv).forEach(function(mv){
+        const m=rv[mv];
+        if(m&&(m.active||m.passive)){
+          romLines.push(region+' '+mv+': A='+m.active+'°  P='+(m.passive||'—')+'°');
+        }
+      });
+    });
+    if(romLines.length){
+      chk();doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor('#0d9488');
+      doc.text('Range of Motion:',M,y);y+=4.5;
+      romLines.forEach(function(ln){
+        chk();doc.setFont('helvetica','normal');doc.setTextColor('#1a2233');
+        doc.setFontSize(8);doc.text('  '+ln,M,y);y+=4.2;
+      });y+=1;
+    }
+  }
+
+  // Special Tests
+  if(c.tests&&Object.keys(c.tests).length){
+    const tlines=[];
+    Object.keys(c.tests).forEach(function(region){
+      const rt=c.tests[region];
+      Object.keys(rt).forEach(function(tn){tlines.push(tn+': '+rt[tn]);});
+    });
+    if(tlines.length)fld('Special Tests',tlines.join('  |  '));
+  }
+
+  fld('Neurological',c.neuroNote||'—');
+
+  sec('CLINICAL FINDINGS & DIAGNOSIS');
+  fld('Clinical Assessment',c.assessment||'—');
+  fld('Diagnosis (Dx)',c.dx||'—');
+  fld('Problem Statement',c.problem||'—');
+
+  sec('TREATMENT PLAN');
+  fld('Short-Term Goals',c.stg||'—');
+  fld('Long-Term Goals',c.ltg||'—');
+  fld('Sessions / Frequency',String(c.sessions||'—')+' sessions  |  '+(c.freq||'—'));
+  if(c.modalities&&c.modalities.length)fld('Modalities',c.modalities.join(', '));
+  if(c.exercises&&c.exercises.length)fld('Exercises',c.exercises.join('; '));
+  if(c.home&&c.home.length)fld('Home Programme',c.home.join('; '));
+  fld('Advice',c.advice||'—');
+
+  if(c.rx&&c.rx.length){
+    sec('PRESCRIPTION (Rx)');
+    c.rx.forEach(function(r,i){
+      chk();doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor('#1a2233');
+      doc.text((i+1)+'. '+r,M+2,y);y+=5;
+    });
+  }
+
+  // Footer
+  const pages=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pages;i++){
+    doc.setPage(i);
+    doc.setFillColor('#f4f6fb');doc.rect(0,287,W,10,'F');
+    doc.setFontSize(7);doc.setFont('helvetica','italic');doc.setTextColor('#6b7589');
+    doc.text('PhysioMind Clinic OS  |  Confidential — For clinical use only',M,293);
+    doc.text('Page '+i+' of '+pages,W-M-12,293);
+  }
+
+  const fname='Assessment_'+(p.name||'Patient').replace(/\s+/g,'_')+'_'+(c.date||new Date().toISOString().split('T')[0])+'.pdf';
+  const pdfB64=doc.output('datauristring');
+
+  // Save to patient docs
+  if(!p.docs)p.docs=[];
+  const existIdx=p.docs.findIndex(d=>d.assessId===id);
+  const docEntry={n:fname,d:c.date||todayISO,assessId:id,type:'assessment-pdf',data:pdfB64};
+  if(existIdx>-1)p.docs[existIdx]=docEntry;else p.docs.push(docEntry);
+  save();
+
+  // Download
+  const link=document.createElement('a');link.href=pdfB64;link.download=fname;link.click();
+  if(typeof logAudit==='function')logAudit('Assessment PDF','Downloaded for '+(p.name||'patient'),p.name||'');
 }
+
 
 // ── Start Session from assessment → creates/reuses treatment plan, opens log form ──
 function startSessionFromAssess(id){
@@ -2983,9 +3082,49 @@ function renderAssessTable(){
 function filterAssessTable(){_assessQ=(document.getElementById("assessSearch")?.value||"").toLowerCase();_assessTher=(document.getElementById("assessTherFilter")?.value||"");_assessPage=0;renderAssessTable();}
 
 function logAudit(a,d,p){DB.auditLog=DB.auditLog||[];DB.auditLog.unshift({id:uid("al"),ts:new Date().toISOString(),action:a,detail:d,user:CURROLE||"owner",patient:p||""});if(DB.auditLog.length>500)DB.auditLog=DB.auditLog.slice(0,500);save();}
-views.audit=function(){var l=DB.auditLog||[];return'<div class="pg-head"><h2>Audit Log</h2><div class="sub">'+l.length+' events</div></div><div class="card" style="margin-bottom:16px"><input id="audit_q" placeholder="Search..." oninput="filterAudit()" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg2)"></div><div id="audit_list">'+renderAuditList(l)+'</div>';};
-function renderAuditList(l){if(!l||!l.length)return'<div class="card" style="text-align:center;color:var(--muted);padding:40px">No audit events yet.</div>';return l.map(function(e){var d=new Date(e.ts);var dt=d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})+" "+d.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});var c="#6b7280";if(e.action.indexOf("Patient")>=0)c="#0d9488";else if(e.action.indexOf("Appoint")>=0)c="#2563eb";else if(e.action.indexOf("Invoice")>=0)c="#7c3aed";var h='<div class="card" style="margin-bottom:8px;display:flex;gap:12px;align-items:flex-start"><div style="min-width:8px;height:8px;border-radius:50%;background:'+c+';margin-top:6px;flex-shrink:0"></div><div style="flex:1"><div style="display:flex;justify-content:space-between;flex-wrap:wrap"><b>'+e.action+'</b><span style="font-size:12px;color:var(--muted)">'+dt+'</span></div>';if(e.detail)h+='<div style="font-size:13px;margin-top:2px">'+e.detail+'</div>';h+='<div style="font-size:12px;color:var(--muted);margin-top:3px">';if(e.patient)h+='Patient: '+e.patient+' &bull; ';h+='User: '+e.user+'</div></div></div>';return h;}).join("");}
-function filterAudit(){var q=(document.getElementById("audit_q").value||"").toLowerCase();var l=(DB.auditLog||[]).filter(function(e){return !q||(e.action+e.detail+e.patient).toLowerCase().indexOf(q)>=0;});document.getElementById("audit_list").innerHTML=renderAuditList(l);}
+views.audit=function(){
+  DB.auditLog=DB.auditLog||[];
+  var l=DB.auditLog;
+  var fEl=document.getElementById("audit_q");
+  var q=fEl?(fEl.value||"").toLowerCase():"";
+  var filtered=q?l.filter(function(e){return((e.action||"")+(e.detail||"")+(e.patient||"")).toLowerCase().indexOf(q)>=0;}):l;
+  return '<div class="panel"><div class="panel-h" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3>\uD83D\uDCCB Audit Log</h3><span style="font-size:12px;color:var(--muted)">'+l.length+' total events</span></div>'
+   +'<div class="panel-b"><div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">'
+   +'<input id="audit_q" placeholder="\uD83D\uDD0D Search action, patient, detail..." value="'+q+'" oninput="filterAudit()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--bg2)">'
+   +'<button onclick="if(!confirm('Clear audit log?'))return;DB.auditLog=[];save();render();" style="padding:8px 14px;background:var(--danger);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Clear</button>'
+   +'</div><div id="audit_list">'+renderAuditList(filtered)+'</div></div></div>';
+};
+function renderAuditList(l){
+  if(!l||!l.length)return'<div style="text-align:center;color:var(--muted);padding:40px 20px">No audit events yet. Actions like adding patients, invoices, and sessions will appear here.</div>';
+  return l.slice(0,500).map(function(e){
+    var d=new Date(e.ts);
+    var dt=d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})+" "+d.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
+    var a=(e.action||"Action");
+    var col="#6b7280";
+    if(a.indexOf("Patient")>=0||a.indexOf("Add")>=0)col="#0d9488";
+    else if(a.indexOf("Appoint")>=0)col="#2563eb";
+    else if(a.indexOf("Invoice")>=0||a.indexOf("Pay")>=0)col="#7c3aed";
+    else if(a.indexOf("Edit")>=0||a.indexOf("Update")>=0)col="#d97706";
+    else if(a.indexOf("Delete")>=0||a.indexOf("Remove")>=0)col="#dc2626";
+    var h='<div class="list-row" style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)">'
+      +'<div style="width:10px;height:10px;border-radius:50%;background:'+col+';margin-top:4px;flex-shrink:0"></div>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">'
+      +'<b style="font-size:13px">'+a+'</b>'
+      +'<span style="font-size:11px;color:var(--muted);white-space:nowrap">'+dt+'</span></div>';
+    if(e.detail)h+='<div style="font-size:13px;margin-top:2px;color:var(--ink)">'+e.detail+'</div>';
+    h+='<div style="font-size:11px;color:var(--muted);margin-top:3px">';
+    if(e.patient)h+='Patient: <b>'+e.patient+'</b> &bull; ';
+    h+='User: '+(e.user||"—")+'</div></div></div>';
+    return h;
+  }).join("");
+}
+function filterAudit(){
+  var q=(document.getElementById("audit_q")||{value:""}).value.toLowerCase();
+  var l=(DB.auditLog||[]).filter(function(e){return !q||((e.action||"")+(e.detail||"")+(e.patient||"")).toLowerCase().indexOf(q)>=0;});
+  var el=document.getElementById("audit_list");
+  if(el)el.innerHTML=renderAuditList(l);
+}
 function bnav(v){document.querySelectorAll(".bnav-btn").forEach(function(b){b.classList.remove("active");});var btn=document.getElementById("bn-"+v);if(btn)btn.classList.add("active");}
 function toggleMoreDrawer(){var d=document.getElementById("moreDrawer"),b=document.getElementById("moreBackdrop");if(d&&d.classList.contains("open")){closeMoreDrawer();}else{if(d)d.classList.add("open");if(b)b.style.display="block";}}
 function closeMoreDrawer(){var d=document.getElementById("moreDrawer"),b=document.getElementById("moreBackdrop");if(d)d.classList.remove("open");if(b)b.style.display="none";}
