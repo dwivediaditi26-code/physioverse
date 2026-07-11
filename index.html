@@ -764,6 +764,7 @@ const bName=id=>(DB.branches.find(b=>b.id===id)||{name:"—"}).name;
 const initials=n=>n.split(" ").filter(w=>!/^(dr\.?|mr\.?|ms\.?)$/i.test(w)).map(w=>w[0]).slice(0,2).join("").toUpperCase();
 const inr=n=>"₹"+(+n).toLocaleString("en-IN");
 const MM=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MNAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fmtDate=iso=>{if(!iso)return"—";const[y,m,d]=iso.split("-");return +d+" "+MM[+m-1]+" "+y;};
 function invTotals(inv){const items=Array.isArray(inv.items)?inv.items:[];const sub=items.reduce((s,i)=>s+(+i.qty||0)*(+i.rate||0),0);const gst=Math.round(sub*(+inv.gst||0))/100;return{sub,gst,total:sub+gst};}
 function nextInvNo(){let max=40;DB.invoices.forEach(i=>{const m=(i.id||"").match(/(\d+)$/);if(m)max=Math.max(max,+m[1]);});return "INV-2026-"+String(max+1).padStart(3,"0");}
@@ -1996,7 +1997,6 @@ function saveExp(){const v=k=>document.getElementById(k).value;const f=document.
 /* REPORTS */
 let _rptMonth="";
 views.reports=()=>{
-  const MNAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
   const allInv=DB.invoices.filter(inBranch);
   const allExp=DB.expenses.filter(inBranch);
   // Month options from invoices + expenses
