@@ -2116,7 +2116,7 @@ views.reminders=()=>{
  const clinic=DB.settings.clinic||"PhysioMind";
  const fmtAppt=a=>fmtDate(a.date).replace(/ \d{4}$/,'')+", "+a.time;
  // Data sets for each tab
- const upcoming=DB.appointments.filter(inBranch).filter(a=>!MYTHER||a.therapist===MYTHER).filter(a=>a.date>=todayISO&&a.status!=="Cancelled"&&a.status!=="Completed").sort((a,b=>(a.date+a.time).localeCompare(b.date+b.time)));
+ const upcoming=DB.appointments.filter(inBranch).filter(a=>!MYTHER||a.therapist===MYTHER).filter(a=>a.date>=todayISO&&a.status!=="Cancelled"&&a.status!=="Completed").sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
  const dues=DB.invoices.filter(inBranch).filter(i=>i.status==="Pending"||i.status==="Partial");
  const missed=DB.appointments.filter(inBranch).filter(a=>a.date<todayISO&&a.status==="Pending").sort((a,b)=>b.date.localeCompare(a.date));
  const cancelled=DB.appointments.filter(inBranch).filter(a=>a.status==="Cancelled").sort((a,b)=>b.date.localeCompare(a.date));
