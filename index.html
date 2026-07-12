@@ -634,6 +634,20 @@ const seed={
   {id:"pk2",name:"Post-Op Rehab — 24 sessions",sessions:24,price:18000,validity:120},
   {id:"pk3",name:"Home Visit Program — 30 days",sessions:30,price:25000,validity:35},
   {id:"pk4",name:"Sports Injury — 15 sessions",sessions:15,price:12000,validity:75}],
+ msgTemplates:[
+  {id:"tm1",category:"Appointment",tag:"blue",icon:"📅",label:"Appointment Reminder — Day Before",msg:`Hi [Patient Name] 👋, your physiotherapy appointment is scheduled for *tomorrow, [Date]* at *[Time]* with *[Therapist Name]* at *[Clinic]*. Please arrive 5 min early. For changes call [Phone]. See you! 🙏`},
+  {id:"tm2",category:"Appointment",tag:"teal",icon:"⏰",label:"Appointment Reminder — Same Day",msg:`Good morning [Patient Name] 😊, reminder: you have your physio session *today at [Time]* with *[Therapist Name]* at [Clinic]. Call [Phone] if you need to reschedule.`},
+  {id:"tm3",category:"Appointment",tag:"green",icon:"✅",label:"Appointment Confirmed",msg:`Dear [Patient Name], your appointment is *confirmed* ✅ at *[Clinic]* on *[Date]* at *[Time]* with *[Therapist Name]*. For queries call [Phone]. Thank you 🙏`},
+  {id:"tm4",category:"Reschedule",tag:"amber",icon:"🔄",label:"Reschedule Request",msg:`Hi [Patient Name], we noticed you missed your appointment on *[Date]*. No worries! Please reply or call [Phone] to book a new slot at *[Clinic]*. We're here to help — Team [Clinic] 🙏`},
+  {id:"tm5",category:"Reschedule",tag:"red",icon:"❌",label:"Appointment Cancelled",msg:`Dear [Patient Name], your appointment on *[Date]* at *[Time]* has been cancelled as per your request. Call [Phone] to reschedule. We hope to see you soon — [Clinic]`},
+  {id:"tm6",category:"Reschedule",tag:"gray",icon:"😔",label:"Missed Appointment — No Show",msg:`Hi [Patient Name], we missed you at your *[Time]* appointment on *[Date]* 😔. Call [Phone] to reschedule. Regular sessions give the best results — [Clinic]`},
+  {id:"tm7",category:"Payment",tag:"amber",icon:"💰",label:"Outstanding Payment Reminder",msg:`Dear [Patient Name] 🙏, gentle reminder that *₹[Due Amount]* is outstanding for your treatment at *[Clinic]*. Pay via UPI: [UPI ID] or visit us. Thank you!`},
+  {id:"tm8",category:"Payment",tag:"amber",icon:"🔔",label:"Partial Payment — Balance Due",msg:`Hi [Patient Name], your payment of *₹[Paid]* was received. A balance of *₹[Remaining]* is still pending for invoice [Invoice ID] at [Clinic]. Please clear at your next visit or UPI: [UPI ID]. Thank you!`},
+  {id:"tm9",category:"Payment",tag:"green",icon:"🧾",label:"Payment Received",msg:`Dear [Patient Name], we received your payment of *₹[Amount]* on *[Date]*. Thank you! For receipts or queries call [Phone] — Team [Clinic] 🙏`},
+  {id:"tm10",category:"Other",tag:"green",icon:"🎉",label:"Treatment Course Complete",msg:`Congratulations [Patient Name]! 🎉 You've completed your treatment course at *[Clinic]*. We're proud of your progress! For follow-ups or any concerns, call [Phone]. Stay healthy! — Team [Clinic] 🙏`},
+  {id:"tm11",category:"Package",tag:"amber",icon:"📦",label:"Package Balance Due",msg:`Dear [Patient Name] 🙏, a balance of *₹[Balance]* is pending on your *[Package Name]* package at *[Clinic]*. Please clear it at your next visit or via UPI: [UPI ID]. Thank you!`},
+  {id:"tm12",category:"Package",tag:"amber",icon:"⏳",label:"Package Expiring Soon",msg:`Hi [Patient Name], your *[Package Name]* package at *[Clinic]* has *[Sessions Left] session(s)* left and expires on *[Expiry Date]*. Please book your remaining sessions soon. Call [Phone] to schedule — Team [Clinic] 🙏`},
+  {id:"tm13",category:"Package",tag:"green",icon:"🎁",label:"Package Fully Used",msg:`Dear [Patient Name], you've completed all sessions of your *[Package Name]* package at *[Clinic]*! 🎉 Ask us about renewal options or a new plan. Call [Phone] — Team [Clinic] 🙏`}],
  patientPkgs:[
   {id:"pp1",pid:"p3",pkg:"Post-Op Rehab — 24 sessions",total:24,used:14,price:18000,paidAmount:18000,bought:"2026-04-10",expires:"2026-08-08",status:"Active"},
   {id:"pp2",pid:"p1",pkg:"Back Pain Relief — 10 sessions",total:10,used:8,price:7000,paidAmount:5000,bought:"2026-05-02",expires:"2026-07-01",status:"Active"},
@@ -681,6 +695,8 @@ function load(){
   return;
  }
  try{const s=localStorage.getItem("physioverse_v2");DB=s?JSON.parse(s):JSON.parse(JSON.stringify(seed));}catch(e){DB=JSON.parse(JSON.stringify(seed));}
+ if(!DB.msgTemplates||!DB.msgTemplates.length) DB.msgTemplates=JSON.parse(JSON.stringify(seed.msgTemplates));
+ else{const haveIds=new Set(DB.msgTemplates.map(t=>t.id));seed.msgTemplates.forEach(t=>{if(!haveIds.has(t.id))DB.msgTemplates.push(JSON.parse(JSON.stringify(t)));});}
  // Migration: patch plans missing modalities/exercises/home from seed
  if(DB.plans&&seed.plans){DB.plans.forEach(function(p){var sp=seed.plans.find(function(x){return x.id===p.id;});if(sp){if(!p.modalities||!p.modalities.length)p.modalities=sp.modalities||[];if(!p.exercises||!p.exercises.length)p.exercises=sp.exercises||[];if(!p.home||!p.home.length)p.home=sp.home||[];if(!p.homeFreq)p.homeFreq=sp.homeFreq||"";}if(!p.homeLinks)p.homeLinks=[];});}
  localStorage.setItem("pm_app_ver",APP_VER);
@@ -1002,7 +1018,40 @@ function printHome(id){const p=pById(id);const hp=DB.plans.filter(t=>t.pid===id&
   ${hp.map(t=>`<div style="margin-bottom:12px"><b>${t.diagnosis}</b> <span class="muted">— ${t.homeFreq||'as advised'}</span><ul style="margin:6px 0 0 20px">${(Array.isArray(t.home)?t.home:[]).map(e=>`<li style="padding:3px 0">${e}</li>`).join("")}</ul></div>`).join("")}
   <hr class="sep"><div class="muted" style="font-size:12px">Do these at home as advised. Stop and contact us if pain increases. — Team ${DB.settings.clinic}, Indore</div>
  </div></div>
- <div class="modal-f"><button class="btn sec" onclick="window.print()">🖨 Print / PDF</button><button class="btn" style="background:#25D366" onclick="sendHomeWA('${id}')">📲 Send on WhatsApp</button></div>`,true);}
+ <div class="modal-f"><button class="btn sec" onclick="window.print()">🖨 Print</button><button class="btn sec" onclick="downloadHomePlanPDF('${id}')">⬇ Save PDF</button><button class="btn" style="background:#25D366" onclick="sendHomeWA('${id}')">📲 Send on WhatsApp</button></div>`,true);}
+async function downloadHomePlanPDF(pid){
+ const p=pById(pid);const hp=DB.plans.filter(t=>t.pid===pid&&((t.home&&Array.isArray(t.home)&&t.home.length)||(t.homeLinks&&t.homeLinks.length)));
+ if(!hp.length){alert("No home protocol saved for this patient yet.");return;}
+ const jsPDFLib=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;if(!jsPDFLib){alert("PDF library not loaded. Refresh the page and try again.");return;}
+ const doc=new jsPDFLib({unit:"mm",format:"a5"});let y=15;
+ const W=148,M=14;
+ function ln(txt,size,bold,color){doc.setFontSize(size||11);doc.setFont("helvetica",bold?"bold":"normal");doc.setTextColor(color?color[0]:0,color?color[1]:0,color?color[2]:0);const lines=doc.splitTextToSize(txt,W-2*M);doc.text(lines,M,y);y+=lines.length*(size?size*0.42:5)+2;}
+ function rule(){doc.setDrawColor(200);doc.line(M,y,W-M,y);y+=4;}
+ doc.setFillColor(11,27,61);doc.rect(0,0,W,20,'F');
+ doc.setTextColor(255,255,255);doc.setFontSize(14);doc.setFont("helvetica","bold");
+ doc.text(DB.settings.clinic||"PhysioMind",M,12);
+ doc.setFontSize(9);doc.setFont("helvetica","normal");
+ doc.text("Home Exercise Programme",W-M,12,{align:"right"});
+ doc.setTextColor(0,0,0);y=27;
+ ln(p.name+"  ("+(p.age||'')+(p.gender?'/'+p.gender:'')+")",11,true);
+ ln(fmtDate(todayISO),9,false,[100,100,100]);
+ rule();
+ hp.forEach(t=>{
+  ln(t.diagnosis+(t.homeFreq?"  —  "+t.homeFreq:""),11,true);
+  (Array.isArray(t.home)?t.home:[]).forEach((e,i)=>{ln((i+1)+". "+e,10);});
+  if(t.homeLinks&&t.homeLinks.length){
+   y+=1;ln("Exercise videos:",9.5,true,[8,120,80]);
+   t.homeLinks.forEach(l=>{if(l.name||l.link)ln("▶ "+(l.name||"Video")+(l.link?" — "+l.link:""),9,false,[8,90,170]);});
+  }
+  y+=3;
+ });
+ rule();
+ ln("Do these gently as advised. Stop and contact us if pain increases.",9,false,[100,100,100]);
+ ln("— Team "+(DB.settings.clinic||"PhysioMind"),9,false,[100,100,100]);
+ const fname="Home_Plan_"+p.name.replace(/\s+/g,"_")+"_"+todayISO+".pdf";
+ doc.save(fname);
+ if(typeof logAudit==='function')logAudit('Home Plan PDF','Saved & downloaded for '+p.name,p.name);
+}
 function sendHomeWA(pid){
   const p=pById(pid);
   const hp=DB.plans.filter(t=>t.pid===pid&&t.home&&Array.isArray(t.home)&&t.home.length);
@@ -1023,6 +1072,21 @@ function sendHomeWA(pid){
   sendWA(pid,'Home Plan','Home exercises sent',msg);
   closeModal();
 }
+function sendAssessHomeWA(id){
+  const c=DB.assessments.find(x=>x.id===id);if(!c)return;
+  const p=pById(c.pid);const first=p.name.split(' ')[0];
+  let msg=`Hi ${first} 👋\n\nHere are your home exercises from *${DB.settings.clinic}*:\n\n`;
+  if(c.dx) msg+=`*${c.dx}*`;
+  if(c.homeFreq) msg+=` — ${c.homeFreq}`;
+  msg+=`\n`;
+  (Array.isArray(c.home)?c.home:[]).forEach((e,i)=>{msg+=`${i+1}. ${e}\n`;});
+  if(c.homeLinks&&c.homeLinks.length){
+    msg+=`\n📎 *Exercise videos:*\n`;
+    c.homeLinks.forEach(l=>{if(l.name&&l.link)msg+=`▶ ${l.name}: ${l.link}\n`;});
+  }
+  msg+=`\nDo these gently and stop if pain increases.\nSee you at your next session! 💪\n— Team ${DB.settings.clinic}`;
+  sendWA(c.pid,'Home Plan','Home exercises sent',msg);
+}
 function addHomeLink(){
   window._hl=window._hl||[];
   window._hl.push({name:'',link:''});
@@ -1030,6 +1094,12 @@ function addHomeLink(){
   document.getElementById('homeLinks_list').insertAdjacentHTML('beforeend',
     `<div style="display:flex;gap:6px;margin-bottom:6px"><input style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" placeholder="Exercise name" oninput="window._hl[${i}].name=this.value"><input style="flex:2;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" placeholder="YouTube or website link" oninput="window._hl[${i}].link=this.value"><button type="button" class="btn sm sec" onclick="window._hl.splice(${i},1);this.parentNode.remove()">✕</button></div>`);
 }
+function renderConsultHomeLinks(){
+  const el=document.getElementById('chLinks_list');if(!el)return;
+  window._chl=window._chl||[];
+  el.innerHTML=window._chl.map((l,i)=>`<div style="display:flex;gap:6px;margin-bottom:6px"><input style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${(l.name||'').replace(/"/g,"&quot;")}" placeholder="Exercise name" oninput="window._chl[${i}].name=this.value"><input style="flex:2;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${(l.link||'').replace(/"/g,"&quot;")}" placeholder="YouTube or website link" oninput="window._chl[${i}].link=this.value"><button type="button" class="btn sm sec" onclick="window._chl.splice(${i},1);renderConsultHomeLinks()">✕</button></div>`).join('');
+}
+function addConsultHomeLink(){window._chl=window._chl||[];window._chl.push({name:'',link:''});renderConsultHomeLinks();}
 function savePlanTemp(){/* preserve textarea values across planForm re-open */}
 function uploadDoc(id){const n=prompt("Document name (demo):","Report.pdf");if(n){const p=pById(id);(p.docs=p.docs||[]).push({n,d:todayISO});save();closeModal();patientView(id);}}
 function patientForm(id){const p=id?pById(id):{name:"",dob:"",gender:"M",phone:"",condition:"",therapist:"Dr. Neha Verma",branch:DB.branches[0].id,wallet:0,docs:[]};
@@ -1090,7 +1160,7 @@ views.appointments=()=>{
    </div></div>`;
  }
  const dayAppts=DB.appointments.filter(inBranch).filter(a=>a.date===calDate).filter(a=>!MYTHER||a.therapist===MYTHER);
- const hours=[];for(let h=8;h<=19;h++)hours.push(h);
+ const hours=[];for(let h=0;h<=23;h++)hours.push(h);
  const block=a=>{const p=pById(a.pid);return `<div onclick="event.stopPropagation();apptView('${a.id}')" style="border-left:3px solid ${therColor(a.therapist)};background:#f3f7fc;border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer"><div style="font-weight:600;font-size:12px">${a.time} · ${p.name}</div><div style="font-size:11px;color:var(--muted)">${a.type}</div><span class="tag ${statusTag(a.status)}" style="font-size:10px;margin-top:2px">${a.status}</span></div>`;};
  const grid=`<table style="min-width:${120+thers.length*150}px"><thead><tr><th style="width:64px">Time</th>${thers.map(t=>`<th><span class="dot" style="background:${therColor(t)}"></span>${t.replace('Dr. ','')}</th>`).join("")}</tr></thead><tbody>
    ${hours.map(h=>`<tr><td style="font-weight:600;color:var(--muted);vertical-align:top">${pad2(h)}:00</td>${thers.map(t=>{const cell=dayAppts.filter(a=>a.therapist===t&&+a.time.split(":")[0]===h);return `<td style="vertical-align:top;cursor:pointer;min-width:140px" onclick="apptForm('${calDate}','${pad2(h)}:00','${t}')">${cell.map(block).join("")||'<span style="color:#cdd5e0;font-size:12px">+</span>'}</td>`;}).join("")}</tr>`).join("")}
@@ -1146,6 +1216,15 @@ function apptForm(date,time,ther){const pts=DB.patients.filter(p=>!MYTHER||p.the
    <select id="a_pid" size="4" style="width:100%;border:1px solid var(--line);border-radius:8px;font-size:13px;padding:4px">
     ${pts.map(p=>`<option value="${p.id}">${p.name} — ${p.phone||''} · ${p.condition}</option>`).join("")}
    </select>
+   <button type="button" class="btn ghost sm" style="margin-top:6px" onclick="toggleQuickAddPatient()">+ New patient (name only)</button>
+   <div id="qap_box" style="display:none;margin-top:8px;padding:8px;border:1px dashed var(--line);border-radius:8px">
+    <div class="grid2">
+     <input id="qap_name" placeholder="Patient name*" style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+     <input id="qap_phone" placeholder="Phone (optional)" style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+    </div>
+    <div class="muted" style="font-size:11.5px;margin:6px 0">You can fill in the rest of their profile (DOB, condition, etc.) later, before their first visit.</div>
+    <button type="button" class="btn sm" onclick="quickAddPatient()">Save & select</button>
+   </div>
   </div>
   <div class="grid2"><div class="field"><label>Date</label><input id="a_date" type="date" value="${date||calDate}"></div><div class="field"><label>Time</label><input id="a_time" type="time" value="${time||'10:00'}"></div></div>
   <div class="grid2"><div class="field"><label>Type</label><select id="a_type"><option>Therapy session</option><option>Follow-up</option><option>Assessment</option><option>Consultation</option></select></div>
@@ -1163,15 +1242,40 @@ function apptForm(date,time,ther){const pts=DB.patients.filter(p=>!MYTHER||p.the
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveAppt()">Book</button></div>`);}
 function filterApptPatients(){const q=(document.getElementById("a_pt_search").value||"").toLowerCase();const sel=document.getElementById("a_pid");Array.from(sel.options).forEach(o=>{o.style.display=q&&!o.text.toLowerCase().includes(q)?"none":"";});}
+function toggleQuickAddPatient(){const b=document.getElementById("qap_box");const show=b.style.display==="none";b.style.display=show?"block":"none";if(show)document.getElementById("qap_name").focus();}
+function quickAddPatient(){
+ const name=(document.getElementById("qap_name").value||"").trim();
+ if(!name){alert("Enter the patient's name.");return;}
+ const phone=(document.getElementById("qap_phone").value||"").trim();
+ const therEl=document.getElementById("a_ther");
+ const _np={id:uid("p"),since:todayISO,wallet:0,docs:[],name,phone,dob:"",age:"",gender:"",condition:"",
+  therapist:(therEl&&therEl.value)||(DB.staff.find(s=>s.role.includes("Physio"))||{}).name||"",
+  branch:curBranch()==="all"?DB.branches[0].id:curBranch()};
+ DB.patients.push(_np);
+ logAudit("Patient Added","Quick-added while booking (name only, profile pending)",_np.name);
+ save();
+ const sel=document.getElementById("a_pid");
+ const opt=document.createElement("option");
+ opt.value=_np.id;opt.text=_np.name+(phone?" — "+phone:"")+" · (profile pending)";
+ sel.add(opt,sel.options[0]||null);
+ opt.selected=true;
+ sel.value=_np.id;
+ document.getElementById("qap_name").value="";document.getElementById("qap_phone").value="";
+ document.getElementById("qap_box").style.display="none";
+}
 function saveAppt(){const v=k=>document.getElementById(k).value;
- const selEl=document.getElementById("a_pid");const pid=selEl.value;const p=pById(pid);const dt=v("a_date");
- if(DB.appointments.some(a=>a.date===dt&&a.time===v("a_time")&&a.therapist===v("a_ther"))){if(!confirm("That therapist already has an appointment at this time. Book anyway?"))return;}
- // Collect repeat settings
+ const selEl=document.getElementById("a_pid");const pid=selEl.value;
+ if(!pid||!DB.patients.some(x=>x.id===pid)){alert("Please select a patient first — search for an existing one, or tap '+ New patient' to add one, then choose them from the list before booking.");return;}
+ const p=pById(pid);const dt=v("a_date");
+ // Repeat settings
  const repDays=Array.from(document.querySelectorAll(".rep_day:checked")).map(x=>x.value);
  const repWeeks=Math.max(1,+(v("rep_weeks")||1));
  const dayMap={Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6,Sun:0};
  const addAppt=(dateStr)=>{
-  if(DB.appointments.some(a=>a.date===dateStr&&a.time===v("a_time")&&a.therapist===v("a_ther")))return;
+  // Only skip if this exact same patient is already booked with this therapist at this exact
+  // date/time (true accidental duplicate). Multiple different patients at the same slot with
+  // the same therapist are allowed — that's the therapist's/clinic's call (e.g. group sessions).
+  if(DB.appointments.some(a=>a.date===dateStr&&a.time===v("a_time")&&a.therapist===v("a_ther")&&a.pid===pid))return;
   DB.appointments.push({id:uid("a"),pid,date:dateStr,time:v("a_time"),type:v("a_type"),therapist:v("a_ther"),status:"Confirmed",branch:p.branch});
  };
  addAppt(dt);
@@ -1364,7 +1468,11 @@ views.treatment=function(){
      +'</div>'
      +(t.home&&Array.isArray(t.home)&&t.home.length?'<div class="pill-row">'+(Array.isArray(t.home)?t.home:[]).map(function(e){return '<span class="tag gray">'+e+'</span>';}).join("")+'</div>':'')
      +(t.homeLinks&&t.homeLinks.length?'<div style="margin-top:6px">'+t.homeLinks.filter(function(l){return l.name||l.link;}).map(function(l){return '<div style="font-size:12px;margin-top:2px">📎 '+(l.name||'Video')+(l.link?' — <a href="'+l.link+'" target="_blank" rel="noopener">'+l.link+'</a>':'')+'</div>';}).join("")+'</div>':'')
-     +'<button class="btn sm sec" style="margin-top:8px" onclick="printHome(\''+t.pid+'\')">🖨 Print / WhatsApp home plan</button>'
+     +'<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">'
+     +'<button class="btn sm sec" onclick="planForm(\''+t.id+'\')">✏️ Edit / Add link</button>'
+     +'<button class="btn sm sec" onclick="printHome(\''+t.pid+'\')">🖨 Print / WhatsApp home plan</button>'
+     +'<button class="btn sm sec" onclick="downloadHomePlanPDF(\''+t.pid+'\')">⬇ Save PDF</button>'
+     +'</div>'
     +'</div>';
    }
    if(t.visits&&t.visits.length>=2)html+='<div style="margin-bottom:10px">'+painTrendSVG(t.visits)+'</div>';
@@ -1447,11 +1555,13 @@ function saveSessionPayment(planId,sid){
   // Log as complimentary invoice
   DB.invoices.push({id:invNum,pid:t.pid,date:todayISO,items:[{d:"Physiotherapy session (complimentary)",qty:1,rate:0}],gst:0,status:"Paid",mode:"No charge",branch:branch});
  } else if(pay==="Package session"){
-  // Deduct from patientPkgs, log as package invoice
+  // Deduct from patientPkgs. The session itself is already fully paid for as part of the
+  // package purchase, so it's logged at ₹0 here — charging the session fee again would be
+  // double-billing on top of the package price already collected.
   var pkg=(DB.patientPkgs||[]).find(function(pk){return pk.pid===t.pid&&pk.status==="Active"&&pk.used<pk.total;});
   if(pkg){pkg.used=(pkg.used||0)+1;if(pkg.used>=pkg.total)pkg.status="Completed";}
   else{alert("No active package found for this patient. Invoice logged as package.");}
-  var pkgItems=[{d:"Physiotherapy session (package)",qty:1,rate:fee}];
+  var pkgItems=[{d:"Physiotherapy session (covered by package)",qty:1,rate:0}];
   if(consultFee>0)pkgItems.push({d:"Consultation fee",qty:1,rate:consultFee});
   DB.invoices.push({id:invNum,pid:t.pid,date:todayISO,items:pkgItems,gst:18,status:"Paid",mode:"Package",branch:branch});
  } else if(pay==="Wallet (advance)"){
@@ -1648,9 +1758,9 @@ function savePlan(id){const v=k=>document.getElementById(k).value;
 
 /* PACKAGES */
 views.packages=()=>`
- <div class="panel"><div class="panel-h"><h3>Package Templates</h3><button class="btn sm sec" onclick="alert('Demo: add custom package template')">+ Template</button></div>
- <div class="panel-b flush"><table><thead><tr><th>Package</th><th>Sessions</th><th>Price</th><th>Validity</th><th>Per session</th></tr></thead><tbody>
- ${DB.pkgTemplates.map(k=>`<tr><td><b>${k.name}</b></td><td>${k.sessions}</td><td>${inr(k.price||0)}</td><td>${k.validity} days</td><td class="muted">${k.sessions?inr(Math.round((k.price||0)/k.sessions)):'—'}</td></tr>`).join("")}
+ <div class="panel"><div class="panel-h"><h3>Package Templates</h3><button class="btn sm sec" onclick="pkgTmplModal()">+ Template</button></div>
+ <div class="panel-b flush"><table><thead><tr><th>Package</th><th>Sessions</th><th>Price</th><th>Validity</th><th>Per session</th><th></th></tr></thead><tbody>
+ ${DB.pkgTemplates.map(k=>`<tr><td><b>${k.name}</b></td><td>${k.sessions}</td><td>${inr(k.price||0)}</td><td>${k.validity} days</td><td class="muted">${k.sessions?inr(Math.round((k.price||0)/k.sessions)):'—'}</td><td><button class="btn sm sec" style="padding:3px 9px;font-size:11px" onclick="pkgTmplModal('${k.id}')">✏️ Edit</button></td></tr>`).join("")}
  </tbody></table></div></div>
  <div class="two-col" style="gap:15px">
   <div class="panel" style="margin-bottom:0"><div class="panel-h"><h3>Patient Packages</h3><button class="btn sm" onclick="assignPkg()">+ Assign</button></div>
@@ -1658,6 +1768,23 @@ views.packages=()=>`
   <div class="panel" style="margin-bottom:0"><div class="panel-h"><h3>Wallet Balances</h3><button class="btn sm" onclick="walletForm()">+ Top up</button></div>
   <div class="panel-b">${walletListHTML()}</div></div>
  </div>`;
+function pkgTmplModal(id){const t=id?DB.pkgTemplates.find(x=>x.id===id):{id:"",name:"",sessions:"",price:"",validity:""};
+ openModal(`<div class="modal-h"><h3>${id?"Edit":"New"} Package Template</h3><button class="x" onclick="closeModal()">×</button></div>
+ <div class="modal-b">
+  <div class="field"><label>Package name</label><input id="pt_name" value="${(t.name||"").replace(/"/g,"&quot;")}" placeholder="e.g. Neck Pain Relief — 8 sessions"></div>
+  <div class="grid2">
+   <div class="field"><label>Sessions</label><input id="pt_sessions" type="number" min="1" value="${t.sessions||""}"></div>
+   <div class="field"><label>Price (₹)</label><input id="pt_price" type="number" min="0" value="${t.price||""}"></div>
+  </div>
+  <div class="field"><label>Validity (days)</label><input id="pt_validity" type="number" min="1" value="${t.validity||""}"></div>
+ </div>
+ <div class="modal-f">${id?`<button class="btn sec" style="color:var(--danger)" onclick="deletePkgTmpl('${id}')">Delete</button>`:""}<button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="savePkgTmpl('${id||""}')">Save</button></div>`,true);}
+function savePkgTmpl(id){const v=k=>document.getElementById(k).value.trim();const name=v("pt_name");const sessions=+v("pt_sessions")||0;const price=+v("pt_price")||0;const validity=+v("pt_validity")||0;
+ if(!name||!sessions||!price||!validity){alert("Please fill all fields");return;}
+ if(id){const t=DB.pkgTemplates.find(x=>x.id===id);t.name=name;t.sessions=sessions;t.price=price;t.validity=validity;}
+ else{DB.pkgTemplates.push({id:uid("pk"),name,sessions,price,validity});}
+ save();closeModal();render();}
+function deletePkgTmpl(id){if(!confirm("Delete this package template? Existing patient packages using it won't be affected."))return;DB.pkgTemplates=DB.pkgTemplates.filter(x=>x.id!==id);save();closeModal();render();}
 function pkgListHTML(){
  var pkgs=DB.patientPkgs.filter(function(x){return inBranch(pById(x.pid));});
  if(!pkgs.length)return'<div class="empty">No packages assigned</div>';
@@ -2126,6 +2253,38 @@ function sendWA(pid,kind,when,text){const p=pById(pid);try{window.open(waLink(p.
  DB.reminders.unshift({id:uid("r"),pid,channel:"WhatsApp",kind,when:"Sent "+fmtDate(todayISO),appt:when,status:"Sent",sentAt:todayISO});save();render();}
 function copyTemplate(i){const el=document.getElementById("tmpl_"+i);if(!el)return;navigator.clipboard.writeText(el.innerText).then(function(){const btn=el.nextElementSibling.querySelector("button");const orig=btn.textContent;btn.textContent="✓ Copied!";setTimeout(function(){btn.textContent=orig;},1800);});}
 function sendTemplateWA(i){const el=document.getElementById("tmpl_"+i);if(!el)return;const msg=el.innerText;window.open("https://wa.me/?text="+encodeURIComponent(msg),"_blank");}
+function fillTemplate(msg,d){d=d||{};const clinic=DB.settings.clinic||"PhysioMind";return (msg||"")
+ .replace(/\[Clinic\]/g,clinic).replace(/\[Patient Name\]/g,d.name||"")
+ .replace(/\[Date\]/g,d.date||"").replace(/\[Time\]/g,d.time||"")
+ .replace(/\[Therapist Name\]/g,d.therapist||"").replace(/\[Phone\]/g,d.phone||"")
+ .replace(/\[Due Amount\]/g,d.due||"").replace(/\[Paid\]/g,d.paid||"")
+ .replace(/\[Remaining\]/g,d.remaining||"").replace(/\[Invoice ID\]/g,d.invoiceId||"")
+ .replace(/\[Amount\]/g,d.amount||"").replace(/\[UPI ID\]/g,d.upi||DB.settings.upi||"")
+ .replace(/\[Package Name\]/g,d.pkgName||"").replace(/\[Sessions Left\]/g,d.sessionsLeft!=null?d.sessionsLeft:"")
+ .replace(/\[Expiry Date\]/g,d.expiryDate||"").replace(/\[Balance\]/g,d.balance||"");}
+function tmplsFor(cat){return DB.msgTemplates.filter(t=>t.category===cat);}
+window._tmplSel=window._tmplSel||{};
+function setTmplSel(recId,tmplId){window._tmplSel[recId]=tmplId;render();}
+function tmplSelectHTML(recId,cat){const list=tmplsFor(cat);if(!list.length)return"";const cur=window._tmplSel[recId]||list[0].id;if(!window._tmplSel[recId])window._tmplSel[recId]=cur;
+ return `<select onchange="setTmplSel('${recId}',this.value)" style="font-size:11.5px;padding:3px 6px;border-radius:6px;border:1px solid var(--line);margin-bottom:5px;max-width:100%">${list.map(t=>`<option value="${t.id}" ${t.id===cur?'selected':''}>${t.icon} ${t.label}</option>`).join('')}</select>`;}
+function tmplMsgFor(recId,cat,data){const list=tmplsFor(cat);if(!list.length)return"";const cur=window._tmplSel[recId]||list[0].id;const t=list.find(x=>x.id===cur)||list[0];return fillTemplate(t.msg,data);}
+function tmplModal(id){const t=id?DB.msgTemplates.find(x=>x.id===id):{id:"",category:"Appointment",label:"",tag:"blue",icon:"📝",msg:""};
+ const cats=[...new Set(DB.msgTemplates.map(x=>x.category))];
+ openModal(`<div class="modal-h"><h3>${id?"Edit":"New"} Template</h3><button class="x" onclick="closeModal()">×</button></div>
+ <div class="modal-b">
+  <div class="field"><label>Category</label><input list="tmplCats" id="tm_cat" value="${t.category}" placeholder="Appointment, Payment, Reschedule..."><datalist id="tmplCats">${cats.map(c=>`<option value="${c}">`).join('')}</datalist></div>
+  <div class="field"><label>Title</label><input id="tm_label" value="${(t.label||"").replace(/"/g,"&quot;")}" placeholder="e.g. Pending Payment — Gentle Reminder"></div>
+  <div class="field"><label>Message</label><textarea id="tm_msg" rows="6" style="width:100%;font-size:13px;padding:8px;border-radius:8px;border:1px solid var(--line)">${t.msg||""}</textarea>
+   <div class="muted" style="font-size:11px;margin-top:4px">Placeholders: [Patient Name] [Date] [Time] [Therapist Name] [Phone] [Clinic] [Due Amount] [Paid] [Remaining] [Invoice ID] [Amount] [UPI ID] [Package Name] [Sessions Left] [Expiry Date] [Balance]</div>
+  </div>
+ </div>
+ <div class="modal-f">${id?`<button class="btn sec" style="color:var(--danger)" onclick="deleteTmpl('${id}')">Delete</button>`:""}<button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveTmpl('${id||""}')">Save</button></div>`,true);}
+function saveTmpl(id){const v=k=>document.getElementById(k).value.trim();const cat=v("tm_cat")||"Other";const label=v("tm_label");const msg=document.getElementById("tm_msg").value;
+ if(!label||!msg){alert("Please fill title and message");return;}
+ if(id){const t=DB.msgTemplates.find(x=>x.id===id);t.category=cat;t.label=label;t.msg=msg;}
+ else{DB.msgTemplates.push({id:uid("tm"),category:cat,label,tag:"blue",icon:"📝",msg});}
+ save();closeModal();render();}
+function deleteTmpl(id){if(!confirm("Delete this template?"))return;DB.msgTemplates=DB.msgTemplates.filter(x=>x.id!==id);save();closeModal();render();}
 views.reminders=()=>{
  const clinic=DB.settings.clinic||"PhysioMind";
  const fmtAppt=a=>fmtDate(a.date).replace(/ \d{4}$/,'')+", "+a.time;
@@ -2135,24 +2294,20 @@ views.reminders=()=>{
  const missed=DB.appointments.filter(inBranch).filter(a=>a.date<todayISO&&a.status==="Pending").sort((a,b)=>b.date.localeCompare(a.date));
  const cancelled=DB.appointments.filter(inBranch).filter(a=>a.status==="Cancelled").sort((a,b)=>b.date.localeCompare(a.date));
  const reschedList=[...missed,...cancelled].slice(0,30);
+ const pkgList=(DB.patientPkgs||[]).filter(k=>inBranch(pById(k.pid))).filter(k=>{
+   const bal=(k.price||0)-(k.paidAmount!=null?k.paidAmount:(k.price||0));
+   const daysLeft=k.expires?Math.ceil((new Date(k.expires)-new Date(todayISO))/864e5):999;
+   const sessLeft=(k.total||0)-(k.used||0);
+   return k.status==="Active"&&(bal>0||(daysLeft<=14&&daysLeft>=0&&sessLeft>0)||sessLeft<=0);
+ });
  const sent=DB.reminders||[];
- const TEMPLATES=[
-  {label:"Appointment Reminder — Day Before",tag:"blue",icon:"📅",msg:`Hi [Patient Name] 👋, your physiotherapy appointment is scheduled for *tomorrow, [Date]* at *[Time]* with *[Therapist Name]* at *${clinic}*. Please arrive 5 min early. For changes call [Phone]. See you! 🙏`},
-  {label:"Appointment Reminder — Same Day",tag:"teal",icon:"⏰",msg:`Good morning [Patient Name] 😊, reminder: you have your physio session *today at [Time]* with *[Therapist Name]* at ${clinic}. Call [Phone] if you need to reschedule.`},
-  {label:"Appointment Confirmed",tag:"green",icon:"✅",msg:`Dear [Patient Name], your appointment is *confirmed* ✅ at *${clinic}* on *[Date]* at *[Time]* with *[Therapist Name]*. For queries call [Phone]. Thank you 🙏`},
-  {label:"Reschedule Request",tag:"amber",icon:"🔄",msg:`Hi [Patient Name], we noticed you missed your appointment on *[Date]*. No worries! Please reply or call [Phone] to book a new slot at *${clinic}*. We're here to help — Team ${clinic} 🙏`},
-  {label:"Appointment Cancelled",tag:"red",icon:"❌",msg:`Dear [Patient Name], your appointment on *[Date]* at *[Time]* has been cancelled as per your request. Call [Phone] to reschedule. We hope to see you soon — ${clinic}`},
-  {label:"Outstanding Payment Reminder",tag:"amber",icon:"💰",msg:`Dear [Patient Name] 🙏, gentle reminder that *₹[Due Amount]* is outstanding for your treatment at *${clinic}*. Pay via UPI: [UPI ID] or visit us. Thank you!`},
-  {label:"Partial Payment — Balance Due",tag:"amber",icon:"🔔",msg:`Hi [Patient Name], your payment of *₹[Paid]* was received. A balance of *₹[Remaining]* is still pending for invoice [Invoice ID] at ${clinic}. Please clear at your next visit or UPI: [UPI ID]. Thank you!`},
-  {label:"Payment Received",tag:"green",icon:"🧾",msg:`Dear [Patient Name], we received your payment of *₹[Amount]* on *[Date]*. Thank you! For receipts or queries call [Phone] — Team ${clinic} 🙏`},
-  {label:"Missed Appointment — No Show",tag:"gray",icon:"😔",msg:`Hi [Patient Name], we missed you at your *[Time]* appointment on *[Date]* 😔. Call [Phone] to reschedule. Regular sessions give the best results — ${clinic}`},
-  {label:"Treatment Course Complete",tag:"green",icon:"🎉",msg:`Congratulations [Patient Name]! 🎉 You've completed your treatment course at *${clinic}*. We're proud of your progress! For follow-ups or any concerns, call [Phone]. Stay healthy! — Team ${clinic} 🙏`},
- ];
+ const TEMPLATES=DB.msgTemplates;
  // Tab bar
  const tabs=[
   {id:"appts",label:"📅 Appointments",count:upcoming.length},
   {id:"payments",label:"💰 Payments",count:dues.length},
   {id:"reschedule",label:"🔄 Reschedule",count:reschedList.length},
+  {id:"packages",label:"📦 Packages",count:pkgList.length},
   {id:"templates",label:"📋 Templates",count:TEMPLATES.length},
   {id:"sent",label:"✅ Sent",count:sent.length},
  ];
@@ -2165,13 +2320,14 @@ views.reminders=()=>{
   <div style="padding:14px 17px 6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
    <span class="muted" style="font-size:12.5px">${upcoming.length} upcoming appointments need reminders</span>
   </div>
-  ${upcoming.length?upcoming.map(a=>{const p=pById(a.pid);const msg=apptMsg(p,fmtAppt(a));return `<div class="reminder"><div class="r-ico wa">💬</div>
+  ${upcoming.length?upcoming.map(a=>{const p=pById(a.pid);const recId="a_"+a.id;const data={name:p.name,date:fmtDate(a.date),time:a.time,therapist:a.therapist,phone:p.phone};const msg=tmplMsgFor(recId,"Appointment",data)||apptMsg(p,fmtAppt(a));return `<div class="reminder"><div class="r-ico wa">💬</div>
    <div class="r-body">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
      <b>${p.name} <span class="tag blue" style="margin-left:5px">Appointment</span></b>
      <span class="muted" style="font-size:12px"><a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a></span>
     </div>
     <div class="muted" style="font-size:12px;margin:2px 0">${fmtDate(a.date)} at ${a.time} · ${a.therapist} · <span class="tag ${statusTag(a.status)}">${a.status}</span></div>
+    <div>${tmplSelectHTML(recId,"Appointment")}</div>
     <div class="r-msg" id="rmsg_a_${a.id}">${msg}</div>
     <div style="margin-top:7px;display:flex;gap:7px;flex-wrap:wrap">
      <button class="btn sm" onclick="sendWA('${a.pid}','Appointment','${fmtAppt(a).replace(/'/g,'')}',document.getElementById('rmsg_a_${a.id}').innerText)">📲 WhatsApp</button>
@@ -2184,13 +2340,14 @@ views.reminders=()=>{
   <div style="padding:14px 17px 6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
    <span class="muted" style="font-size:12.5px">${dues.length} pending/partial payments · Total outstanding: <b>${inr(dues.reduce((s,i)=>s+invTotals(i).total,0))}</b></span>
   </div>
-  ${dues.length?dues.map(i=>{const p=pById(i.pid);const amt=invTotals(i).total;const msg=payMsg(p,inr(amt)+" pending for "+i.id);return `<div class="reminder"><div class="r-ico wa">💬</div>
+  ${dues.length?dues.map(i=>{const p=pById(i.pid);const amt=invTotals(i).total;const recId="p_"+i.id;const data={name:p.name,phone:p.phone,due:inr(amt),invoiceId:i.id,amount:inr(amt),date:fmtDate(i.date),paid:i.paid?inr(i.paid):"",remaining:i.paid?inr(amt-i.paid):""};const msg=tmplMsgFor(recId,"Payment",data)||payMsg(p,inr(amt)+" pending for "+i.id);return `<div class="reminder"><div class="r-ico wa">💬</div>
    <div class="r-body">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
      <b>${p.name} <span class="tag amber" style="margin-left:5px">${i.status}</span></b>
      <span class="muted" style="font-size:12px"><a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a></span>
     </div>
     <div class="muted" style="font-size:12px;margin:2px 0">${i.id} · ${fmtDate(i.date)} · <b style="color:var(--danger)">${inr(amt)}</b>${i.paid?' · Paid: '+inr(i.paid)+', Balance: '+inr(amt-i.paid):''}</div>
+    <div>${tmplSelectHTML(recId,"Payment")}</div>
     <div class="r-msg" id="rmsg_p_${i.id}">${msg}</div>
     <div style="margin-top:7px;display:flex;gap:7px;flex-wrap:wrap">
      <button class="btn sm" onclick="sendWA('${i.pid}','Payment','${inr(amt)} due',document.getElementById('rmsg_p_${i.id}').innerText)">📲 WhatsApp</button>
@@ -2204,13 +2361,14 @@ views.reminders=()=>{
   <div style="padding:14px 17px 6px">
    <span class="muted" style="font-size:12.5px">${missed.length} missed (no-show) + ${cancelled.length} cancelled</span>
   </div>
-  ${reschedList.length?reschedList.map(a=>{const p=pById(a.pid);const isNoShow=a.status==="Pending"&&a.date<todayISO;const msg=isNoShow?`Hi ${p.name.split(' ')[0]}, we missed you at your physio appointment on ${fmtDate(a.date)} at ${a.time} 😔. Please call us to reschedule — Team ${clinic}`:`Hi ${p.name.split(' ')[0]}, your appointment on ${fmtDate(a.date)} was cancelled. Would you like to book a new slot at ${clinic}? Call us anytime — Team ${clinic} 🙏`;return `<div class="reminder"><div class="r-ico wa">💬</div>
+  ${reschedList.length?reschedList.map(a=>{const p=pById(a.pid);const isNoShow=a.status==="Pending"&&a.date<todayISO;const recId="r_"+a.id;const data={name:p.name,date:fmtDate(a.date),time:a.time,therapist:a.therapist,phone:p.phone};const fallback=isNoShow?`Hi ${p.name.split(' ')[0]}, we missed you at your physio appointment on ${fmtDate(a.date)} at ${a.time} 😔. Please call us to reschedule — Team ${clinic}`:`Hi ${p.name.split(' ')[0]}, your appointment on ${fmtDate(a.date)} was cancelled. Would you like to book a new slot at ${clinic}? Call us anytime — Team ${clinic} 🙏`;const msg=tmplMsgFor(recId,"Reschedule",data)||fallback;return `<div class="reminder"><div class="r-ico wa">💬</div>
    <div class="r-body">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
      <b>${p.name} <span class="tag ${isNoShow?'red':'gray'}" style="margin-left:5px">${isNoShow?'No-show':'Cancelled'}</span></b>
      <span class="muted" style="font-size:12px"><a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a></span>
     </div>
     <div class="muted" style="font-size:12px;margin:2px 0">${fmtDate(a.date)} at ${a.time} · ${a.therapist}</div>
+    <div>${tmplSelectHTML(recId,"Reschedule")}</div>
     <div class="r-msg" id="rmsg_r_${a.id}">${msg}</div>
     <div style="margin-top:7px;display:flex;gap:7px;flex-wrap:wrap">
      <button class="btn sm" onclick="sendWA('${a.pid}','Reschedule','${fmtDate(a.date)}',document.getElementById('rmsg_r_${a.id}').innerText)">📲 WhatsApp</button>
@@ -2218,13 +2376,44 @@ views.reminders=()=>{
     </div>
    </div></div>`;}).join(''):'<div class="empty" style="padding:40px">No missed or cancelled appointments 🎉</div>'}`;
 
+ // ── TAB: PACKAGES ─────────────────────────────────────
+ const pkgTab=`
+  <div style="padding:14px 17px 6px">
+   <span class="muted" style="font-size:12.5px">${pkgList.length} package(s) need attention — balance due, expiring soon, or fully used</span>
+  </div>
+  ${pkgList.length?pkgList.map(k=>{const p=pById(k.pid);const bal=(k.price||0)-(k.paidAmount!=null?k.paidAmount:(k.price||0));const sessLeft=(k.total||0)-(k.used||0);const daysLeft=k.expires?Math.ceil((new Date(k.expires)-new Date(todayISO))/864e5):null;
+   const status=bal>0?{tag:'amber',label:'Balance due'}:sessLeft<=0?{tag:'green',label:'Fully used'}:{tag:'amber',label:'Expiring soon'};
+   const recId="k_"+k.id;const data={name:p.name,phone:p.phone,pkgName:k.pkg||k.name||'Package',sessionsLeft:sessLeft,expiryDate:fmtDate(k.expires),balance:inr(bal)};
+   const fallback=bal>0?`Dear ${p.name.split(' ')[0]}, a balance of ${inr(bal)} is pending on your ${k.pkg||'package'}. Please clear it soon — Team ${clinic}`:sessLeft<=0?`Dear ${p.name.split(' ')[0]}, you've completed all sessions of your ${k.pkg||'package'}! Ask us about renewal — Team ${clinic}`:`Hi ${p.name.split(' ')[0]}, your ${k.pkg||'package'} has ${sessLeft} session(s) left and expires ${fmtDate(k.expires)}. Book soon — Team ${clinic}`;
+   const msg=tmplMsgFor(recId,"Package",data)||fallback;
+   return `<div class="reminder"><div class="r-ico wa">💬</div>
+   <div class="r-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+     <b>${p.name} <span class="tag ${status.tag}" style="margin-left:5px">${status.label}</span></b>
+     <span class="muted" style="font-size:12px"><a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a></span>
+    </div>
+    <div class="muted" style="font-size:12px;margin:2px 0">${k.pkg||k.name||'Package'} · ${k.used||0}/${k.total||0} used${bal>0?' · <b style="color:var(--danger)">'+inr(bal)+' due</b>':''}${daysLeft!=null?' · expires '+fmtDate(k.expires):''}</div>
+    <div>${tmplSelectHTML(recId,"Package")}</div>
+    <div class="r-msg" id="rmsg_k_${k.id}">${msg}</div>
+    <div style="margin-top:7px;display:flex;gap:7px;flex-wrap:wrap">
+     <button class="btn sm" onclick="sendWA('${k.pid}','Package','${(k.pkg||'').replace(/'/g,'')}',document.getElementById('rmsg_k_${k.id}').innerText)">📲 WhatsApp</button>
+     ${bal>0?`<button class="btn sm sec" onclick="pkgPayment('${k.pid}')">💰 Collect balance</button>`:''}
+    </div>
+   </div></div>`;}).join(''):'<div class="empty" style="padding:40px">No packages need attention 🎉</div>'}`;
+
  // ── TAB: TEMPLATES ────────────────────────────────────
- const tmplTab=`<div class="panel-b tmpl-grid" style="padding-top:14px">
-  ${TEMPLATES.map((t,i)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:13px">
+ const tmplCatsList=[...new Set(TEMPLATES.map(t=>t.category||"Other"))];
+ const tmplTab=`<div style="padding:14px 17px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+   <span class="muted" style="font-size:12.5px">Edit templates or add your own — therapists can customise per category</span>
+   <button class="btn sm" onclick="tmplModal()">+ Add Template</button>
+  </div>
+  ${tmplCatsList.map(cat=>`<div style="padding:10px 17px 0"><div style="font-weight:700;font-size:12.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 6px">${cat}</div>
+  <div class="panel-b tmpl-grid">
+  ${TEMPLATES.map((t,i)=>({t,i})).filter(x=>(x.t.category||"Other")===cat).map(({t,i})=>`<div style="border:1px solid var(--line);border-radius:10px;padding:13px">
    <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">
-    <span style="font-size:18px">${t.icon}</span>
+    <span style="font-size:18px">${t.icon||"📝"}</span>
     <span style="font-weight:600;font-size:13px;flex:1">${t.label}</span>
-    <span class="tag ${t.tag}" style="font-size:10px;padding:2px 7px">${t.tag==='blue'||t.tag==='teal'?'Reminder':t.tag==='green'?'Confirm':t.tag==='amber'?'Alert':t.tag==='red'?'Urgent':'Info'}</span>
+    <button class="btn sm sec" style="padding:3px 9px;font-size:11px" onclick="tmplModal('${t.id}')">✏️ Edit</button>
    </div>
    <div id="tmpl_${i}" style="background:var(--bg2);border-radius:7px;padding:9px 11px;font-size:12.5px;line-height:1.55;color:var(--text);white-space:pre-wrap;margin-bottom:9px">${t.msg}</div>
    <div style="display:flex;gap:7px">
@@ -2232,7 +2421,7 @@ views.reminders=()=>{
     <button class="btn sm" style="background:#25D366" onclick="sendTemplateWA(${i})">📲 WhatsApp</button>
    </div>
   </div>`).join('')}
- </div>`;
+  </div></div>`).join('')}`;
 
  // ── TAB: SENT ─────────────────────────────────────────
  const allSent=(DB.reminders||[]);
@@ -2263,7 +2452,7 @@ views.reminders=()=>{
   }).join("")||'<div class="empty" style="padding:32px 0;text-align:center">No messages sent in ${sentMonthLabel}.<br><span class="muted" style="font-size:12.5px">Select a different month above.</span></div>'}
  </div>`;
 
- const tabContent={appts:apptTab,payments:payTab,reschedule:reschedTab,templates:tmplTab,sent:sentTab};
+ const tabContent={appts:apptTab,payments:payTab,reschedule:reschedTab,packages:pkgTab,templates:tmplTab,sent:sentTab};
 
  return `<div class="panel" style="padding:0">
   <div style="padding:17px 17px 0">
@@ -2531,7 +2720,7 @@ function aRenderMMT(){
     return'<div class="aregion-block"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+r+' — MMT</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div><div style="overflow-x:auto"><table class="mmt-tbl"><thead><tr><th>Muscle</th><th>Grade (0–5)</th><th>Notes</th></tr></thead><tbody>'+ms.map(function(m){var g=sv[m]!=null?sv[m]:null;var mid=(r+'_'+m).replace(/[\s\/\(\)]/g,'_');return'<tr><td>'+m+'</td><td><div class="mmt-btns">'+[0,1,2,3,4,5].map(function(gv){return'<button id="ammt-'+mid+'-'+gv+'" class="'+(g===gv?'mmt-on':'')+'" onclick="aMMT(\''+r+'\',\''+m+'\','+gv+')">'+gv+'</button>';}).join('')+'</div></td><td><input style="width:130px;padding:4px 7px;border:1px solid var(--line);border-radius:5px;font-size:12px" placeholder="e.g. pain…" value="'+(sv[m+'_note']||'')+'" oninput="aMMTNote(\''+r+'\',\''+m+'\',this.value)"></td></tr>';}).join('')+'</tbody></table></div></div>';
   }).join('');
 }
-function aMMT(r,m,g){const a=window._aForm;if(!a)return;if(!a.mmt[r])a.mmt[r]={};a.mmt[r][m]=g;const ms=AMMT[r]||[];ms.forEach(mu=>{const mid=(r+"_"+mu).replace(/[\s\/\(\)]/g,"_");[0,1,2,3,4,5].forEach(gv=>{const b=document.getElementById("ammt-"+mid+"-"+gv);if(b)b.classList.toggle("mmt-on",mu===m&&gv===g);});});}
+function aMMT(r,m,g){const a=window._aForm;if(!a)return;if(!a.mmt[r])a.mmt[r]={};a.mmt[r][m]=g;const mid=(r+"_"+m).replace(/[\s\/\(\)]/g,"_");[0,1,2,3,4,5].forEach(gv=>{const b=document.getElementById("ammt-"+mid+"-"+gv);if(b)b.classList.toggle("mmt-on",gv===g);});}
 function aMMTNote(r,m,v){const a=window._aForm;if(!a)return;if(!a.mmt[r])a.mmt[r]={};a.mmt[r][m+"_note"]=v;}
 
 function aRenderTests(){
@@ -2610,21 +2799,26 @@ function assessForm(_,pid){
   <div class="field"><label>Modalities / electrotherapy — pick &amp; add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_modsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">${modOpts()}</select><button type="button" class="btn sm" onclick="addLine('ca_modsel','ca_mods')">+ Add</button></div><textarea id="ca_mods" rows="2" placeholder="One modality per line"></textarea></div>
   <div class="field"><label>Clinic exercises — ${EXCOUNT}+ in library, pick region &amp; add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_exreg" onchange="fillEx('ca_exreg','ca_exsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select><select id="ca_exsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('ca_exsel','ca_ex')">+ Add</button></div><textarea id="ca_ex" rows="3" placeholder="One exercise per line"></textarea></div>
   <div class="field"><label>🏠 Home programme — exercises for patient to do at home</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_hreg" onchange="fillEx('ca_hreg','ca_hsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select><select id="ca_hsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('ca_hsel','ca_home')">+ Add</button></div><textarea id="ca_home" rows="2" placeholder="One exercise per line"></textarea></div>
+  <div class="field"><label>📎 Exercise video links <span class="muted" style="font-weight:400;font-size:12px">(optional — shown in Treatment &amp; sent via WhatsApp)</span></label>
+   <div id="chLinks_list"></div>
+   <button type="button" class="btn sm sec" style="margin-top:4px" onclick="addConsultHomeLink()">+ Add video link</button>
+  </div>
   <div class="field"><label>Home programme frequency</label><input id="ca_homefreq" placeholder="e.g. 2× daily, 7 days a week" oninput="window._aForm.homeFreq=this.value"></div>
   <div class="field"><label>General advice / precautions</label><textarea id="ca_adv" rows="2" oninput="window._aForm.advice=this.value"></textarea></div>
   <div class="field"><label>Medication (Rx) — one per line</label><textarea id="ca_rx" rows="2"></textarea></div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveAssess()">Save Assessment</button></div>`,true);
  window._caMode="template";
+ window._chl=[];
  setTimeout(()=>{
    freshA.pid=document.getElementById("ca_pid").value;
    freshA.therapist=document.getElementById("ca_ther").value;
    aInitView(freshA);
    const pr=document.getElementById("apainRow");if(pr)pr.querySelectorAll("button").forEach((b,i)=>{b.onclick=()=>aSetPain(i);});
    fillEx('ca_exreg','ca_exsel');fillEx('ca_hreg','ca_hsel');
+   renderConsultHomeLinks();
  },30);
 }
-
 function caMode(m){window._caMode=m;window._aForm&&(window._aForm.mode=m);document.getElementById("ca-upload").style.display=m==='upload'?'block':'none';document.getElementById("ca-template").style.display=m==='template'?'block':'none';document.querySelectorAll("#catabs button").forEach(b=>b.classList.toggle("active",b.dataset.m===m));}
 function caPreview(inp){const f=inp.files[0];if(!f)return;window._aForm&&(window._aForm.assessFile=f.name);const r=new FileReader();r.onload=e=>{document.getElementById("ca_imgprev").innerHTML='<img src="'+e.target.result+'" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)"><div style="margin-top:4px">📎 '+f.name+'</div>';};r.readAsDataURL(f);}
 
@@ -2638,6 +2832,7 @@ function saveAssess(){
   a.modalities=gv("ca_mods").split("\n").filter(x=>x.trim());
   a.exercises=gv("ca_ex").split("\n").filter(x=>x.trim());
   a.home=gv("ca_home").split("\n").filter(x=>x.trim());
+  a.homeLinks=(window._chl||[]).filter(l=>l.name||l.link);
   a.homeFreq=gv("ca_homefreq")||a.homeFreq||"";
   if(gv("ca_sessions"))a.sessions=+gv("ca_sessions");
   if(!a.pid){alert("Select a patient.");return;}
@@ -2779,7 +2974,7 @@ function assessDocHTML(id){
   const exHTML=(c.exercises||[]).length?`<div class="adoc-row"><span class="adoc-lbl">Clinic exercises</span><span class="adoc-val"><div class="adoc-rx-list">${(c.exercises||[]).map((e,i)=>`<div class="adoc-rx-item"><span class="adoc-rx-num" style="background:#d1fae5;color:#065f46">${i+1}</span>${e}</div>`).join("")}</div></span></div>`:"";
 
   // Home programme
-  const homeHTML=(c.home||[]).length?`<div class="adoc-row"><span class="adoc-lbl">🏠 Home programme</span><span class="adoc-val"><div class="adoc-rx-list">${(c.home||[]).map((e,i)=>`<div class="adoc-rx-item"><span class="adoc-rx-num" style="background:#fef3c7;color:#92400e">${i+1}</span>${e}</div>`).join("")}</div>${c.homeFreq?`<div style="margin-top:6px;font-size:12px;color:var(--muted)">Frequency: <b>${c.homeFreq}</b></div>`:""}</span></div>`:"";
+  const homeHTML=(c.home||[]).length?`<div class="adoc-row"><span class="adoc-lbl">🏠 Home programme</span><span class="adoc-val"><div class="adoc-rx-list">${(c.home||[]).map((e,i)=>`<div class="adoc-rx-item"><span class="adoc-rx-num" style="background:#fef3c7;color:#92400e">${i+1}</span>${e}</div>`).join("")}</div>${c.homeFreq?`<div style="margin-top:6px;font-size:12px;color:var(--muted)">Frequency: <b>${c.homeFreq}</b></div>`:""}${(c.homeLinks&&c.homeLinks.length)?`<div style="margin-top:6px">${c.homeLinks.filter(l=>l.name||l.link).map(l=>`<div style="font-size:12px;margin-top:2px">📎 ${l.name||'Video'}${l.link?' — <a href="'+l.link+'" target="_blank" rel="noopener">'+l.link+'</a>':''}</div>`).join("")}</div>`:""}</span></div>`:"";
 
   const rxHTML=(c.rx||[]).length?`<div class="adoc-row"><span class="adoc-lbl">Prescription (Rx)</span><span class="adoc-val"><div class="adoc-rx-list">${(c.rx||[]).map((r,i)=>`<div class="adoc-rx-item"><span class="adoc-rx-num">${i+1}</span>${r}</div>`).join("")}</div></span></div>`:""
 
@@ -2801,6 +2996,7 @@ function assessDocHTML(id){
         <button class="btn sec" onclick="assessEdit('${id}')">✏ Edit</button>
         <button class="btn sec" onclick="assessPrint('${id}')">🖨 Print</button>
         <button class="btn sec" onclick="assessSavePDF('${id}')">⬇ Save PDF</button>
+        ${(c.home&&c.home.length)?`<button class="btn sec" style="background:#25D366;color:#fff" onclick="sendAssessHomeWA('${id}')">📲 Send Home Plan</button>`:""}
         <button class="btn" style="background:#16a34a" onclick="startSessionFromAssess('${id}')">▶ Start Session</button>
       </div>
     </div>
@@ -3180,6 +3376,9 @@ function startSessionFromAssess(id){
   const c=DB.assessments.find(x=>x.id===id);if(!c)return;
   // Check if a treatment plan already exists for this patient with same diagnosis
   let plan=DB.plans.find(t=>t.pid===c.pid&&t.diagnosis===c.dx&&t.done<t.sessions);
+  if(plan&&c.homeLinks&&c.homeLinks.length&&(!plan.homeLinks||!plan.homeLinks.length)){
+    plan.homeLinks=c.homeLinks;save();
+  }
   if(!plan){
     // Create a new plan seeded from the assessment
     plan={
@@ -3193,6 +3392,7 @@ function startSessionFromAssess(id){
       exercises:c.exercises||[],
       home:c.home||[],
       homeFreq:c.homeFreq||'',
+      homeLinks:c.homeLinks||[],
       notes:c.advice||'',
       visits:[]
     };
@@ -3278,16 +3478,22 @@ function assessEdit(id){
   <div class="field"><label>Modalities / electrotherapy — pick &amp; add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_modsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">${modOpts()}</select><button type="button" class="btn sm" onclick="addLine('ca_modsel','ca_mods')">+ Add</button></div><textarea id="ca_mods" rows="2" placeholder="One modality per line">${(existing.modalities||[]).join("\n")}</textarea></div>
   <div class="field"><label>Clinic exercises — ${EXCOUNT}+ in library, pick region &amp; add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_exreg" onchange="fillEx('ca_exreg','ca_exsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select><select id="ca_exsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('ca_exsel','ca_ex')">+ Add</button></div><textarea id="ca_ex" rows="3" placeholder="One exercise per line">${(existing.exercises||[]).join("\n")}</textarea></div>
   <div class="field"><label>🏠 Home programme — exercises for patient to do at home</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_hreg" onchange="fillEx('ca_hreg','ca_hsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select><select id="ca_hsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('ca_hsel','ca_home')">+ Add</button></div><textarea id="ca_home" rows="2" placeholder="One exercise per line">${(existing.home||[]).join("\n")}</textarea></div>
+  <div class="field"><label>📎 Exercise video links <span class="muted" style="font-weight:400;font-size:12px">(optional — shown in Treatment &amp; sent via WhatsApp)</span></label>
+   <div id="chLinks_list"></div>
+   <button type="button" class="btn sm sec" style="margin-top:4px" onclick="addConsultHomeLink()">+ Add video link</button>
+  </div>
   <div class="field"><label>Home programme frequency</label><input id="ca_homefreq" value="${existing.homeFreq||''}" placeholder="e.g. 2× daily, 7 days a week" oninput="window._aForm.homeFreq=this.value"></div>
   <div class="field"><label>General advice / precautions</label><textarea id="ca_adv" rows="2" oninput="window._aForm.advice=this.value">${existing.advice||''}</textarea></div>
   <div class="field"><label>Medication (Rx) — one per line</label><textarea id="ca_rx" rows="2">${(existing.rx||[]).join("\n")}</textarea></div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveAssess()">Save Changes</button></div>`,true);
  window._caMode=existing.mode||"template";
+ window._chl=JSON.parse(JSON.stringify(existing.homeLinks||[]));
  setTimeout(()=>{
    aInitView(existing);
    const pr=document.getElementById("apainRow");if(pr)pr.querySelectorAll("button").forEach((b,i)=>{b.onclick=()=>aSetPain(i);});
    fillEx('ca_exreg','ca_exsel');fillEx('ca_hreg','ca_hsel');
+   renderConsultHomeLinks();
  },30);
 }
 
