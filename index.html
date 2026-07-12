@@ -276,6 +276,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 .rside-a{width:34px;height:24px;border:1px solid var(--line);background:#fff;border-radius:5px;font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer}
 .rside-a:hover{border-color:var(--brand);color:var(--brand)}
 .rside-a.rsa-active{background:var(--brand);color:#fff;border-color:var(--brand)}
+.rsa-inline{display:flex;gap:4px}
 .rside-tag{font-size:11px;font-weight:700;color:#fff;background:var(--brand);padding:2px 8px;border-radius:20px}
 .aregion-block{margin-bottom:20px}
 .aregion-label{font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--brand-dark);padding:5px 10px;background:var(--brand-soft);border-left:3px solid var(--brand);border-radius:0 6px 6px 0;margin-bottom:10px;display:inline-block}
@@ -803,7 +804,7 @@ function painTrendSVG(visits){
    <path d="${line}" fill="none" stroke="#2563eb" stroke-width="2.5"/>
    ${pts.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="${col(v[i].pain)}"/><text x="${p[0]}" y="${p[1]-7}" font-size="10" fill="#1a2233" text-anchor="middle">${v[i].pain}</text><text x="${p[0]}" y="${H-6}" font-size="9" fill="#6b7589" text-anchor="middle">#${v[i].n}</text>`).join("")}
   </svg>`;}
-const statusTag=s=>({Confirmed:"blue","Checked-in":"green",Pending:"amber",Completed:"gray",Cancelled:"red",Paid:"green",Delivered:"green",Sent:"teal",Scheduled:"amber",Active:"green",Expired:"red"}[s]||"gray");
+const statusTag=s=>({Confirmed:"blue","Checked-in":"teal",Pending:"amber",Completed:"green",Cancelled:"red",Paid:"green",Delivered:"green",Sent:"teal",Scheduled:"amber",Active:"green",Expired:"red"}[s]||"gray");
 function curBranch(){return document.getElementById("branchSel").value;}
 const inBranch=x=>{const b=curBranch();return b==="all"||x.branch===b||x.branch===undefined;};
 
@@ -938,16 +939,6 @@ function togglePatientStatus(id){
  var p=pById(id);
  p.status=(p.status||"Active")==="Active"?"Inactive":"Active";
  save();render();
-}
-function filterPatients(q){
- const raw=q.trim().toLowerCase();const dig=q.replace(/\D/g,"");
- const all=DB.patients.filter(inBranch).filter(p=>!MYTHER||p.therapist===MYTHER);
- const base=_ptab==="active"?all.filter(p=>(p.status||"Active")==="Active"):_ptab==="inactive"?all.filter(p=>p.status==="Inactive"):all;
- document.getElementById("prows").innerHTML=patientRows(base.filter(p=>{
-  const hay=(p.name+" "+(p.dob||"")+" "+patientCode(p)+" "+p.condition).toLowerCase();
-  const phone=(p.phone||"").replace(/\D/g,"");
-  return hay.includes(raw)||(dig.length>=2&&(phone.includes(dig)||patientCode(p).includes(dig)||(p.dob||"").replace(/\D/g,"").includes(dig)));
- }));
 }
 function patientView(id,tab){const p=pById(id);const T=tab||"assess";
  const invs=DB.invoices.filter(i=>i.pid===id),asmts=(DB.assessments||[]).filter(c=>c.pid===id).sort((a,b)=>b.date.localeCompare(a.date)),pkgs=DB.patientPkgs.filter(x=>x.pid===id),plans=DB.plans.filter(t=>t.pid===id);
@@ -1101,7 +1092,24 @@ function renderConsultHomeLinks(){
 }
 function addConsultHomeLink(){window._chl=window._chl||[];window._chl.push({name:'',link:''});renderConsultHomeLinks();}
 function savePlanTemp(){/* preserve textarea values across planForm re-open */}
-function uploadDoc(id){const n=prompt("Document name (demo):","Report.pdf");if(n){const p=pById(id);(p.docs=p.docs||[]).push({n,d:todayISO});save();closeModal();patientView(id);}}
+function uploadDoc(id){
+  let inp=document.getElementById("_docFileInput");
+  if(!inp){inp=document.createElement("input");inp.type="file";inp.id="_docFileInput";inp.accept="image/*,application/pdf";inp.style.display="none";document.body.appendChild(inp);}
+  inp.value="";
+  inp.onchange=function(){
+    const file=inp.files&&inp.files[0];if(!file)return;
+    if(file.size>8*1024*1024){alert("File is too large (max 8MB). Please choose a smaller file or take a lower-res photo.");return;}
+    const reader=new FileReader();
+    reader.onload=function(e){
+      const p=pById(id);
+      (p.docs=p.docs||[]).push({n:file.name,d:todayISO,data:e.target.result,type:file.type&&file.type.indexOf("pdf")>-1?"pdf":"image"});
+      save();patientView(id);
+    };
+    reader.onerror=function(){alert("Couldn't read that file. Please try again.");};
+    reader.readAsDataURL(file);
+  };
+  inp.click();
+}
 function patientForm(id){const p=id?pById(id):{name:"",dob:"",gender:"M",phone:"",condition:"",therapist:"Dr. Neha Verma",branch:DB.branches[0].id,wallet:0,docs:[]};
  openModal(`<div class="modal-h"><h3>${id?"Edit":"New"} Patient</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
@@ -1459,19 +1467,20 @@ views.treatment=function(){
     if(remaining>0){html+='<div class="muted" style="font-size:12px;padding:6px 10px;background:var(--bg2);border-radius:8px;margin-bottom:8px">📅 '+t.done+' of '+t.sessions+' sessions completed · <b>'+remaining+' session'+(remaining===1?'':'s')+' remaining</b> — not yet scheduled/logged.</div>';}
    }
    // Home protocol — exercises, frequency & video links given to the patient, with last-updated date
-   if((t.home&&Array.isArray(t.home)&&t.home.length)||(t.homeLinks&&t.homeLinks.length)){
+   {
+    var hasHome=(t.home&&Array.isArray(t.home)&&t.home.length)||(t.homeLinks&&t.homeLinks.length);
     var homeDate=maxN&&visitsByN[maxN]?fmtDate(visitsByN[maxN].date):'';
     html+='<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:10px 0;background:var(--bg2)">'
      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
-     +'<b class="muted" style="font-size:12px">🏠 Home protocol given'+(t.homeFreq?' · '+t.homeFreq:'')+'</b>'
-     +(homeDate?'<span class="muted" style="font-size:11px">Assigned/updated '+homeDate+'</span>':'')
+     +'<b class="muted" style="font-size:12px">🏠 Home protocol'+(hasHome?' given':'')+(t.homeFreq?' · '+t.homeFreq:'')+'</b>'
+     +(hasHome&&homeDate?'<span class="muted" style="font-size:11px">Assigned/updated '+homeDate+'</span>':'')
      +'</div>'
+     +(!hasHome?'<div class="muted" style="font-size:12.5px;margin-bottom:6px">No home exercises assigned yet.</div>':'')
      +(t.home&&Array.isArray(t.home)&&t.home.length?'<div class="pill-row">'+(Array.isArray(t.home)?t.home:[]).map(function(e){return '<span class="tag gray">'+e+'</span>';}).join("")+'</div>':'')
      +(t.homeLinks&&t.homeLinks.length?'<div style="margin-top:6px">'+t.homeLinks.filter(function(l){return l.name||l.link;}).map(function(l){return '<div style="font-size:12px;margin-top:2px">📎 '+(l.name||'Video')+(l.link?' — <a href="'+l.link+'" target="_blank" rel="noopener">'+l.link+'</a>':'')+'</div>';}).join("")+'</div>':'')
      +'<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">'
-     +'<button class="btn sm sec" onclick="planForm(\''+t.id+'\')">✏️ Edit / Add link</button>'
-     +'<button class="btn sm sec" onclick="printHome(\''+t.pid+'\')">🖨 Print / WhatsApp home plan</button>'
-     +'<button class="btn sm sec" onclick="downloadHomePlanPDF(\''+t.pid+'\')">⬇ Save PDF</button>'
+     +'<button class="btn sm sec" onclick="planForm(\''+t.id+'\')">✏️ '+(hasHome?'Edit / Add link':'+ Add home protocol')+'</button>'
+     +(hasHome?'<button class="btn sm sec" onclick="printHome(\''+t.pid+'\')">🖨 Print / WhatsApp home plan</button><button class="btn sm sec" onclick="downloadHomePlanPDF(\''+t.pid+'\')">⬇ Save PDF</button>':'')
      +'</div>'
     +'</div>';
    }
@@ -1579,7 +1588,8 @@ function saveSessionPayment(planId,sid){
   var items=[{d:"Physiotherapy session",qty:1,rate:fee}];
   if(consultFee>0)items.push({d:"Consultation fee",qty:1,rate:consultFee});
   var status=pay==="Bill later"?"Pending":(partialAmt>0&&partialAmt<fee?"Partial":"Paid");
-  var inv={id:invNum,pid:t.pid,date:todayISO,items:items,gst:18,status:status,mode:pay,branch:branch};
+  var invMode=pay==="Corporate / Insurance"?"Corporate":pay;
+  var inv={id:invNum,pid:t.pid,date:todayISO,items:items,gst:18,status:status,mode:invMode,branch:branch};
   if(partialAmt>0&&partialAmt<fee){inv.paid=partialAmt;inv.pending=fee-partialAmt;}
   if(corpName)inv.corp=corpName;
   DB.invoices.push(inv);logAudit("Invoice","Invoice created",inv.patient||"");
@@ -1684,7 +1694,7 @@ function saveSession(planId,sid,n){const v=k=>{const el=document.getElementById(
        invStatus="Pending";invMode="—";
      } else if(pay==="Corporate / Insurance"){
        items.push({d:sessionDesc+(corpName?" — "+corpName:""),qty:1,rate:fee});
-       invStatus="Pending";invMode="Corporate"+(corpName?" ("+corpName+")":"");
+       invStatus="Pending";invMode="Corporate";
      } else {
        // UPI / Cash / Card — handle partial
        items.push({d:sessionDesc,qty:1,rate:fee});
@@ -1880,11 +1890,18 @@ function pkgPayment(pid){const pkgs=DB.patientPkgs.filter(k=>k.pid===pid&&k.stat
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="savePkgPayment('${pid}')">Save payment</button></div>`);}
 function savePkgPayment(pid){const v=k=>document.getElementById(k).value;const ppid=v("pp_id");const k=DB.patientPkgs.find(x=>x.id===ppid);if(!k)return;
- const amt=+v("pp_amt")||0;k.paidAmount=(k.paidAmount||0)+amt;
+ const amt=+v("pp_amt")||0;const mode=v("pp_mode");
+ k.paidAmount=(k.paidAmount||0)+amt;
  const p=pById(pid);
- DB.invoices.push({id:nextInvNo(),pid,date:todayISO,items:[{d:k.pkg+" (installment payment)",qty:1,rate:amt}],gst:0,status:"Paid",mode:v("pp_mode"),branch:p.branch});
- // Mark the pending package balance invoice as paid if now fully paid
- if(k.paidAmount>=k.price){const pendingPkgInv=DB.invoices.find(i=>i.pid===pid&&i.status==="Pending"&&i.items&&i.items[0]&&i.items[0].d.includes("balance due")&&i.items[0].d.includes(k.pkg));if(pendingPkgInv){pendingPkgInv.status="Paid";pendingPkgInv.mode=v("pp_mode");}}
+ DB.invoices.push({id:nextInvNo(),pid,date:todayISO,items:[{d:k.pkg+" — package balance installment",qty:1,rate:amt}],gst:0,status:"Paid",mode:mode,branch:p.branch});
+ // Update (or clear) the original balance-due invoice to reflect the new remaining balance —
+ // otherwise it stays stuck showing the full original amount as Pending after a partial payment.
+ const pendingPkgInv=DB.invoices.find(i=>i.pid===pid&&i.status==="Pending"&&i.items&&i.items[0]&&i.items[0].d.includes("balance due")&&i.items[0].d.includes(k.pkg));
+ if(pendingPkgInv){
+   const remaining=Math.max(0,(k.price||0)-(k.paidAmount||0));
+   if(remaining<=0){pendingPkgInv.status="Paid";pendingPkgInv.mode=mode;pendingPkgInv.items[0].rate=0;pendingPkgInv.items[0].d=k.pkg+" (balance cleared)";}
+   else{pendingPkgInv.items[0].rate=remaining;}
+ }
  save();closeModal();render();}
 
 /* BILLING */
@@ -1914,13 +1931,42 @@ views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.
   <div class="tools"><button class="btn sm sec" onclick="walletForm()">💳 Wallet top-up</button><button class="btn sm sec" onclick="consultInvForm()">🩺 Consult invoice</button><button class="btn sm" onclick="invForm()">+ Session invoice</button></div>
  </div>
  <div class="panel-b flush"><table><thead><tr><th>Invoice #</th><th>Patient</th><th>Date</th><th>Amount</th><th>Mode</th><th>Status</th><th></th></tr></thead><tbody>
- ${filtered.length?filtered.slice(_invPage*PG,(_invPage+1)*PG).map(i=>{const p=pById(i.pid);return `<tr class="clk" onclick="viewInvoice('${i.id}')"><td><b>${i.id}</b></td><td>${p.name}</td><td>${fmtDate(i.date)}</td><td><b>${inr(invTotals(i).total)}</b></td><td>${i.mode}</td><td><span class="tag ${statusTag(i.status)}">${i.status}</span></td><td style="text-align:right">${i.status==='Pending'?`<button class="btn sm" onclick="event.stopPropagation();markPaid('${i.id}')">Mark paid</button> <button class="btn sm sec" onclick="event.stopPropagation();payRemind('${i.id}')">🔔</button>`:'<span class="muted">✓</span>'}</td></tr>`;}).join(""):'<tr><td colspan=7 class="empty">No invoices match your search</td></tr>'}
+ ${filtered.length?filtered.slice(_invPage*PG,(_invPage+1)*PG).map(i=>{const p=pById(i.pid);const desc=(i.items&&i.items[0]&&i.items[0].d)||'';return `<tr class="clk" onclick="viewInvoice('${i.id}')"><td><b>${i.id}</b></td><td>${p.name}</td><td>${fmtDate(i.date)}</td><td><b>${inr(invTotals(i).total)}</b></td><td>${i.mode}<div class="muted" style="font-size:10.5px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${desc}</div></td><td><span class="tag ${statusTag(i.status)}">${i.status}</span></td><td style="text-align:right">${i.status==='Pending'?`<button class="btn sm" onclick="event.stopPropagation();markPaid('${i.id}')">Mark paid</button> <button class="btn sm sec" onclick="event.stopPropagation();payRemind('${i.id}')">🔔</button>`:'<span class="muted">✓</span>'}</td></tr>`;}).join(""):'<tr><td colspan=7 class="empty">No invoices match your search</td></tr>'}
  </tbody></table><div id="invPgBar">${pgBar(filtered.length,_invPage,'setInvPage')}</div></div></div>
- <div class="panel"><div class="panel-h"><h3>Day close — ${fmtDate(todayISO)}</h3><button class="btn sm sec" onclick="alert('Demo: day-close report generated, saved & emailed to owner')">Close day & report</button></div><div class="panel-b">
+ <div class="panel"><div class="panel-h"><h3>Day close — ${fmtDate(todayISO)}</h3><button class="btn sm sec" onclick="downloadDayCloseReport()">⬇ Close day & download report</button></div><div class="panel-b">
   <div class="kpi-mini" style="gap:24px">${['Cash','UPI','Card','Wallet','Package','Corporate'].map(m=>`<div><b>${inr(byMode[m]||0)}</b><span>${m}</span></div>`).join("")}</div>
   <hr class="sep">
   <div class="kpi-mini" style="gap:24px"><div><b style="color:var(--ok)">${inr(collToday)}</b><span>Collected today</span></div><div><b style="color:var(--danger)">${inr(expToday)}</b><span>Expenses today</span></div><div><b style="color:var(--brand)">${inr(collToday-expToday)}</b><span>Net in hand</span></div></div>
  </div></div>`;};
+function downloadDayCloseReport(){
+ const inv=(DB.invoices||[]).filter(inBranch);
+ const todayInv=inv.filter(i=>i.status==='Paid'&&(i.paidAt||i.date)===todayISO);
+ const byMode={};todayInv.forEach(i=>{const m=i.mode||'—';byMode[m]=(byMode[m]||0)+invTotals(i).total;});
+ const collToday=todayInv.reduce((s,i)=>s+invTotals(i).total,0);
+ const todayExp=(DB.expenses||[]).filter(inBranch).filter(e=>e.date===todayISO);
+ const expToday=todayExp.reduce((s,e)=>s+e.amount,0);
+ const jsPDFLib=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;if(!jsPDFLib){alert("PDF library not loaded. Refresh the page and try again.");return;}
+ const doc=new jsPDFLib({unit:"mm",format:"a4"});const W=210,M=16;let y=18;
+ function ln(txt,size,bold,color){doc.setFontSize(size||11);doc.setFont("helvetica",bold?"bold":"normal");doc.setTextColor(color?color[0]:0,color?color[1]:0,color?color[2]:0);const lines=doc.splitTextToSize(txt,W-2*M);doc.text(lines,M,y);y+=lines.length*(size?size*0.42:5)+2;}
+ function rule(){doc.setDrawColor(200);doc.line(M,y,W-M,y);y+=5;}
+ doc.setFillColor(11,27,61);doc.rect(0,0,W,22,'F');doc.setTextColor(255,255,255);doc.setFontSize(16);doc.setFont("helvetica","bold");
+ doc.text(DB.settings.clinic||"PhysioMind",M,13);doc.setFontSize(10);doc.setFont("helvetica","normal");doc.text("Day Close Report",W-M,13,{align:"right"});
+ doc.setTextColor(0,0,0);y=30;
+ ln("Date: "+fmtDate(todayISO),11,true);rule();
+ ln("Collections by mode",12,true);
+ ['Cash','UPI','Card','Wallet','Package','Corporate'].forEach(m=>ln(m+":  "+inr(byMode[m]||0),10));
+ y+=2;rule();
+ ln("Collected today: "+inr(collToday),11,true,[8,120,80]);
+ ln("Expenses today: "+inr(expToday),11,true,[180,40,40]);
+ ln("Net in hand: "+inr(collToday-expToday),12,true,[11,27,61]);
+ rule();
+ if(todayInv.length){ln("Invoices today",12,true);todayInv.forEach(i=>{const p=pById(i.pid);ln(i.id+"  ·  "+p.name+"  ·  "+inr(invTotals(i).total)+"  ·  "+i.mode,9.5);});y+=2;}
+ if(todayExp.length){rule();ln("Expenses today",12,true);todayExp.forEach(e=>ln(e.cat+(e.note?" — "+e.note:"")+"  ·  "+inr(e.amount),9.5));}
+ rule();
+ ln("Generated "+new Date().toLocaleString("en-IN"),8.5,false,[130,130,130]);
+ doc.save("Day_Close_"+todayISO+".pdf");
+ if(typeof logAudit==='function')logAudit('Day Close','Report generated & downloaded for '+fmtDate(todayISO),'');
+}
 let _patFiltered=null;
 function setPatPage(n){_patPage=n;const list=_patFiltered||[];const tbody=document.getElementById("prows");if(tbody){tbody.innerHTML=patientRows(list.slice(_patPage*PG,(_patPage+1)*PG));}const pg=document.getElementById("patPgBar");if(pg)pg.outerHTML=`<div id="patPgBar">${pgBar(list.length,_patPage,'setPatPage')}</div>`;}
 function filterPatients(q){
@@ -1978,6 +2024,7 @@ function markPaid(id){
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="doMarkPaid('${id}')">Mark paid</button></div>`);}
 function doMarkPaid(id){const mode=document.getElementById("mp_mode").value;const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);
  if(mode==="Wallet (advance)"){const gross=invTotals(i).total;if((p.wallet||0)<gross){alert("Wallet balance ("+inr(p.wallet||0)+") is insufficient for "+inr(gross)+". Top up first.");return;}p.wallet-=gross;i.mode="Wallet";}
+ else if(mode==="Corporate / Insurance")i.mode="Corporate";
  else i.mode=mode;
  i.status="Paid";i.paidAt=todayISO;if(!i.total){i.total=invTotals(i).total;}save();closeModal();render();}
 function payRemind(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);sendWA(i.pid,"Payment",inr(invTotals(i).total)+" due — "+i.id,payMsg(p,inr(invTotals(i).total)+" pending for "+i.id));}
@@ -2005,13 +2052,13 @@ function editInvoiceForm(id){const i=DB.invoices.find(x=>x.id===id);if(i.status!
   <div class="field"><label>Fee total (₹) — edit line items in full invoice flow</label>
    ${i.items.map((it,idx)=>`<div class="grid2" style="margin-bottom:6px"><div class="field" style="margin:0"><label style="font-size:11px">${it.d}</label><input type="number" id="eit_r${idx}" value="${it.rate}" oninput="updEInvTotal()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;width:100%"></div><div class="field" style="margin:0"><label style="font-size:11px">Qty</label><input type="number" id="eit_q${idx}" value="${it.qty}" oninput="updEInvTotal()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;width:100%"></div></div>`).join("")}
   </div>
-  <div class="field"><label>Payment mode</label><select id="ei_mode">${["UPI","Cash","Card","Corporate / Insurance","Bill later"].map(m=>`<option ${(i.mode||"")==m?"selected":""}>${m}</option>`).join("")}</select></div>
+  <div class="field"><label>Payment mode</label><select id="ei_mode">${["UPI","Cash","Card","Corporate / Insurance","Bill later"].map(m=>`<option ${((i.mode||"")==m||(i.mode==="Corporate"&&m==="Corporate / Insurance"))?"selected":""}>${m}</option>`).join("")}</select></div>
   <div id="ei_total_preview" style="font-weight:700;font-size:15px;text-align:right;margin-top:6px"></div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="viewInvoice('${id}')">Cancel</button><button class="btn" onclick="saveEditInvoice('${id}',${i.items.length})">Save</button></div>`);
  setTimeout(updEInvTotal,50);}
 function updEInvTotal(){let sub=0;let idx=0;while(document.getElementById("eit_r"+idx)){const r=+(document.getElementById("eit_r"+idx).value||0);const q=+(document.getElementById("eit_q"+idx).value||1);sub+=r*q;idx++;}const gst=Math.round(sub*18)/100;document.getElementById("ei_total_preview").textContent="Total: "+inr(sub+gst)+" (incl. 18% GST)";}
-function saveEditInvoice(id,n){const v=k=>document.getElementById(k);const i=DB.invoices.find(x=>x.id===id);for(let idx=0;idx<n;idx++){i.items[idx].rate=+(v("eit_r"+idx).value||0);i.items[idx].qty=+(v("eit_q"+idx).value||1);}i.mode=v("ei_mode").value;if(i.mode!=="Bill later")i.status="Pending";logAudit("Invoice","Edited "+id);save();closeModal();viewInvoice(id);}
+function saveEditInvoice(id,n){const v=k=>document.getElementById(k);const i=DB.invoices.find(x=>x.id===id);for(let idx=0;idx<n;idx++){i.items[idx].rate=+(v("eit_r"+idx).value||0);i.items[idx].qty=+(v("eit_q"+idx).value||1);}const m=v("ei_mode").value;i.mode=m==="Corporate / Insurance"?"Corporate":m;if(i.mode!=="Bill later")i.status="Pending";logAudit("Invoice","Edited "+id);save();closeModal();viewInvoice(id);}
 async function downloadReceiptPDF(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);const t=invTotals(i);
  const jsPDFLib=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;if(!jsPDFLib){alert("PDF library not loaded. Refresh the page and try again.");return;}
  const doc=new jsPDFLib({unit:"mm",format:"a5"});let y=15;
@@ -2123,17 +2170,19 @@ views.expenses=()=>{const ex=DB.expenses.filter(inBranch);const total=ex.reduce(
  </div>
  <div class="panel"><div class="panel-h"><h3>Expenses</h3><button class="btn" onclick="expForm()">+ Add Expense</button></div>
  <div class="panel-b flush"><table><thead><tr><th>Date</th><th>Category</th><th>Note</th><th style="text-align:right">Amount</th></tr></thead><tbody>
- ${ex.sort((a,b)=>b.date.localeCompare(a.date)).map(e=>`<tr><td>${fmtDate(e.date)}</td><td><span class="tag purple">${e.cat}</span></td><td>${e.note||''}${e.bill?' <span class="tag gray">📎 '+e.bill+'</span>':''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td></tr>`).join("")||'<tr><td colspan=4 class=empty>No expenses</td></tr>'}
+ ${ex.sort((a,b)=>b.date.localeCompare(a.date)).map(e=>`<tr><td>${fmtDate(e.date)}</td><td><span class="tag purple">${e.cat}</span></td><td>${e.note||''}${e.bill?` <span class="tag gray${e.billData?' clk':''}"${e.billData?` onclick=\"viewExpBill('${e.id}')\"`:''}>📎 ${e.bill}</span>`:''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td></tr>`).join("")||'<tr><td colspan=4 class=empty>No expenses</td></tr>'}
  </tbody></table></div></div>`;};
 function expForm(){openModal(`<div class="modal-h"><h3>Add Expense</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b"><div class="grid2"><div class="field"><label>Date</label><input id="x_date" type="date" value="${todayISO}"></div>
   <div class="field"><label>Category</label><input id="x_cat" list="catlist" placeholder="Pick from list or type your own"><datalist id="catlist">${CATLIST.map(c=>`<option value="${c}">`).join("")}</datalist></div></div>
   <div class="field"><label>Amount (₹)</label><input id="x_amt" type="number"></div>
   <div class="field"><label>Note</label><input id="x_note"></div>
-  <div class="field"><label>Bill photo (optional)</label><input type="file" id="x_bill" accept="image/*" onchange="previewBill(this)"><div id="x_billprev" class="muted" style="font-size:12px;margin-top:6px">No bill attached (demo: shown as preview, filename saved).</div></div></div>
+  <div class="field"><label>Bill photo (optional)</label><input type="file" id="x_bill" accept="image/*" capture="environment" onchange="previewBill(this)"><div id="x_billprev" class="muted" style="font-size:12px;margin-top:6px">No bill attached.</div></div></div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveExp()">Save</button></div>`);}
-function previewBill(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{document.getElementById("x_billprev").innerHTML='<img src="'+e.target.result+'" style="max-width:100%;max-height:170px;border-radius:8px;border:1px solid var(--line)"><div style="margin-top:4px">📎 '+f.name+'</div>';};r.readAsDataURL(f);}
-function saveExp(){const v=k=>document.getElementById(k).value;const f=document.getElementById("x_bill").files[0];DB.expenses.push({id:uid("e"),date:v("x_date"),cat:v("x_cat")||"Other",amount:+v("x_amt")||0,note:v("x_note"),bill:f?f.name:"",branch:curBranch()==="all"?"b1":curBranch()});save();closeModal();render();}
+function previewBill(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{window._expBillData=e.target.result;document.getElementById("x_billprev").innerHTML='<img src="'+e.target.result+'" style="max-width:100%;max-height:170px;border-radius:8px;border:1px solid var(--line)"><div style="margin-top:4px">📎 '+f.name+'</div>';};r.readAsDataURL(f);}
+function saveExp(){const v=k=>document.getElementById(k).value;const f=document.getElementById("x_bill").files[0];DB.expenses.push({id:uid("e"),date:v("x_date"),cat:v("x_cat")||"Other",amount:+v("x_amt")||0,note:v("x_note"),bill:f?f.name:"",billData:f?(window._expBillData||""):"",branch:curBranch()==="all"?"b1":curBranch()});window._expBillData=null;save();closeModal();render();}
+function viewExpBill(id){const e=(DB.expenses||[]).find(x=>x.id===id);if(!e||!e.billData){alert("No bill photo saved for this expense.");return;}
+ const w=window.open('','_blank');w.document.write('<!DOCTYPE html><html><head><title>'+(e.bill||'Bill')+'</title><style>body{margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh}img{max-width:100%;max-height:100vh}</style></head><body><img src="'+e.billData+'"></body></html>');w.document.close();}
 
 /* REPORTS */
 let _rptMonth="";
@@ -2217,9 +2266,38 @@ views.staff=()=>{const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===c
   <div class="panel"><div class="panel-h"><h3>Payroll (June)</h3></div><div class="panel-b">
    ${list.map(s=>`<div class="list-row" style="display:flex;justify-content:space-between"><span>${s.name}</span><b>${inr(s.salary)}</b></div>`).join("")}
    <div class="list-row" style="display:flex;justify-content:space-between"><b>Total payroll</b><b style="color:var(--brand)">${inr(list.reduce((a,s)=>a+s.salary,0))}</b></div>
-   <button class="btn sm" style="margin-top:10px" onclick="alert('Demo: payslips generated & shared')">Generate payslips</button>
+   <button class="btn sm" style="margin-top:10px" onclick="downloadPayslips()">⬇ Generate payslips</button>
   </div></div>
  </div>`;};
+function downloadPayslips(){
+ const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===curBranch());
+ if(!list.length){alert("No staff members to generate payslips for.");return;}
+ const jsPDFLib=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;if(!jsPDFLib){alert("PDF library not loaded. Refresh the page and try again.");return;}
+ const doc=new jsPDFLib({unit:"mm",format:"a5"});const W=148,M=14;
+ const monthLabel=new Date(todayISO).toLocaleString("en-IN",{month:"long",year:"numeric"});
+ list.forEach((s,idx)=>{
+  if(idx>0)doc.addPage();
+  let y=15;
+  doc.setFillColor(11,27,61);doc.rect(0,0,W,20,'F');doc.setTextColor(255,255,255);doc.setFontSize(13);doc.setFont("helvetica","bold");
+  doc.text(DB.settings.clinic||"PhysioMind",M,12);doc.setFontSize(9);doc.setFont("helvetica","normal");doc.text("Payslip — "+monthLabel,W-M,12,{align:"right"});
+  doc.setTextColor(0,0,0);y=28;
+  function ln(txt,size,bold){doc.setFontSize(size||10.5);doc.setFont("helvetica",bold?"bold":"normal");const lines=doc.splitTextToSize(txt,W-2*M);doc.text(lines,M,y);y+=lines.length*(size?size*0.42:5)+2;}
+  function rule(){doc.setDrawColor(200);doc.line(M,y,W-M,y);y+=4;}
+  ln(s.name,12,true);
+  ln(s.role+(s.phone?"  ·  "+s.phone:""),9.5);
+  rule();
+  ln("Attendance: "+s.present+" days present, "+s.leave+" leave(s)",10);
+  rule();
+  const gross=s.salary||0;
+  ln("Gross salary: "+inr(gross),11,true);
+  ln("Deductions: ₹0",10);
+  ln("Net payable: "+inr(gross),12,true);
+  rule();
+  ln("Generated "+new Date().toLocaleDateString("en-IN"),8.5);
+ });
+ doc.save("Payslips_"+monthLabel.replace(" ","_")+".pdf");
+ if(typeof logAudit==='function')logAudit('Payslips','Generated & downloaded for '+monthLabel,'');
+}
 function staffForm(){openModal(`<div class="modal-h"><h3>Add Member</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="field"><label>Name</label><input id="m_name"></div>
@@ -2703,7 +2781,9 @@ function aRenderROM(){
   if(!a.regions.length&&!a.romRegions.length){body.innerHTML=bar+'<div class="empty-reg">Select a body region above or use the pills to add regions here.</div>';return;}
   body.innerHTML=bar+allRom.map(r=>{const mvs=AROM[r]||[];const sv=a.rom[r]||{};
     const fromMain=a.regions.includes(r);
-    return'<div class="aregion-block"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+r+' — ROM</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div><div style="overflow-x:auto"><table class="rom-tbl"><thead><tr><th>Movement</th><th>Active</th><th>Passive</th><th>Normal</th></tr></thead><tbody>'+mvs.map(function(item){var mv=item.mv,norm=item.norm;var s=sv[mv]||{};return'<tr><td>'+mv+'</td><td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="'+(s.active||'')+'" oninput="aROM(\''+r+'\',\''+mv+'\',\'active\',this.value)"><span>°</span></div></td><td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="'+(s.passive||'')+'" oninput="aROM(\''+r+'\',\''+mv+'\',\'passive\',this.value)"><span>°</span></div></td><td class="rom-norm-a">'+norm+'</td></tr>';}).join('')+'</tbody></table></div></div>';
+    const side=a.regionSides[r];
+    const sideBtns='<div class="rsa-inline">'+['L','R','B'].map(function(sv2){return'<button type="button" class="rside-a'+(side===sv2?' rsa-active':'')+'" onclick="aSetSide(\''+r+'\',\''+sv2+'\')">'+sv2+'</button>';}).join('')+'</div>';
+    return'<div class="aregion-block"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+r+' — ROM</span>'+sideBtns+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div><div style="overflow-x:auto"><table class="rom-tbl"><thead><tr><th>Movement</th><th>Active</th><th>Passive</th><th>Normal</th></tr></thead><tbody>'+mvs.map(function(item){var mv=item.mv,norm=item.norm;var s=sv[mv]||{};return'<tr><td>'+mv+'</td><td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="'+(s.active||'')+'" oninput="aROM(\''+r+'\',\''+mv+'\',\'active\',this.value)"><span>°</span></div></td><td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="'+(s.passive||'')+'" oninput="aROM(\''+r+'\',\''+mv+'\',\'passive\',this.value)"><span>°</span></div></td><td class="rom-norm-a">'+norm+'</td></tr>';}).join('')+'</tbody></table></div></div>';
   }).join('');
 }
 function aROM(r,mv,t,v){const a=window._aForm;if(!a)return;if(!a.rom[r])a.rom[r]={};if(!a.rom[r][mv])a.rom[r][mv]={};a.rom[r][mv][t]=v;}
@@ -2717,7 +2797,9 @@ function aRenderMMT(){
   if(!a.regions.length&&!a.mmtRegions.length){body.innerHTML=bar+'<div class="empty-reg">Select a body region above or use the pills to add regions here.</div>';return;}
   body.innerHTML=bar+allMmt.map(r=>{const ms=AMMT[r]||[];const sv=a.mmt[r]||{};
     const fromMain=a.regions.includes(r);
-    return'<div class="aregion-block"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+r+' — MMT</span>'+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div><div style="overflow-x:auto"><table class="mmt-tbl"><thead><tr><th>Muscle</th><th>Grade (0–5)</th><th>Notes</th></tr></thead><tbody>'+ms.map(function(m){var g=sv[m]!=null?sv[m]:null;var mid=(r+'_'+m).replace(/[\s\/\(\)]/g,'_');return'<tr><td>'+m+'</td><td><div class="mmt-btns">'+[0,1,2,3,4,5].map(function(gv){return'<button id="ammt-'+mid+'-'+gv+'" class="'+(g===gv?'mmt-on':'')+'" onclick="aMMT(\''+r+'\',\''+m+'\','+gv+')">'+gv+'</button>';}).join('')+'</div></td><td><input style="width:130px;padding:4px 7px;border:1px solid var(--line);border-radius:5px;font-size:12px" placeholder="e.g. pain…" value="'+(sv[m+'_note']||'')+'" oninput="aMMTNote(\''+r+'\',\''+m+'\',this.value)"></td></tr>';}).join('')+'</tbody></table></div></div>';
+    const side=a.regionSides[r];
+    const sideBtns='<div class="rsa-inline">'+['L','R','B'].map(function(sv2){return'<button type="button" class="rside-a'+(side===sv2?' rsa-active':'')+'" onclick="aSetSide(\''+r+'\',\''+sv2+'\')">'+sv2+'</button>';}).join('')+'</div>';
+    return'<div class="aregion-block"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+r+' — MMT</span>'+sideBtns+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div><div style="overflow-x:auto"><table class="mmt-tbl"><thead><tr><th>Muscle</th><th>Grade (0–5)</th><th>Notes</th></tr></thead><tbody>'+ms.map(function(m){var g=sv[m]!=null?sv[m]:null;var mid=(r+'_'+m).replace(/[\s\/\(\)]/g,'_');return'<tr><td>'+m+'</td><td><div class="mmt-btns">'+[0,1,2,3,4,5].map(function(gv){return'<button id="ammt-'+mid+'-'+gv+'" class="'+(g===gv?'mmt-on':'')+'" onclick="aMMT(\''+r+'\',\''+m+'\','+gv+')">'+gv+'</button>';}).join('')+'</div></td><td><input style="width:130px;padding:4px 7px;border:1px solid var(--line);border-radius:5px;font-size:12px" placeholder="e.g. pain…" value="'+(sv[m+'_note']||'')+'" oninput="aMMTNote(\''+r+'\',\''+m+'\',this.value)"></td></tr>';}).join('')+'</tbody></table></div></div>';
   }).join('');
 }
 function aMMT(r,m,g){const a=window._aForm;if(!a)return;if(!a.mmt[r])a.mmt[r]={};a.mmt[r][m]=g;const mid=(r+"_"+m).replace(/[\s\/\(\)]/g,"_");[0,1,2,3,4,5].forEach(gv=>{const b=document.getElementById("ammt-"+mid+"-"+gv);if(b)b.classList.toggle("mmt-on",gv===g);});}
