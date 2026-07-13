@@ -751,7 +751,7 @@ function showBackups(){
 // 7-day download nudge
 (function(){const K="pm_last_dl";const last=+localStorage.getItem(K)||0;const days=(Date.now()-last)/(864e5);if(last&&days>7){setTimeout(()=>{const b=document.createElement("div");b.id="backup_nudge";b.style.cssText="position:fixed;bottom:18px;right:18px;z-index:9999;background:#1a1a2e;color:#fff;border-radius:12px;padding:12px 16px;max-width:300px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.3)";b.innerHTML=`<b>📥 Backup reminder</b><div style="margin:6px 0 10px;color:#ccc">It's been ${Math.floor(days)} days since your last data backup.</div><div style="display:flex;gap:8px"><button class="btn sm" onclick="exportDB();localStorage.setItem('${K}',Date.now());document.getElementById('backup_nudge').remove()">Download now</button><button class="btn sm sec" style="background:transparent;color:#ccc;border:1px solid #555" onclick="document.getElementById('backup_nudge').remove()">Later</button></div>`;document.body.appendChild(b);},2000);}})();
 function exportDB(){const b=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="PhysioMind_backup_"+todayISO+".json";a.click();localStorage.setItem("pm_last_dl",Date.now());}
-function importDB(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!d.patients||!d.plans){alert("Invalid backup file");return;}DB=d;save();fillBranches();render();alert("Data imported successfully ✅");}catch{alert("Could not read file");}};r.readAsText(f);}
+function importDB(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!d.patients||!d.plans){alert("Invalid backup file");return;}if(!confirm("This will replace your clinic's LIVE data in Supabase — everyone signed in will see this backup's data instead of what's there now. This cannot be undone. Continue?")){e.target.value="";return;}DB=d;save();fillBranches();render();alert("Data restored to Supabase successfully ✅");}catch{alert("Could not read file");}};r.readAsText(f);}
 // App data loads after sign-in (see afterLogin → sbLoadData above), not synchronously here.
 if(!sb){const eEl=document.getElementById('demoPassErr');if(eEl){eEl.innerHTML="⚠️ Supabase isn't configured yet.<br>Paste your Project URL and anon key at the top of the &lt;script&gt; tag.";eEl.style.display='block';}}
 
@@ -977,6 +977,7 @@ function togglePatientStatus(id){
  save();render();
 }
 function patientView(id,tab){const p=pById(id);const T=tab||"assess";
+ logAudit("Viewed","Opened patient record",p.name);
  const invs=DB.invoices.filter(i=>i.pid===id),asmts=(DB.assessments||[]).filter(c=>c.pid===id).sort((a,b)=>b.date.localeCompare(a.date)),pkgs=DB.patientPkgs.filter(x=>x.pid===id),plans=DB.plans.filter(t=>t.pid===id);
  const homePlans=plans.filter(t=>t.home&&Array.isArray(t.home)&&t.home.length);
  const visits=[];plans.forEach(t=>(t.visits||[]).forEach(s=>visits.push({...s,planId:t.id})));visits.sort((a,b)=>b.date.localeCompare(a.date)||b.n-a.n);
@@ -1133,13 +1134,14 @@ function uploadDoc(id){
   if(!inp){inp=document.createElement("input");inp.type="file";inp.id="_docFileInput";inp.accept="image/*,application/pdf";inp.style.display="none";document.body.appendChild(inp);}
   inp.value="";
   inp.onchange=async function(){
-    const file=inp.files&&inp.files[0];if(!file)return;
-    if(file.size>8*1024*1024){alert("File is too large (max 8MB). Please choose a smaller file or take a lower-res photo.");return;}
+    const rawFile=inp.files&&inp.files[0];if(!rawFile)return;
+    if(rawFile.size>8*1024*1024){alert("File is too large (max 8MB). Please choose a smaller file or take a lower-res photo.");return;}
     if(!sb){alert("Supabase isn't connected — can't upload right now.");return;}
     const p=pById(id);
-    const path=id+"/"+Date.now()+"_"+file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
     toast("Uploading…",8000);
-    const {error}=await sb.storage.from("patient-documents").upload(path,file,{upsert:false});
+    const file=await compressImage(rawFile);
+    const path=id+"/"+Date.now()+"_"+file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+    const {error}=await sb.storage.from("patient-documents").upload(path,file,{upsert:false,contentType:file.type});
     if(error){alert("Upload failed: "+error.message);return;}
     (p.docs=p.docs||[]).push({n:file.name,d:todayISO,path,type:file.type&&file.type.indexOf("pdf")>-1?"pdf":"image"});
     save();toast("✓ Uploaded");patientView(id);
@@ -1942,6 +1944,8 @@ function savePkgPayment(pid){const v=k=>document.getElementById(k).value;const p
 
 /* BILLING */
 let _invSearch="",_invDate="",_invMonth="",_invPage=0;
+let _invOpenMonths={};
+function toggleInvMonth(m){_invOpenMonths[m]=!(_invOpenMonths[m]!==undefined?_invOpenMonths[m]:(m===todayISO.slice(0,7)));render();}
 views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.date.localeCompare(a.date)||(b.id>a.id?1:-1));
  const paid=inv.filter(i=>i.status==='Paid').reduce((s,i)=>s+invTotals(i).total,0);
  const pend=inv.filter(i=>i.status==='Pending').reduce((s,i)=>s+invTotals(i).total,0);
@@ -1952,6 +1956,35 @@ views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.
  const expToday=DB.expenses.filter(inBranch).filter(e=>e.date===todayISO).reduce((s,e)=>s+e.amount,0);
  const q=_invSearch.toLowerCase().trim();
  const filtered=inv.filter(i=>{const p=pById(i.pid);const nameMatch=!q||p.name.toLowerCase().includes(q)||i.id.toLowerCase().includes(q);const dateMatch=!_invDate||i.date===_invDate;const monthMatch=!_invMonth||(i.date||"").startsWith(_invMonth);return nameMatch&&monthMatch&&dateMatch;});
+ const isFiltering=!!(q||_invDate||_invMonth);
+ const rowHTML=i=>{const p=pById(i.pid);const desc=(i.items&&i.items[0]&&i.items[0].d)||'';return `<tr class="clk" onclick="viewInvoice('${i.id}')"><td><b>${i.id}</b></td><td>${p.name}</td><td>${fmtDate(i.date)}</td><td><b>${inr(invTotals(i).total)}</b></td><td>${i.mode}<div class="muted" style="font-size:10.5px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${desc}</div></td><td><span class="tag ${statusTag(i.status)}">${i.status}</span></td><td style="text-align:right">${i.status==='Pending'?`<button class="btn sm" onclick="event.stopPropagation();markPaid('${i.id}')">Mark paid</button> <button class="btn sm sec" onclick="event.stopPropagation();payRemind('${i.id}')">🔔</button>`:'<span class="muted">✓</span>'}</td></tr>`;};
+ let invTableHTML;
+ if(isFiltering){
+   invTableHTML=`<table><thead><tr><th>Invoice #</th><th>Patient</th><th>Date</th><th>Amount</th><th>Mode</th><th>Status</th><th></th></tr></thead><tbody>
+ ${filtered.length?filtered.slice(_invPage*PG,(_invPage+1)*PG).map(rowHTML).join(""):'<tr><td colspan=7 class="empty">No invoices match your search</td></tr>'}
+ </tbody></table><div id="invPgBar">${pgBar(filtered.length,_invPage,'setInvPage')}</div>`;
+ } else {
+   const curMonth=todayISO.slice(0,7);
+   const byMonth={};inv.forEach(i=>{const m=(i.date||'').slice(0,7)||'unknown';(byMonth[m]=byMonth[m]||[]).push(i);});
+   const months=Object.keys(byMonth).sort().reverse();
+   invTableHTML=months.map(m=>{
+     const list=byMonth[m];
+     const monthPaid=list.filter(i=>i.status==='Paid').reduce((s,i)=>s+invTotals(i).total,0);
+     const isOpen=_invOpenMonths[m]!==undefined?_invOpenMonths[m]:(m===curMonth);
+     const label=m==='unknown'?'Unknown date':(MNAMES[+m.slice(5,7)-1]+' '+m.slice(0,4));
+     return `<div style="border-bottom:1px solid var(--line)">
+       <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 17px;cursor:pointer;background:${isOpen?'#f7fafc':'#fff'}" onclick="toggleInvMonth('${m}')">
+         <b>${label}${m===curMonth?' <span class="tag blue" style="margin-left:6px">Current</span>':''}</b>
+         <div style="display:flex;align-items:center;gap:12px">
+           <span class="muted" style="font-size:12.5px">${list.length} invoices</span>
+           <b style="color:var(--ok)">${inr(monthPaid)} collected</b>
+           <span style="font-size:15px;color:var(--muted)">${isOpen?'▾':'▸'}</span>
+         </div>
+       </div>
+       ${isOpen?`<table><thead><tr><th>Invoice #</th><th>Patient</th><th>Date</th><th>Amount</th><th>Mode</th><th>Status</th><th></th></tr></thead><tbody>${list.map(rowHTML).join("")}</tbody></table>`:''}
+     </div>`;
+   }).join("")||'<div class="empty">No invoices</div>';
+ }
  return `<div class="cards" style="grid-template-columns:repeat(3,1fr)">
   <div class="stat"><div class="lbl">Collected</div><div class="val" style="color:var(--ok)">${inr(paid)}</div></div>
   <div class="stat"><div class="lbl">Outstanding</div><div class="val" style="color:var(--warn)">${inr(pend)}</div></div>
@@ -1966,9 +1999,7 @@ views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.
   </div>
   <div class="tools"><button class="btn sm sec" onclick="walletForm()">💳 Wallet top-up</button><button class="btn sm sec" onclick="consultInvForm()">🩺 Consult invoice</button><button class="btn sm" onclick="invForm()">+ Session invoice</button></div>
  </div>
- <div class="panel-b flush"><table><thead><tr><th>Invoice #</th><th>Patient</th><th>Date</th><th>Amount</th><th>Mode</th><th>Status</th><th></th></tr></thead><tbody>
- ${filtered.length?filtered.slice(_invPage*PG,(_invPage+1)*PG).map(i=>{const p=pById(i.pid);const desc=(i.items&&i.items[0]&&i.items[0].d)||'';return `<tr class="clk" onclick="viewInvoice('${i.id}')"><td><b>${i.id}</b></td><td>${p.name}</td><td>${fmtDate(i.date)}</td><td><b>${inr(invTotals(i).total)}</b></td><td>${i.mode}<div class="muted" style="font-size:10.5px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${desc}</div></td><td><span class="tag ${statusTag(i.status)}">${i.status}</span></td><td style="text-align:right">${i.status==='Pending'?`<button class="btn sm" onclick="event.stopPropagation();markPaid('${i.id}')">Mark paid</button> <button class="btn sm sec" onclick="event.stopPropagation();payRemind('${i.id}')">🔔</button>`:'<span class="muted">✓</span>'}</td></tr>`;}).join(""):'<tr><td colspan=7 class="empty">No invoices match your search</td></tr>'}
- </tbody></table><div id="invPgBar">${pgBar(filtered.length,_invPage,'setInvPage')}</div></div></div>
+ <div class="panel-b flush">${invTableHTML}</div></div>
  <div class="panel"><div class="panel-h"><h3>Day close — ${fmtDate(todayISO)}</h3><button class="btn sm sec" onclick="downloadDayCloseReport()">⬇ Close day & download report</button></div><div class="panel-b">
   <div class="kpi-mini" style="gap:24px">${['Cash','UPI','Card','Wallet','Package','Corporate'].map(m=>`<div><b>${inr(byMode[m]||0)}</b><span>${m}</span></div>`).join("")}</div>
   <hr class="sep">
@@ -2197,17 +2228,38 @@ function saveInv(){
  DB.invoices.push(inv);save();closeModal();render();}
 
 /* EXPENSES */
+let _expOpenMonths={};
+function toggleExpMonth(m){_expOpenMonths[m]=!(_expOpenMonths[m]!==undefined?_expOpenMonths[m]:(m===todayISO.slice(0,7)));render();}
 views.expenses=()=>{const ex=DB.expenses.filter(inBranch);const total=ex.reduce((s,e)=>s+e.amount,0);
  const cats={};ex.forEach(e=>cats[e.cat]=(cats[e.cat]||0)+e.amount);
+ const curMonth=todayISO.slice(0,7);
+ const byMonth={};ex.forEach(e=>{const m=(e.date||'').slice(0,7)||'unknown';(byMonth[m]=byMonth[m]||[]).push(e);});
+ const months=Object.keys(byMonth).sort().reverse();
+ const rowHTML=e=>`<tr><td>${fmtDate(e.date)}</td><td><span class="tag purple">${e.cat}</span></td><td>${e.note||''}${e.bill?` <span class="tag gray">📎 ${e.bill}</span>${e.billPath?` <button class="btn ghost" onclick="viewExpBill('${e.id}')">👁 View</button>`:''}`:''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td></tr>`;
+ const monthBlocks=months.map(m=>{
+   const list=byMonth[m].slice().sort((a,b)=>b.date.localeCompare(a.date));
+   const monthTotal=list.reduce((s,e)=>s+e.amount,0);
+   const isOpen=_expOpenMonths[m]!==undefined?_expOpenMonths[m]:(m===curMonth);
+   const label=m==='unknown'?'Unknown date':(MNAMES[+m.slice(5,7)-1]+' '+m.slice(0,4));
+   return `<div style="border-bottom:1px solid var(--line)">
+     <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 17px;cursor:pointer;background:${isOpen?'#f7fafc':'#fff'}" onclick="toggleExpMonth('${m}')">
+       <b>${label}${m===curMonth?' <span class="tag blue" style="margin-left:6px">Current</span>':''}</b>
+       <div style="display:flex;align-items:center;gap:12px">
+         <span class="muted" style="font-size:12.5px">${list.length} entries</span>
+         <b style="color:var(--danger)">${inr(monthTotal)}</b>
+         <span style="font-size:15px;color:var(--muted)">${isOpen?'▾':'▸'}</span>
+       </div>
+     </div>
+     ${isOpen?`<table><thead><tr><th>Date</th><th>Category</th><th>Note</th><th style="text-align:right">Amount</th></tr></thead><tbody>${list.map(rowHTML).join("")}</tbody></table>`:''}
+   </div>`;
+ }).join("")||'<div class="empty">No expenses</div>';
  return `<div class="cards" style="grid-template-columns:repeat(3,1fr)">
-  <div class="stat"><div class="lbl">Total expenses (month)</div><div class="val" style="color:var(--danger)">${inr(total)}</div></div>
+  <div class="stat"><div class="lbl">Total expenses (all time)</div><div class="val" style="color:var(--danger)">${inr(total)}</div></div>
   <div class="stat"><div class="lbl">Biggest category</div><div class="val" style="font-size:20px">${Object.keys(cats).sort((a,b)=>cats[b]-cats[a])[0]||'—'}</div></div>
   <div class="stat"><div class="lbl">Entries</div><div class="val">${ex.length}</div></div>
  </div>
  <div class="panel"><div class="panel-h"><h3>Expenses</h3><button class="btn" onclick="expForm()">+ Add Expense</button></div>
- <div class="panel-b flush"><table><thead><tr><th>Date</th><th>Category</th><th>Note</th><th style="text-align:right">Amount</th></tr></thead><tbody>
- ${ex.sort((a,b)=>b.date.localeCompare(a.date)).map(e=>`<tr><td>${fmtDate(e.date)}</td><td><span class="tag purple">${e.cat}</span></td><td>${e.note||''}${e.bill?` <span class="tag gray${e.billPath?' clk':''}"${e.billPath?` onclick=\"viewExpBill('${e.id}')\"`:''}>📎 ${e.bill}</span>`:''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td></tr>`).join("")||'<tr><td colspan=4 class=empty>No expenses</td></tr>'}
- </tbody></table></div></div>`;};
+ <div class="panel-b flush">${monthBlocks}</div></div>`;};
 function expForm(){openModal(`<div class="modal-h"><h3>Add Expense</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b"><div class="grid2"><div class="field"><label>Date</label><input id="x_date" type="date" value="${todayISO}"></div>
   <div class="field"><label>Category</label><input id="x_cat" list="catlist" placeholder="Pick from list or type your own"><datalist id="catlist">${CATLIST.map(c=>`<option value="${c}">`).join("")}</datalist></div></div>
@@ -2216,17 +2268,43 @@ function expForm(){openModal(`<div class="modal-h"><h3>Add Expense</h3><button c
   <div class="field"><label>Bill photo (optional)</label><input type="file" id="x_bill" accept="image/*,application/pdf" onchange="previewBill(this)"><div id="x_billprev" class="muted" style="font-size:12px;margin-top:6px">No bill attached.</div></div></div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveExp()">Save</button></div>`);}
 function previewBill(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{const isPdf=f.type&&f.type.indexOf("pdf")>-1;document.getElementById("x_billprev").innerHTML=(isPdf?'<div style="padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg2)">📄 '+f.name+'</div>':'<img src="'+e.target.result+'" style="max-width:100%;max-height:170px;border-radius:8px;border:1px solid var(--line)"><div style="margin-top:4px">📎 '+f.name+'</div>');};r.readAsDataURL(f);}
+// Compresses a photo before upload — resizes to a max dimension and re-encodes as JPEG.
+// Cuts typical phone-camera photos (often 3-8MB) down to a few hundred KB while staying
+// clearly readable on screen. Only applies to images; PDFs pass through untouched.
+function compressImage(file,maxDim,quality){
+ maxDim=maxDim||1600;quality=quality||0.75;
+ return new Promise((resolve)=>{
+  if(!file.type||file.type.indexOf("image")!==0){resolve(file);return;}
+  const img=new Image();
+  const url=URL.createObjectURL(file);
+  img.onload=()=>{
+   URL.revokeObjectURL(url);
+   let w=img.width,h=img.height;
+   if(w>maxDim||h>maxDim){if(w>h){h=Math.round(h*maxDim/w);w=maxDim;}else{w=Math.round(w*maxDim/h);h=maxDim;}}
+   const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
+   canvas.getContext("2d").drawImage(img,0,0,w,h);
+   canvas.toBlob((blob)=>{
+    if(!blob){resolve(file);return;}
+    const compressed=new File([blob],(file.name||"photo").replace(/\.\w+$/,"")+".jpg",{type:"image/jpeg"});
+    resolve(compressed.size<file.size?compressed:file); // keep original if compression didn't actually help
+   },"image/jpeg",quality);
+  };
+  img.onerror=()=>resolve(file); // if it can't load as an image, upload the original untouched
+  img.src=url;
+ });
+}
 async function saveExp(){
  const v=k=>document.getElementById(k).value;
- const f=document.getElementById("x_bill").files[0];
+ const rawF=document.getElementById("x_bill").files[0];
  const id=uid("e");
- const exp={id,date:v("x_date"),cat:v("x_cat")||"Other",amount:+v("x_amt")||0,note:v("x_note"),bill:f?f.name:"",billPath:"",billType:f&&f.type&&f.type.indexOf("pdf")>-1?"pdf":"image",branch:curBranch()==="all"?"b1":curBranch()};
- if(f){
+ const exp={id,date:v("x_date"),cat:v("x_cat")||"Other",amount:+v("x_amt")||0,note:v("x_note"),bill:rawF?rawF.name:"",billPath:"",billType:rawF&&rawF.type&&rawF.type.indexOf("pdf")>-1?"pdf":"image",branch:curBranch()==="all"?"b1":curBranch()};
+ if(rawF){
    if(!sb){alert("Supabase isn't connected — bill photo can't be uploaded right now. Saving expense without it.");}
    else{
      toast("Uploading bill…",8000);
+     const f=await compressImage(rawF);
      const path=id+"/"+Date.now()+"_"+f.name.replace(/[^a-zA-Z0-9._-]/g,"_");
-     const {error}=await sb.storage.from("bill-photos").upload(path,f,{upsert:false});
+     const {error}=await sb.storage.from("bill-photos").upload(path,f,{upsert:false,contentType:f.type});
      if(error){alert("Bill upload failed: "+error.message+" — saving expense without it.");}
      else{exp.billPath=path;}
    }
@@ -2646,12 +2724,12 @@ views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel
   <div class="field"><label>Clinic name</label><input value="${DB.settings.clinic}" onchange="DB.settings.clinic=this.value;save()"></div>
   <div class="field"><label>GSTIN</label><input value="${DB.settings.gstin}" onchange="DB.settings.gstin=this.value;save()"></div>
   <hr class="sep">
-  <b>Data &amp; Backup</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">Data is auto-saved in this browser. Snapshots are taken automatically every time you save — up to 7 kept. Download a JSON file for an offline copy.</div>
+  <b>Data &amp; Backup</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">Your data lives in Supabase (cloud) — the same data shows up on every device you sign into. Download a backup here as an independent copy that doesn't depend on Supabase being reachable.</div>
   <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
    <button class="btn sm" onclick="exportDB()">📥 Download backup (.json)</button>
-   <button class="btn sm sec" onclick="showBackups()">🕐 View auto-snapshots</button>
-   <label class="btn sm sec" style="cursor:pointer">📤 Import backup<input type="file" accept=".json" style="display:none" onchange="importDB(event)"></label>
+   <label class="btn sm sec" style="cursor:pointer">📤 Restore from backup<input type="file" accept=".json" style="display:none" onchange="importDB(event)"></label>
   </div>
+  <div class="muted" style="font-size:11.5px;margin-bottom:10px">⚠️ Restoring a backup replaces your clinic's <b>live cloud data</b> for everyone signed in — not just this device. Use it to undo a serious mistake, not as routine practice.</div>
   <button class="btn sec sm" onclick="cleanOrphanedAppts()">🧹 Clean orphaned appointments</button>
   <button class="btn danger sm" onclick="resetDB()">↺ Reset demo data</button>
  </div></div>
@@ -2731,21 +2809,42 @@ const ANEURO_SYMS=["Radiation / Referral","Numbness","Tingling / Pins & Needles"
 window._aForm = null;
 
 // Assessment stored in DB.assessments (same pattern as consultations)
+let _assessOpenMonths={};
+function toggleAssessMonth(m){_assessOpenMonths[m]=!(_assessOpenMonths[m]!==undefined?_assessOpenMonths[m]:(m===todayISO.slice(0,7)));render();}
 views.assessment=()=>{
   if(!DB.assessments) DB.assessments=[];
   const therOpts=DB.staff.filter(st=>st.role.includes("Physio")).map(st=>`<option value="${st.name}">${st.name}</option>`).join("");
   const all=(DB.assessments||[]).filter(c=>inBranch(pById(c.pid))).filter(c=>!MYTHER||c.therapist===MYTHER).sort((a,b)=>b.date.localeCompare(a.date));
   const filtered=all.filter(c=>{const p=pById(c.pid);const txt=(p.name+" "+(c.dx||"")+" "+c.therapist).toLowerCase();return (!_assessQ||txt.includes(_assessQ))&&(!_assessTher||c.therapist===_assessTher);});
-  const pg2=filtered.slice(_assessPage*PG,(_assessPage+1)*PG);
-  const rows=pg2.map(c=>{const p=pById(c.pid);return `<tr class="clk" onclick="assessView('${c.id}')"><td>${fmtDate(c.date)}</td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div class="nm">${p.name}</div></div></td><td>${c.dx||'—'}</td><td>${c.therapist}</td><td style="text-align:right"><button class="btn sm sec" onclick="event.stopPropagation();printRx('${c.id}','assessment')">🖨 Rx</button></td></tr>`;}).join("")||'<tr><td colspan=5 class=empty>No assessments found</td></tr>';
+  const isFiltering=!!(_assessQ||_assessTher);
+  const rowHTML=c=>{const p=pById(c.pid);return `<tr class="clk" onclick="assessView('${c.id}')"><td>${fmtDate(c.date)}</td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div class="nm">${p.name}</div></div></td><td>${c.dx||'—'}</td><td>${c.therapist}</td><td style="text-align:right"><button class="btn sm sec" onclick="event.stopPropagation();printRx('${c.id}','assessment')">🖨 Rx</button></td></tr>`;};
+  let bodyHTML;
+  if(isFiltering){
+    const pg2=filtered.slice(_assessPage*PG,(_assessPage+1)*PG);
+    bodyHTML=`<table id="assessTable"><thead><tr><th>Date</th><th>Patient</th><th>Diagnosis</th><th>Therapist</th><th></th></tr></thead><tbody id="assessTbody">${pg2.map(rowHTML).join("")||'<tr><td colspan=5 class=empty>No assessments found</td></tr>'}</tbody></table><div id="assessPgBar">${pgBar(filtered.length,_assessPage,'setAssessPage')}</div>`;
+  } else {
+    const curMonth=todayISO.slice(0,7);
+    const byMonth={};all.forEach(c=>{const m=(c.date||'').slice(0,7)||'unknown';(byMonth[m]=byMonth[m]||[]).push(c);});
+    const months=Object.keys(byMonth).sort().reverse();
+    bodyHTML=months.map(m=>{
+      const list=byMonth[m];
+      const isOpen=_assessOpenMonths[m]!==undefined?_assessOpenMonths[m]:(m===curMonth);
+      const label=m==='unknown'?'Unknown date':(MNAMES[+m.slice(5,7)-1]+' '+m.slice(0,4));
+      return `<div style="border-bottom:1px solid var(--line)">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 17px;cursor:pointer;background:${isOpen?'#f7fafc':'#fff'}" onclick="toggleAssessMonth('${m}')">
+          <b>${label}${m===curMonth?' <span class="tag blue" style="margin-left:6px">Current</span>':''}</b>
+          <div style="display:flex;align-items:center;gap:12px"><span class="muted" style="font-size:12.5px">${list.length} assessment${list.length!==1?'s':''}</span><span style="font-size:15px;color:var(--muted)">${isOpen?'▾':'▸'}</span></div>
+        </div>
+        ${isOpen?`<table><thead><tr><th>Date</th><th>Patient</th><th>Diagnosis</th><th>Therapist</th><th></th></tr></thead><tbody>${list.map(rowHTML).join("")}</tbody></table>`:''}
+      </div>`;
+    }).join("")||'<div class="empty">No assessments found</div>';
+  }
   return `<div class="panel"><div class="panel-h"><h3>Assessment Notes</h3><button class="btn" onclick="assessForm()">+ New Assessment</button></div>
- <div style="display:flex;gap:8px;align-items:center;padding:10px 17px 0;flex-wrap:wrap">
-  <input id="assessSearch" type="search" placeholder="🔍 Search patient or diagnosis…" value="${_assessQ}" style="flex:1;min-width:180px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" oninput="_assessQ=this.value.toLowerCase();_assessPage=0;renderAssessTable()">
-  ${MYTHER?'':'<select id="assessTherFilter" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onchange="_assessTher=this.value;_assessPage=0;renderAssessTable()"><option value="">All therapists</option>'+therOpts+'</select>'}
+ <div style="display:flex;gap:8px;align-items:center;padding:10px 17px;flex-wrap:wrap">
+  <input id="assessSearch" type="search" placeholder="🔍 Search patient or diagnosis…" value="${_assessQ}" style="flex:1;min-width:180px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" oninput="_assessQ=this.value.toLowerCase();_assessPage=0;render()">
+  ${MYTHER?'':'<select id="assessTherFilter" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onchange="_assessTher=this.value;_assessPage=0;render()"><option value="">All therapists</option>'+therOpts+'</select>'}
  </div>
- <div class="panel-b flush"><table id="assessTable"><thead><tr><th>Date</th><th>Patient</th><th>Diagnosis</th><th>Therapist</th><th></th></tr></thead><tbody id="assessTbody">
- ${rows}
- </tbody></table><div id="assessPgBar">${pgBar(filtered.length,_assessPage,'setAssessPage')}</div></div></div>`;
+ <div class="panel-b flush">${bodyHTML}</div></div>`;
 };
 
 // aInitView now initialises the modal form after it's opened
@@ -3730,7 +3829,7 @@ function fillBranches(){const sel=document.getElementById("branchSel");const cur
 // is called from afterLogin() once DB has actually loaded, not here at page-load time.)
 
 let _assessPage=0,_assessQ="",_assessTher="";
-function setAssessPage(n){_assessPage=n;renderAssessTable();}
+function setAssessPage(n){_assessPage=n;render();}
 function renderAssessTable(){
   const all=(DB.assessments||[]).filter(c=>inBranch(pById(c.pid))).filter(c=>!MYTHER||c.therapist===MYTHER).sort((a,b)=>b.date.localeCompare(a.date));
   const filtered=all.filter(c=>{const p=pById(c.pid);const txt=(p.name+" "+(c.dx||"")+" "+c.therapist).toLowerCase();return (!_assessQ||txt.includes(_assessQ))&&(!_assessTher||c.therapist===_assessTher);});
@@ -3741,22 +3840,44 @@ function renderAssessTable(){
 }
 function filterAssessTable(){_assessQ=(document.getElementById("assessSearch")?.value||"").toLowerCase();_assessTher=(document.getElementById("assessTherFilter")?.value||"");_assessPage=0;renderAssessTable();}
 
-function logAudit(a,d,p){DB.auditLog=DB.auditLog||[];DB.auditLog.unshift({id:uid("al"),ts:new Date().toISOString(),action:a,detail:d,user:CURROLE||"owner",patient:p||""});if(DB.auditLog.length>500)DB.auditLog=DB.auditLog.slice(0,500);save();}
+function logAudit(a,d,p){DB.auditLog=DB.auditLog||[];DB.auditLog.unshift({id:uid("al"),ts:new Date().toISOString(),action:a,detail:d,user:CURROLE||"owner",patient:p||""});if(DB.auditLog.length>2000)DB.auditLog=DB.auditLog.slice(0,2000);save();}
+let _auditOpenMonths={};
+function toggleAuditMonth(m){_auditOpenMonths[m]=!(_auditOpenMonths[m]!==undefined?_auditOpenMonths[m]:(m===todayISO.slice(0,7)));render();}
 views.audit=function(){
   DB.auditLog=DB.auditLog||[];
   var l=DB.auditLog;
   var fEl=document.getElementById("audit_q");
   var q=fEl?(fEl.value||"").toLowerCase():"";
   var filtered=q?l.filter(function(e){return((e.action||"")+(e.detail||"")+(e.patient||"")).toLowerCase().indexOf(q)>=0;}):l;
+  var body;
+  if(q){
+    body=renderAuditList(filtered.slice(0,300));
+  } else {
+    var curMonth=todayISO.slice(0,7);
+    var byMonth={};l.forEach(function(e){var m=(e.ts||"").slice(0,7)||"unknown";(byMonth[m]=byMonth[m]||[]).push(e);});
+    var months=Object.keys(byMonth).sort().reverse();
+    body=months.map(function(m){
+      var list=byMonth[m];
+      var isOpen=_auditOpenMonths[m]!==undefined?_auditOpenMonths[m]:(m===curMonth);
+      var label=m==="unknown"?"Unknown date":(MNAMES[+m.slice(5,7)-1]+" "+m.slice(0,4));
+      return '<div style="border-bottom:1px solid var(--line)">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 17px;cursor:pointer;background:'+(isOpen?'#f7fafc':'#fff')+'" onclick="toggleAuditMonth(\''+m+'\')">'
+        +'<b>'+label+(m===curMonth?' <span class="tag blue" style="margin-left:6px">Current</span>':'')+'</b>'
+        +'<div style="display:flex;align-items:center;gap:12px"><span class="muted" style="font-size:12.5px">'+list.length+' events</span><span style="font-size:15px;color:var(--muted)">'+(isOpen?'▾':'▸')+'</span></div>'
+        +'</div>'
+        +(isOpen?'<div style="padding:0 17px">'+renderAuditList(list)+'</div>':'')
+        +'</div>';
+    }).join("")||'<div style="text-align:center;color:var(--muted);padding:40px 20px">No audit events yet. Actions like adding patients, invoices, and sessions will appear here.</div>';
+  }
   return '<div class="panel"><div class="panel-h" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3>\uD83D\uDCCB Audit Log</h3><span style="font-size:12px;color:var(--muted)">'+l.length+' total events</span></div>'
-   +'<div class="panel-b"><div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">'
+   +'<div class="panel-b" style="'+(q?'':'padding:0')+'"><div style="display:flex;gap:8px;margin-bottom:'+(q?'14px':'0')+';flex-wrap:wrap;'+(q?'':'padding:14px 17px 0')+'">'
    +'<input id="audit_q" placeholder="\uD83D\uDD0D Search action, patient, detail..." value="'+q+'" oninput="filterAudit()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--bg2)">'
    +'<button onclick="if(!confirm(\'Clear audit log?\'))return;DB.auditLog=[];save();render();" style="padding:8px 14px;background:var(--danger);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Clear Log</button>'
-   +'</div><div id="audit_list">'+renderAuditList(filtered)+'</div></div></div>';
+   +'</div><div id="audit_list" style="'+(q?'':'padding:0 17px 10px')+'">'+body+'</div></div></div>';
 };
 function renderAuditList(l){
   if(!l||!l.length)return'<div style="text-align:center;color:var(--muted);padding:40px 20px">No audit events yet. Actions like adding patients, invoices, and sessions will appear here.</div>';
-  return l.slice(0,500).map(function(e){
+  return l.map(function(e){
     var d=new Date(e.ts);
     var dt=d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})+" "+d.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
     var a=(e.action||"Action");
@@ -3779,12 +3900,7 @@ function renderAuditList(l){
     return h;
   }).join("");
 }
-function filterAudit(){
-  var q=(document.getElementById("audit_q")||{value:""}).value.toLowerCase();
-  var l=(DB.auditLog||[]).filter(function(e){return !q||((e.action||"")+(e.detail||"")+(e.patient||"")).toLowerCase().indexOf(q)>=0;});
-  var el=document.getElementById("audit_list");
-  if(el)el.innerHTML=renderAuditList(l);
-}
+function filterAudit(){render();}
 function bnav(v){document.querySelectorAll(".bnav-btn").forEach(function(b){b.classList.remove("active");});var btn=document.getElementById("bn-"+v);if(btn)btn.classList.add("active");}
 function toggleMoreDrawer(){var d=document.getElementById("moreDrawer"),b=document.getElementById("moreBackdrop");if(d&&d.classList.contains("open")){closeMoreDrawer();}else{if(d)d.classList.add("open");if(b)b.style.display="block";}}
 function closeMoreDrawer(){var d=document.getElementById("moreDrawer"),b=document.getElementById("moreBackdrop");if(d)d.classList.remove("open");if(b)b.style.display="none";}
