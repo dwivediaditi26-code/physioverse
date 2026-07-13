@@ -993,7 +993,7 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
    <button class="btn sm" onclick="assessForm('','${id}')">+ New assessment</button>
    <hr class="sep"><b class="muted">Assessments</b>
    ${asmts.length?asmts.map(c=>`<div class="list-row clk" style="display:flex;justify-content:space-between;align-items:center" onclick="assessView('${c.id}')"><div><b>${c.dx||'Assessment'}</b><div class="mt muted">${fmtDate(c.date)} · ${c.therapist} · ${c.mode==='upload'?'paper scan':'digital'}</div></div><button class="btn ghost" onclick="event.stopPropagation();printRx('${c.id}','assessment')">🖨 Rx</button></div>`).join(""):'<div class=muted style="padding:6px 0">No assessments yet.</div>'}
-   ${(p.docs&&p.docs.length)?`<hr class="sep"><b class="muted">Documents</b>${p.docs.map((d,di)=>`<div class="list-row" style="display:flex;justify-content:space-between;align-items:center"><span style="display:flex;align-items:center;gap:7px">${d.type==='assessment-pdf'?'📄':'📎'} ${d.n}</span><div style="display:flex;gap:6px;align-items:center"><span class="muted">${fmtDate(d.d)}</span>${(d.data||(d.type==='assessment-pdf'&&d.assessId))?`<button class="btn ghost" onclick="viewDoc('${id}',${di})">👁 View</button><button class="btn ghost" onclick="dlDoc('${id}',${di})">⬇</button>`:''}</div></div>`).join("")}`:''}
+   ${(p.docs&&p.docs.length)?`<hr class="sep"><b class="muted">Documents</b>${p.docs.map((d,di)=>`<div class="list-row" style="display:flex;justify-content:space-between;align-items:center"><span style="display:flex;align-items:center;gap:7px">${d.type==='assessment-pdf'?'📄':'📎'} ${d.n}</span><div style="display:flex;gap:6px;align-items:center"><span class="muted">${fmtDate(d.d)}</span>${(d.data||d.path||(d.type==='assessment-pdf'&&d.assessId))?`<button class="btn ghost" onclick="viewDoc('${id}',${di})">👁 View</button><button class="btn ghost" onclick="dlDoc('${id}',${di})">⬇</button>`:''}</div></div>`).join("")}`:''}
    <button class="btn sm sec" style="margin-top:10px" onclick="uploadDoc('${id}')">⬆ Upload document</button>
   </div>
   <div id="pv-treat" style="display:${show('treat')}">
@@ -1132,17 +1132,17 @@ function uploadDoc(id){
   let inp=document.getElementById("_docFileInput");
   if(!inp){inp=document.createElement("input");inp.type="file";inp.id="_docFileInput";inp.accept="image/*,application/pdf";inp.style.display="none";document.body.appendChild(inp);}
   inp.value="";
-  inp.onchange=function(){
+  inp.onchange=async function(){
     const file=inp.files&&inp.files[0];if(!file)return;
     if(file.size>8*1024*1024){alert("File is too large (max 8MB). Please choose a smaller file or take a lower-res photo.");return;}
-    const reader=new FileReader();
-    reader.onload=function(e){
-      const p=pById(id);
-      (p.docs=p.docs||[]).push({n:file.name,d:todayISO,data:e.target.result,type:file.type&&file.type.indexOf("pdf")>-1?"pdf":"image"});
-      save();patientView(id);
-    };
-    reader.onerror=function(){alert("Couldn't read that file. Please try again.");};
-    reader.readAsDataURL(file);
+    if(!sb){alert("Supabase isn't connected — can't upload right now.");return;}
+    const p=pById(id);
+    const path=id+"/"+Date.now()+"_"+file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+    toast("Uploading…",8000);
+    const {error}=await sb.storage.from("patient-documents").upload(path,file,{upsert:false});
+    if(error){alert("Upload failed: "+error.message);return;}
+    (p.docs=p.docs||[]).push({n:file.name,d:todayISO,path,type:file.type&&file.type.indexOf("pdf")>-1?"pdf":"image"});
+    save();toast("✓ Uploaded");patientView(id);
   };
   inp.click();
 }
@@ -2206,7 +2206,7 @@ views.expenses=()=>{const ex=DB.expenses.filter(inBranch);const total=ex.reduce(
  </div>
  <div class="panel"><div class="panel-h"><h3>Expenses</h3><button class="btn" onclick="expForm()">+ Add Expense</button></div>
  <div class="panel-b flush"><table><thead><tr><th>Date</th><th>Category</th><th>Note</th><th style="text-align:right">Amount</th></tr></thead><tbody>
- ${ex.sort((a,b)=>b.date.localeCompare(a.date)).map(e=>`<tr><td>${fmtDate(e.date)}</td><td><span class="tag purple">${e.cat}</span></td><td>${e.note||''}${e.bill?` <span class="tag gray${e.billData?' clk':''}"${e.billData?` onclick=\"viewExpBill('${e.id}')\"`:''}>📎 ${e.bill}</span>`:''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td></tr>`).join("")||'<tr><td colspan=4 class=empty>No expenses</td></tr>'}
+ ${ex.sort((a,b)=>b.date.localeCompare(a.date)).map(e=>`<tr><td>${fmtDate(e.date)}</td><td><span class="tag purple">${e.cat}</span></td><td>${e.note||''}${e.bill?` <span class="tag gray${e.billPath?' clk':''}"${e.billPath?` onclick=\"viewExpBill('${e.id}')\"`:''}>📎 ${e.bill}</span>`:''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td></tr>`).join("")||'<tr><td colspan=4 class=empty>No expenses</td></tr>'}
  </tbody></table></div></div>`;};
 function expForm(){openModal(`<div class="modal-h"><h3>Add Expense</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b"><div class="grid2"><div class="field"><label>Date</label><input id="x_date" type="date" value="${todayISO}"></div>
@@ -2215,11 +2215,32 @@ function expForm(){openModal(`<div class="modal-h"><h3>Add Expense</h3><button c
   <div class="field"><label>Note</label><input id="x_note"></div>
   <div class="field"><label>Bill photo (optional)</label><input type="file" id="x_bill" accept="image/*,application/pdf" onchange="previewBill(this)"><div id="x_billprev" class="muted" style="font-size:12px;margin-top:6px">No bill attached.</div></div></div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveExp()">Save</button></div>`);}
-function previewBill(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{window._expBillData=e.target.result;const isPdf=f.type&&f.type.indexOf("pdf")>-1;document.getElementById("x_billprev").innerHTML=(isPdf?'<div style="padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg2)">📄 '+f.name+'</div>':'<img src="'+e.target.result+'" style="max-width:100%;max-height:170px;border-radius:8px;border:1px solid var(--line)"><div style="margin-top:4px">📎 '+f.name+'</div>');};r.readAsDataURL(f);}
-function saveExp(){const v=k=>document.getElementById(k).value;const f=document.getElementById("x_bill").files[0];DB.expenses.push({id:uid("e"),date:v("x_date"),cat:v("x_cat")||"Other",amount:+v("x_amt")||0,note:v("x_note"),bill:f?f.name:"",billData:f?(window._expBillData||""):"",billType:f&&f.type&&f.type.indexOf("pdf")>-1?"pdf":"image",branch:curBranch()==="all"?"b1":curBranch()});window._expBillData=null;save();closeModal();render();}
-function viewExpBill(id){const e=(DB.expenses||[]).find(x=>x.id===id);if(!e||!e.billData){alert("No bill photo saved for this expense.");return;}
- if(e.billType==="pdf"){window.open(e.billData,"_blank");return;}
- const w=window.open('','_blank');w.document.write('<!DOCTYPE html><html><head><title>'+(e.bill||'Bill')+'</title><style>body{margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh}img{max-width:100%;max-height:100vh}</style></head><body><img src="'+e.billData+'"></body></html>');w.document.close();}
+function previewBill(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{const isPdf=f.type&&f.type.indexOf("pdf")>-1;document.getElementById("x_billprev").innerHTML=(isPdf?'<div style="padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg2)">📄 '+f.name+'</div>':'<img src="'+e.target.result+'" style="max-width:100%;max-height:170px;border-radius:8px;border:1px solid var(--line)"><div style="margin-top:4px">📎 '+f.name+'</div>');};r.readAsDataURL(f);}
+async function saveExp(){
+ const v=k=>document.getElementById(k).value;
+ const f=document.getElementById("x_bill").files[0];
+ const id=uid("e");
+ const exp={id,date:v("x_date"),cat:v("x_cat")||"Other",amount:+v("x_amt")||0,note:v("x_note"),bill:f?f.name:"",billPath:"",billType:f&&f.type&&f.type.indexOf("pdf")>-1?"pdf":"image",branch:curBranch()==="all"?"b1":curBranch()};
+ if(f){
+   if(!sb){alert("Supabase isn't connected — bill photo can't be uploaded right now. Saving expense without it.");}
+   else{
+     toast("Uploading bill…",8000);
+     const path=id+"/"+Date.now()+"_"+f.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+     const {error}=await sb.storage.from("bill-photos").upload(path,f,{upsert:false});
+     if(error){alert("Bill upload failed: "+error.message+" — saving expense without it.");}
+     else{exp.billPath=path;}
+   }
+ }
+ DB.expenses.push(exp);save();closeModal();render();
+}
+async function viewExpBill(id){
+ const e=(DB.expenses||[]).find(x=>x.id===id);if(!e||!e.billPath){alert("No bill photo saved for this expense.");return;}
+ if(!sb){alert("Supabase isn't connected.");return;}
+ const w=window.open('','_blank'); // open synchronously first, so popup blockers allow it
+ const {data,error}=await sb.storage.from('bill-photos').createSignedUrl(e.billPath,3600);
+ if(error||!data){if(w)w.close();alert("Couldn't load bill: "+(error&&error.message||'unknown error'));return;}
+ if(w)w.location=data.signedUrl;
+}
 
 /* REPORTS */
 let _rptMonth="";
@@ -3487,40 +3508,55 @@ function buildAssessPDF(id){
   return {doc,fname,pid:c.pid};
 }
 
-// Save: persist the actual PDF file locally in IndexedDB, record a lightweight
-// reference in patient docs (kept in localStorage), then download to the device.
-function assessSavePDF(id){
+// Save: upload the actual PDF file to Supabase Storage (works from any device),
+// keep a local IndexedDB copy too for instant offline access, then download to the device.
+async function assessSavePDF(id){
   const built=buildAssessPDF(id);if(!built)return;
   const {doc,fname,pid}=built;
   const p=pById(pid);
   const c=DB.assessments.find(x=>x.id===id);
+  const blob=doc.output('blob');
+  let storagePath="";
+  if(sb){
+    toast("Uploading PDF…",8000);
+    const path="assessments/"+id+".pdf";
+    const {error}=await sb.storage.from("assessment-pdfs").upload(path,blob,{upsert:true,contentType:"application/pdf"});
+    if(!error)storagePath=path;else console.error("Assessment PDF upload failed:",error.message);
+  }
   if(p&&p.id){
     if(!p.docs)p.docs=[];
     const existIdx=p.docs.findIndex(d=>d.assessId===id);
-    const docEntry={n:fname,d:(c&&c.date)||todayISO,assessId:id,type:'assessment-pdf'};
+    const docEntry={n:fname,d:(c&&c.date)||todayISO,assessId:id,path:storagePath,type:'assessment-pdf'};
     if(existIdx>-1)p.docs[existIdx]=docEntry;else p.docs.push(docEntry);
     save();
   }
-  idbSavePDF(id,doc.output('blob'),fname);
+  idbSavePDF(id,blob,fname);
   doc.save(fname);
   if(typeof logAudit==='function')logAudit('Assessment PDF','Saved & downloaded for '+(p&&p.name||'patient'),(p&&p.name)||'');
 }
-// View/Download from the patient Documents list — reads the actual saved PDF
-// file from IndexedDB (this device's local storage); falls back to regenerating
-// it from the assessment data only if no saved copy is found there.
-function viewAssessDoc(assessId){
-  idbGetPDF(assessId).then(rec=>{
-    if(rec&&rec.blob){window.open(URL.createObjectURL(rec.blob),'_blank');return;}
-    const built=buildAssessPDF(assessId);if(!built)return;
-    built.doc.output('dataurlnewwindow');
-  });
+// View/Download — tries the real Storage file first (works from any device), then
+// falls back to this device's local IndexedDB cache, then regenerates from data as a last resort.
+async function viewAssessDoc(assessId){
+  const w=window.open('','_blank'); // open synchronously first, so popup blockers allow it
+  if(sb){
+    const {data}=await sb.storage.from('assessment-pdfs').createSignedUrl("assessments/"+assessId+".pdf",3600);
+    if(data&&data.signedUrl){if(w)w.location=data.signedUrl;return;}
+  }
+  const rec=await idbGetPDF(assessId);
+  if(rec&&rec.blob){if(w)w.location=URL.createObjectURL(rec.blob);return;}
+  if(w)w.close();
+  const built=buildAssessPDF(assessId);if(!built)return;
+  built.doc.output('dataurlnewwindow');
 }
-function dlAssessDoc(assessId){
-  idbGetPDF(assessId).then(rec=>{
-    if(rec&&rec.blob){const url=URL.createObjectURL(rec.blob);const a=document.createElement('a');a.href=url;a.download=rec.fname||'Assessment.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),4000);return;}
-    const built=buildAssessPDF(assessId);if(!built)return;
-    built.doc.save(built.fname);
-  });
+async function dlAssessDoc(assessId){
+  if(sb){
+    const {data}=await sb.storage.from('assessment-pdfs').createSignedUrl("assessments/"+assessId+".pdf",3600,{download:true});
+    if(data&&data.signedUrl){const a=document.createElement('a');a.href=data.signedUrl;a.click();return;}
+  }
+  const rec=await idbGetPDF(assessId);
+  if(rec&&rec.blob){const url=URL.createObjectURL(rec.blob);const a=document.createElement('a');a.href=url;a.download=rec.fname||'Assessment.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),4000);return;}
+  const built=buildAssessPDF(assessId);if(!built)return;
+  built.doc.save(built.fname);
 }
 
 
@@ -3559,19 +3595,34 @@ function startSessionFromAssess(id){
 }
 
 // ── Document helpers (patient profile docs tab) ──
-function viewDoc(pid,idx){
+async function viewDoc(pid,idx){
   const p=pById(pid);if(!p||!p.docs)return;
   const d=p.docs[idx];if(!d)return;
   if(d.type==='assessment-pdf'&&d.assessId){viewAssessDoc(d.assessId);return;}
+  if(d.path){
+    const w=window.open('','_blank'); // open synchronously first, so popup blockers allow it
+    if(!sb){alert("Supabase isn't connected.");if(w)w.close();return;}
+    const {data,error}=await sb.storage.from('patient-documents').createSignedUrl(d.path,3600);
+    if(error||!data){if(w)w.close();alert("Couldn't load file: "+(error&&error.message||'unknown error'));return;}
+    if(w)w.location=data.signedUrl;
+    return;
+  }
   if(!d.data)return;
   const w=window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html><head><title>${d.n}</title><style>body,html{margin:0;padding:0;height:100%}iframe{border:none;width:100%;height:100vh}</style></head><body><iframe src="${d.data}"></iframe></body></html>`);
   w.document.close();
 }
-function dlDoc(pid,idx){
+async function dlDoc(pid,idx){
   const p=pById(pid);if(!p||!p.docs)return;
   const d=p.docs[idx];if(!d)return;
   if(d.type==='assessment-pdf'&&d.assessId){dlAssessDoc(d.assessId);return;}
+  if(d.path){
+    if(!sb){alert("Supabase isn't connected.");return;}
+    const {data,error}=await sb.storage.from('patient-documents').createSignedUrl(d.path,3600,{download:d.n});
+    if(error||!data){alert("Couldn't download file: "+(error&&error.message||'unknown error'));return;}
+    const a=document.createElement('a');a.href=data.signedUrl;a.download=d.n;a.click();
+    return;
+  }
   if(!d.data)return;
   const a=document.createElement('a');a.href=d.data;a.download=d.n;a.click();
 }
