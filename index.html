@@ -468,7 +468,8 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
       <div class="logo" style="width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);display:grid;place-items:center;font-weight:800;color:#fff;font-size:22px">PM</div>
     </div>
     <h1 style="font-size:22px;margin-bottom:4px;color:#fff">PhysioMind</h1>
-    <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:22px">Sign in to your clinic</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:4px">Sign in to your clinic</div>
+    <div style="font-size:10px;color:#f87171;font-weight:700;margin-bottom:18px">BUILD-CHECK: v14-navfix</div>
     <div class="field" style="text-align:left">
       <label style="color:rgba(255,255,255,0.8)">Email</label>
       <input type="email" id="loginEmail" placeholder="you@clinic.com" autocomplete="username">
@@ -699,6 +700,11 @@ async function sbLoadData(){
   if(!DB.attendance)DB.attendance=[];
   (DB.patientPkgs||[]).forEach(k=>{if(k.status==="Active"&&k.expires&&k.expires<todayISO)k.status="Expired";});
   if(DB.plans&&seed.plans){DB.plans.forEach(function(p){var sp=seed.plans.find(function(x){return x.id===p.id;});if(sp){if(!p.modalities||!p.modalities.length)p.modalities=sp.modalities||[];if(!p.exercises||!p.exercises.length)p.exercises=sp.exercises||[];if(!p.home||!p.home.length)p.home=sp.home||[];if(!p.homeFreq)p.homeFreq=sp.homeFreq||"";}if(!p.homeLinks)p.homeLinks=[];});}
+  // One-time self-heal: sessions logged with inline billing (before this fix) never had
+  // `paid` set to true, only ever left undefined — while sessions from "Next Session" (no
+  // billing) always explicitly have paid:false. That distinction lets us safely tell the two
+  // apart and fix only the buggy ones, without touching genuinely-unpaid sessions.
+  (DB.plans||[]).forEach(function(p){(p.visits||[]).forEach(function(v){if(v.paid===undefined)v.paid=true;});});
  } else {
   // First login for this clinic — nothing in Supabase yet, seed it fresh
   DB=JSON.parse(JSON.stringify(seed));
@@ -937,7 +943,10 @@ views.patients=()=>{
  const all=DB.patients.filter(inBranch).filter(p=>!MYTHER||p.therapist===MYTHER);
  const active=all.filter(p=>(p.status||"Active")==="Active");
  const inactive=all.filter(p=>p.status==="Inactive");
- const list=_ptab==="active"?active:_ptab==="inactive"?inactive:all;
+ const base=_ptab==="active"?active:_ptab==="inactive"?inactive:all;
+ // Most recently added first — reverse first so same-day ties still favor whichever was added
+ // later (patients are pushed to the end of the array as they're created), then stable-sort by date.
+ const list=base.slice().reverse().sort((a,b)=>(b.since||"").localeCompare(a.since||""));
  return `<div class="panel">
   <div class="panel-h" style="flex-wrap:wrap;gap:8px">
    <div style="display:flex;gap:6px">
@@ -1436,10 +1445,8 @@ views.treatment=function(){
   var doneSessions=g.plans.reduce(function(s,t){return s+t.done;},0);
   var pct=totalSessions>0?Math.round(doneSessions/totalSessions*100):0;
   var isActiveNow=(DB.active||[]).includes(g.pid);
-  var firstPlanId=g.plans.length?g.plans[0].id:'';
   var ongoingBtn=isActiveNow
-   ?'<button class="btn sm sec" style="font-size:11px;padding:3px 10px;color:var(--ok);border-color:var(--ok)" onclick="event.stopPropagation();endSession(\''+g.pid+'\');render()">🟢 End</button>'
-    +'<button class="btn sm" style="font-size:11px;padding:3px 10px;background:var(--accent)" onclick="event.stopPropagation();endSession(\''+g.pid+'\');sessionForm(\''+firstPlanId+'\')">💳 End & Pay</button>'
+   ?'<button class="btn sm" style="font-size:11px;padding:3px 10px;background:var(--ok)" onclick="event.stopPropagation();endSession(\''+g.pid+'\');render()">🟢 End Session</button>'
    :'<button class="btn sm" style="font-size:11px;padding:3px 10px;background:var(--teal)" onclick="event.stopPropagation();startSession(\''+g.pid+'\');render()">▶ Ongoing Treatment</button>';
   html+='<div class="list-row" style="padding:0;border-bottom:1px solid var(--line)">';
   // Patient header row — clickable to expand/collapse
@@ -1656,28 +1663,10 @@ function sessionForm(planId,sid,forcedN){const t=DB.plans.find(x=>x.id===planId)
   <div class="field"><label>Exercises done today — remove or add (${EXCOUNT}+ library)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="s_region" onchange="fillEx('s_region','s_exsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${regOpts}</select><select id="s_exsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('s_exsel','s_ex')">+ Add</button></div><textarea id="s_ex" rows="4" placeholder="One per line">${exs.join("\n")}</textarea></div>
   <div class="grid2"><div class="field"><label>Pain today (0–10)</label><input id="s_pain" type="number" min="0" max="10" value="${s?s.pain:''}"></div></div>
   <div class="field"><label>Quick note</label><textarea id="s_note" rows="2">${s?s.note:''}</textarea></div>
-  ${sid?'':`<hr class="sep"><b class="muted" style="font-size:12.5px">Bill this session</b>
-  <div class="grid2" style="margin-top:6px">
-   <div class="field"><label>Session fee (₹)</label><input id="s_fee" type="number" value="800" oninput="updateSessionBillSummary()"></div>
-   <div class="field"><label>Payment mode</label><select id="s_pay" onchange="updateSessionBillSummary()"><option>UPI</option><option>Cash</option><option>Card</option><option>Wallet (advance)</option><option>Package session</option><option>Corporate / Insurance</option><option>Bill later</option><option>No charge</option></select></div>
-  </div>
-  <div id="s_partial_wrap" style="display:none">
-   <div class="grid2">
-    <div class="field"><label>Amount collected now (₹)</label><input id="s_partial" type="number" placeholder="e.g. 400" oninput="updateSessionBillSummary()"></div>
-    <div class="field"><label style="color:var(--muted);font-size:11.5px">Remaining goes as balance due</label><div id="s_partial_remaining" style="font-size:13px;color:var(--danger);font-weight:600;padding-top:9px"></div></div>
-   </div>
-  </div>
-  <div id="s_corporate_wrap" style="display:none">
-   <div class="field"><label>Company / Insurance name</label><input id="s_corp_name" placeholder="e.g. TCS, Star Health Insurance"></div>
-  </div>
-  <div style="margin:8px 0">
-   <label style="display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer"><input type="checkbox" id="s_add_consult" onchange="updateSessionBillSummary()"> Add consultation fee this visit (₹<input id="s_consult_fee" type="number" value="600" style="width:60px;padding:3px 6px;border:1px solid var(--line);border-radius:5px;font-size:13px;display:inline-block" oninput="updateSessionBillSummary()">)</label>
-  </div>
-  <div id="s_bill_summary" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:9px 12px;font-size:12.5px;display:none;margin-top:4px"></div>
-  <div class="muted" style="font-size:12px;margin-top:6px">Session is logged immediately. "Package session" uses one prepaid slot. "Bill later" leaves as pending.</div>`}
+  ${sid?'':`<div class="muted" style="font-size:12px;margin-top:6px">This just logs the clinical details. To bill this session, use the "💳 End & Pay" button afterward.</div>`}
  </div>
  <div class="modal-f">${sid?`<button class="btn danger sec" onclick="delSession('${planId}','${sid}');closeModal()">Remove</button>`:''}<button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveSession('${planId}','${sid||''}',${nextN})">Save session</button></div>`,true);
- fillEx('s_region','s_exsel');setTimeout(updateSessionBillSummary,50);}
+ fillEx('s_region','s_exsel');}
 function updateSessionBillSummary(){
  const pay=document.getElementById("s_pay");if(!pay)return;
  const mode=pay.value;
@@ -1708,58 +1697,7 @@ function updateSessionBillSummary(){
 function saveSession(planId,sid,n){const v=k=>{const el=document.getElementById(k);return el?el.value:""};const t=DB.plans.find(x=>x.id===planId);t.visits=t.visits||[];
  const rec={id:sid||uid("se"),n,date:v("s_date"),time:sid?(t.visits.find(x=>x.id===sid)||{}).time||nowTime():nowTime(),therapist:v("s_ther"),modalities:v("s_mod").split("\n").filter(x=>x.trim()),exercises:v("s_ex").split("\n").filter(x=>x.trim()),pain:v("s_pain"),note:v("s_note")};
  if(sid){const i=t.visits.findIndex(x=>x.id===sid);t.visits[i]=rec;}
- else{t.visits.push(rec);t.done=(t.done||0)+1;
-   const p=pById(t.pid),pay=v("s_pay"),fee=+v("s_fee")||0;
-   const partialAmt=+v("s_partial")||0;
-   const addConsult=document.getElementById("s_add_consult")&&document.getElementById("s_add_consult").checked;
-   const consultFee=addConsult?(+v("s_consult_fee")||0):0;
-   const corpName=v("s_corp_name");
-   if(pay&&pay!=="No charge"){
-     // Build items for invoice
-     let items=[];
-     const sessionDesc="Physiotherapy session"+(t.diagnosis?" — "+t.diagnosis:"");
-     let sessionRate=fee;
-     let invStatus="Paid",invMode=pay;
-     if(pay==="Package session"){
-       const pk=DB.patientPkgs.find(k=>k.pid===t.pid&&k.status==="Active"&&k.used<k.total&&(!k.expires||k.expires>=todayISO));
-       if(pk)pk.used++;
-       items.push({d:sessionDesc+" (covered by package)",qty:1,rate:0});
-       invStatus="Paid";invMode="Package";
-     } else if(pay==="Wallet (advance)"){
-       const gross=fee;
-       if((p.wallet||0)>=gross)p.wallet-=gross;
-       items.push({d:sessionDesc,qty:1,rate:fee});
-       invStatus="Paid";invMode="Wallet";
-     } else if(pay==="Bill later"){
-       items.push({d:sessionDesc,qty:1,rate:fee});
-       invStatus="Pending";invMode="—";
-     } else if(pay==="Corporate / Insurance"){
-       items.push({d:sessionDesc+(corpName?" — "+corpName:""),qty:1,rate:fee});
-       invStatus="Pending";invMode="Corporate";
-     } else {
-       // UPI / Cash / Card — handle partial
-       items.push({d:sessionDesc,qty:1,rate:fee});
-       if(partialAmt>0&&partialAmt<fee){
-         // Raise two invoices: one paid (partial), one pending (remainder)
-         if(consultFee>0)items.push({d:"Consultation fee",qty:1,rate:consultFee});
-         const paidInv={id:nextInvNo(),pid:t.pid,date:rec.date,time:nowTime(),items:[{d:sessionDesc+" (partial payment)",qty:1,rate:partialAmt}],gst:0,status:"Paid",mode:pay,branch:p.branch};
-         DB.invoices.push(paidInv);
-         const pendInv={id:nextInvNo(),pid:t.pid,date:rec.date,time:nowTime(),items:[{d:sessionDesc+" (balance)",qty:1,rate:fee-partialAmt},...(consultFee>0?[{d:"Consultation fee",qty:1,rate:consultFee}]:[])],gst:0,status:"Pending",mode:"—",branch:p.branch};
-         DB.invoices.push(pendInv);
-         save();closeModal();render();return;
-       }
-       invStatus="Paid";invMode=pay;
-     }
-     if(consultFee>0)items.push({d:"Consultation fee",qty:1,rate:consultFee});
-     let inv={id:nextInvNo(),pid:t.pid,date:rec.date,time:nowTime(),items,gst:0,branch:p.branch,status:invStatus,mode:invMode};
-     DB.invoices.push(inv);
-   } else if(pay==="No charge"){
-     // Log complimentary session with ₹0 invoice for records
-     DB.invoices.push({id:nextInvNo(),pid:t.pid,date:rec.date,time:nowTime(),items:[{d:"Complimentary session"+(t.diagnosis?" — "+t.diagnosis:""),qty:1,rate:0}],gst:0,status:"Paid",mode:"Complimentary",branch:p.branch});
-     if(consultFee>0){
-       DB.invoices.push({id:nextInvNo(),pid:t.pid,date:rec.date,time:nowTime(),items:[{d:"Consultation fee",qty:1,rate:consultFee}],gst:0,status:"Paid",mode:pay,branch:p.branch});
-     }
-   }}
+ else{rec.paid=false;t.visits.push(rec);t.done=(t.done||0)+1;}
  save();closeModal();render();}
 function fillEx(regId,exId){const reg=document.getElementById(regId).value;document.getElementById(exId).innerHTML=(EXLIB[reg]||[]).map(e=>`<option>${e}</option>`).join("");}
 function addExTo(exId,taId){const val=document.getElementById(exId).value;if(!val)return;const ta=document.getElementById(taId);ta.value=(ta.value.trim()?ta.value.replace(/\s+$/,'')+"\n":"")+val+" — 3×10";}
@@ -2058,7 +1996,7 @@ function filterPatients(q){
     const hay=(p.name+" "+(p.dob||"")+" "+patientCode(p)+" "+p.condition).toLowerCase();
     const phone=(p.phone||"").replace(/\D/g,"");
     return hay.includes(raw)||(dig.length>=2&&(phone.includes(dig)||patientCode(p).includes(dig)||(p.dob||"").replace(/\D/g,"").includes(dig)));
-  });
+  }).reverse().sort((a,b)=>(b.since||"").localeCompare(a.since||""));
   _patPage=0;setPatPage(0);
 }
 function setInvPage(n){_invPage=n;render();}
@@ -2332,6 +2270,19 @@ async function viewAssessScan(path){
  const {data,error}=await sb.storage.from('assessment-pdfs').createSignedUrl(path,3600);
  if(error||!data){if(w)w.close();alert("Couldn't load file: "+(error&&error.message||'unknown error'));return;}
  if(w)w.location=data.signedUrl;
+}
+// Finds any <img data-path="..."> on the current page and fills in its real src via a
+// signed URL — used so scanned assessment photos preview inline instead of just a "View" link.
+async function loadInlineScanPreviews(){
+ if(!sb)return;
+ const imgs=document.querySelectorAll('img[data-path]:not([data-loaded])');
+ for(const img of imgs){
+  img.setAttribute('data-loaded','1');
+  const path=img.getAttribute('data-path');
+  const {data,error}=await sb.storage.from('assessment-pdfs').createSignedUrl(path,3600);
+  if(error||!data){img.alt='Could not load preview';continue;}
+  img.src=data.signedUrl;img.alt='Assessment scan';
+ }
 }
 async function viewExpBill(id){
  const e=(DB.expenses||[]).find(x=>x.id===id);if(!e||!e.billPath){alert("No bill photo saved for this expense.");return;}
@@ -3151,6 +3102,7 @@ function saveAssess(){
   current="assessment";
   document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.v==="assessment"));
   document.getElementById("view").innerHTML=assessDocHTML(a.id);
+  loadInlineScanPreviews();
   window.scrollTo(0,0);
   window._aForm=null;
 }
@@ -3159,6 +3111,7 @@ function saveAssess(){
 function assessView(id){
   window._viewAssessId=id;
   document.getElementById("view").innerHTML=assessDocHTML(id);
+  loadInlineScanPreviews();
   window.scrollTo(0,0);
 }
 
@@ -3313,9 +3266,10 @@ function assessDocHTML(id){
       ${p.dob?`<div class="adoc-mi"><b>DOB</b>${fmtDate(p.dob)}</div>`:''}
       <div class="adoc-mi"><b>Therapist</b>${c.therapist}</div>
       ${c.mode==='upload'?`<div class="adoc-mi"><b>Mode</b><span class="tag amber">Paper scan</span></div>`:`<div class="adoc-mi"><b>Mode</b><span class="tag teal">Digital template</span></div>`}
-      ${c.assessFile?`<div class="adoc-mi"><b>Attachment</b>📎 ${c.assessFile}${c.assessFilePath?` <button class="btn ghost" style="padding:2px 8px" onclick="viewAssessScan('${c.assessFilePath.replace(/'/g,"\\'")}')">👁 View</button>`:''}</div>`:""}
+      ${c.assessFile?`<div class="adoc-mi"><b>Attachment</b>📎 ${c.assessFile}${c.assessFilePath?` <button class="btn ghost" style="padding:2px 8px" onclick="viewAssessScan('${c.assessFilePath.replace(/'/g,"\\'")}')">👁 Open full size</button>`:''}</div>`:""}
       ${painHTML?`<div class="adoc-mi" style="margin-left:auto">${painHTML}</div>`:""}
     </div>
+    ${c.assessFilePath?`<div style="margin-top:14px"><img id="assessScanImg" data-path="${c.assessFilePath.replace(/"/g,"&quot;")}" alt="Loading scan…" style="width:40%;min-width:260px;max-width:100%;max-height:520px;object-fit:contain;border-radius:10px;border:1px solid var(--line);background:#f8fafc;display:block"></div>`:''}
   </div>
 
   ${sRows?`<div class="adoc-sec">
@@ -3776,7 +3730,7 @@ function assessEdit(id){
     <button class="${existing.mode==='upload'?'active':''}" data-m="upload" onclick="caMode('upload')">📎 Upload paper copy</button>
   </div>
   <div id="ca-upload" style="display:${existing.mode==='upload'?'block':'none'}">
-    <div class="field"><label>Photo / scan</label><input type="file" id="ca_img" accept="image/*" onchange="caPreview(this)"><div id="ca_imgprev" class="muted" style="font-size:12px;margin-top:6px">${existing.assessFile?'📎 '+existing.assessFile:'No file chosen.'}</div></div>
+    <div class="field"><label>Photo / scan</label><input type="file" id="ca_img" accept="image/*" onchange="caPreview(this)"><div id="ca_imgprev" class="muted" style="font-size:12px;margin-top:6px">${existing.assessFilePath?`<img data-path="${existing.assessFilePath.replace(/"/g,"&quot;")}" alt="Loading scan…" style="width:40%;min-width:220px;max-width:100%;max-height:400px;object-fit:contain;border-radius:8px;border:1px solid var(--line);display:block;margin-top:4px">`:(existing.assessFile?'📎 '+existing.assessFile:'No file chosen.')}</div></div>
     <div class="grid2"><div class="field"><label>Chief complaint</label><input id="cau_comp" value="${existing.complaint||''}" oninput="window._aForm.complaint=this.value"></div><div class="field"><label>Pain (0–10)</label><input id="cau_pain" type="number" min="0" max="10" value="${existing.pain??''}" oninput="window._aForm.pain=+this.value"></div></div>
     <div class="field"><label>Diagnosis</label><input id="cau_dx" list="dxlistCA" value="${existing.dx||''}" oninput="window._aForm.dx=this.value"><datalist id="dxlistCA">${DXLIST.map(d=>`<option value="${d}">`).join("")}</datalist></div>
     <div class="field"><label>Quick note</label><textarea id="cau_note" rows="2" oninput="window._aForm.assessment=this.value">${existing.assessment||''}</textarea></div>
@@ -3831,6 +3785,7 @@ function assessEdit(id){
    const pr=document.getElementById("apainRow");if(pr)pr.querySelectorAll("button").forEach((b,i)=>{b.onclick=()=>aSetPain(i);});
    fillEx('ca_exreg','ca_exsel');fillEx('ca_hreg','ca_hsel');
    renderConsultHomeLinks();
+   loadInlineScanPreviews();
  },30);
 }
 
@@ -3945,11 +3900,33 @@ function applyLayoutMode(){
   const isDesktop=window.innerWidth>640;
   const bn=document.getElementById("bottomNav");
   const app=document.querySelector(".app");
-  if(bn)bn.style.display=isDesktop?"none":"";
-  if(app)app.style.paddingBottom=isDesktop?"0":"";
+  const md=document.getElementById("moreDrawer");
+  if(bn)bn.style.setProperty("display",isDesktop?"none":"flex","important");
+  if(app)app.style.setProperty("padding-bottom",isDesktop?"0":"","important");
+  if(isDesktop&&md)md.classList.remove("open");
+  showWidthDebug();
+}
+function showWidthDebug(){
+  let el=document.getElementById("_widthDebug");
+  if(!el){
+    el=document.createElement("div");
+    el.id="_widthDebug";
+    el.style.cssText="position:fixed;top:4px;right:4px;z-index:99999;background:#dc2626;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;font-family:monospace;pointer-events:none";
+    document.body.appendChild(el);
+  }
+  el.textContent="innerWidth: "+window.innerWidth+"px";
 }
 window.addEventListener("resize",applyLayoutMode);
-applyLayoutMode();
+// Something is silently resetting the bottom-nav's display after a single fix runs — rather
+// than keep hunting for the exact cause, force the correct state on a recurring timer so
+// nothing can make it stick in the wrong state for more than a fraction of a second.
+setInterval(applyLayoutMode,400);
+// The bottom-nav element is defined further down in the HTML, after this script tag —
+// calling applyLayoutMode() immediately here would run before that element exists at all,
+// silently doing nothing. Wait until the full page has loaded instead.
+if(document.readyState==="complete"||document.readyState==="interactive"){setTimeout(applyLayoutMode,0);}
+else{document.addEventListener("DOMContentLoaded",applyLayoutMode);}
+window.addEventListener("load",applyLayoutMode);
 </script>
 <nav class="bottom-nav" id="bottomNav"><div class="bottom-nav-inner"><button class="bnav-btn active" id="bn-dashboard" onclick="go('dashboard');bnav('dashboard')"><span class="bico">🏠</span><span>Home</span></button><button class="bnav-btn" id="bn-patients" onclick="go('patients');bnav('patients')"><span class="bico">👤</span><span>Patients</span></button><button class="bnav-btn" id="bn-appointments" onclick="go('appointments');bnav('appointments')"><span class="bico">📅</span><span>Calendar</span></button><button class="bnav-btn" id="bn-billing" onclick="go('billing');bnav('billing')"><span class="bico">💰</span><span>Billing</span></button><button class="bnav-btn" id="bn-more" onclick="toggleMoreDrawer()"><span class="bico">&#8801;</span><span>More</span></button></div></nav><div class="more-drawer" id="moreDrawer"><div class="more-drawer-handle"></div><div class="more-drawer-grid"><button class="more-item" onclick="go('assessment');bnav('more');closeMoreDrawer()"><span class="mico">📝</span>Assessment</button><button class="more-item" onclick="go('treatment');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Treatments</button><button class="more-item" onclick="go('packages');bnav('more');closeMoreDrawer()"><span class="mico">🎁</span>Packages</button><button class="more-item" onclick="go('reminders');bnav('more');closeMoreDrawer()"><span class="mico">🔔</span>Reminders</button><button class="more-item" onclick="go('reports');bnav('more');closeMoreDrawer()"><span class="mico">📈</span>Reports</button><button class="more-item" onclick="go('expenses');bnav('more');closeMoreDrawer()"><span class="mico">💸</span>Expenses</button><button class="more-item" onclick="go('staff');bnav('more');closeMoreDrawer()"><span class="mico">👥</span>Staff</button><button class="more-item" onclick="go('audit');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Audit Log</button><button class="more-item" onclick="go('settings');bnav('more');closeMoreDrawer()"><span class="mico">&#9881;</span>Settings</button></div></div><div id="moreBackdrop" onclick="closeMoreDrawer()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:998;backdrop-filter:blur(2px)"></div></body>
 </html>
