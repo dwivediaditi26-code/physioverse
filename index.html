@@ -540,6 +540,7 @@ const sb = (SUPABASE_URL.indexOf("PASTE_")===-1) ? window.supabase.createClient(
 // ══════════════════════════════════════════════════
 
 function localISO(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function nowTime(){const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}
 const todayISO=localISO(new Date());
 function uid(p){return p+Math.random().toString(36).slice(2,8)}
 const seed={
@@ -802,6 +803,9 @@ const inr=n=>"₹"+(+n).toLocaleString("en-IN");
 const MM=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MNAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fmtDate=iso=>{if(!iso)return"—";const[y,m,d]=iso.split("-");return +d+" "+MM[+m-1]+" "+y;};
+// GST is disabled clinic-wide for new invoices (every creation site now stores gst:0).
+// invTotals still reads each invoice's own stored gst% so OLD invoices keep their true,
+// originally-charged totals — we don't want to retroactively rewrite what a patient actually paid.
 function invTotals(inv){const items=Array.isArray(inv.items)?inv.items:[];const sub=items.reduce((s,i)=>s+(+i.qty||0)*(+i.rate||0),0);const gst=Math.round(sub*(+inv.gst||0))/100;return{sub,gst,total:sub+gst};}
 function nextInvNo(){const yr=new Date(todayISO).getFullYear();let max=0;DB.invoices.forEach(i=>{const m=(i.id||"").match(new RegExp("INV-"+yr+"-(\\d+)$"));if(m)max=Math.max(max,+m[1]);});return "INV-"+yr+"-"+String(max+1).padStart(3,"0");}
 function painTrendSVG(visits){
@@ -1474,7 +1478,7 @@ views.treatment=function(){
       html+='<details'+(isLatest?' open':'')+' style="border-bottom:1px solid var(--line);padding:9px 0">'
        +'<summary style="cursor:pointer;list-style:none">'
        +'<div style="display:flex;justify-content:space-between;align-items:center">'
-       +'<div><b>Session #'+s.n+'</b> <span class="muted" style="font-size:12px">· '+fmtDate(s.date)+'</span>'+(isLatest?' <span class="tag blue" style="font-size:10px">Most recent</span>':'')+'</div>'
+       +'<div><b>Session #'+s.n+'</b> <span class="muted" style="font-size:12px">· '+fmtDate(s.date)+(s.time?' · '+s.time:'')+'</span>'+(isLatest?' <span class="tag blue" style="font-size:10px">Most recent</span>':'')+'</div>'
        +'<div style="display:flex;gap:6px;align-items:center">'
        +(s.pain!==''&&s.pain!=null?'<span class="tag '+(+s.pain<=3?'green':+s.pain<=6?'amber':'red')+'">Pain '+s.pain+'/10</span>':'')
        +'</div></div></summary>'
@@ -1560,7 +1564,7 @@ function saveNextSession(planId,n){
  var v=function(k){var el=document.getElementById(k);return el?el.value:"";};
  var t=DB.plans.find(function(x){return x.id===planId;});
  t.visits=t.visits||[];
- var rec={id:uid("se"),n:n,date:v("s_date"),therapist:v("s_ther"),modalities:v("s_mod").split("\n").filter(function(x){return x.trim();}),exercises:v("s_ex").split("\n").filter(function(x){return x.trim();}),pain:v("s_pain"),note:v("s_note"),paid:false};
+ var rec={id:uid("se"),n:n,date:v("s_date"),time:nowTime(),therapist:v("s_ther"),modalities:v("s_mod").split("\n").filter(function(x){return x.trim();}),exercises:v("s_ex").split("\n").filter(function(x){return x.trim();}),pain:v("s_pain"),note:v("s_note"),paid:false};
  t.visits.push(rec);
  t.done=(t.done||0)+1;
  save();closeModal();render();
@@ -1596,11 +1600,11 @@ function saveSessionPayment(planId,sid){
  var corpName=v("s_corp_name");
  var branch=DB.patients.find(function(x){return x.id===t.pid;})?DB.patients.find(function(x){return x.id===t.pid;}).branch||"b1":"b1";
  // Build invoice number
- var invNum="INV-"+new Date().getFullYear()+"-"+String((DB.invoices||[]).length+1).padStart(3,"0");
+ var invNum=nextInvNo();
  DB.invoices=DB.invoices||[];
  if(pay==="No charge"){
   // Log as complimentary invoice
-  DB.invoices.push({id:invNum,pid:t.pid,date:todayISO,items:[{d:"Physiotherapy session (complimentary)",qty:1,rate:0}],gst:0,status:"Paid",mode:"No charge",branch:branch});
+  DB.invoices.push({id:invNum,pid:t.pid,date:todayISO,time:nowTime(),items:[{d:"Physiotherapy session (complimentary)",qty:1,rate:0}],gst:0,status:"Paid",mode:"No charge",branch:branch});
  } else if(pay==="Package session"){
   // Deduct from patientPkgs. The session itself is already fully paid for as part of the
   // package purchase, so it's logged at ₹0 here — charging the session fee again would be
@@ -1610,24 +1614,24 @@ function saveSessionPayment(planId,sid){
   else{alert("No active package found for this patient. Invoice logged as package.");}
   var pkgItems=[{d:"Physiotherapy session (covered by package)",qty:1,rate:0}];
   if(consultFee>0)pkgItems.push({d:"Consultation fee",qty:1,rate:consultFee});
-  DB.invoices.push({id:invNum,pid:t.pid,date:todayISO,items:pkgItems,gst:18,status:"Paid",mode:"Package",branch:branch});
+  DB.invoices.push({id:invNum,pid:t.pid,date:todayISO,time:nowTime(),items:pkgItems,gst:0,status:"Paid",mode:"Package",branch:branch});
  } else if(pay==="Wallet (advance)"){
   // Deduct from wallet
   var items=[{d:"Physiotherapy session",qty:1,rate:fee}];
   if(consultFee>0)items.push({d:"Consultation fee",qty:1,rate:consultFee});
   var sub=items.reduce(function(s,i){return s+i.qty*i.rate;},0);
-  var total=Math.round(sub*1.18);
+  var total=sub;
   var bal=p.wallet||0;
   p.wallet=Math.max(0,bal-total);
   var status=bal>=total?"Paid":"Partial";
-  DB.invoices.push({id:invNum,pid:t.pid,date:todayISO,items:items,gst:18,status:status,mode:"Wallet",branch:branch,note:"Wallet deduction: ₹"+Math.min(bal,total)+", balance remaining: ₹"+(p.wallet)});
+  DB.invoices.push({id:invNum,pid:t.pid,date:todayISO,time:nowTime(),items:items,gst:0,status:status,mode:"Wallet",branch:branch,note:"Wallet deduction: ₹"+Math.min(bal,total)+", balance remaining: ₹"+(p.wallet)});
  } else {
   // UPI / Cash / Card / Corporate / Bill later
   var items=[{d:"Physiotherapy session",qty:1,rate:fee}];
   if(consultFee>0)items.push({d:"Consultation fee",qty:1,rate:consultFee});
   var status=pay==="Bill later"?"Pending":(partialAmt>0&&partialAmt<fee?"Partial":"Paid");
   var invMode=pay==="Corporate / Insurance"?"Corporate":pay;
-  var inv={id:invNum,pid:t.pid,date:todayISO,items:items,gst:18,status:status,mode:invMode,branch:branch};
+  var inv={id:invNum,pid:t.pid,date:todayISO,time:nowTime(),items:items,gst:0,status:status,mode:invMode,branch:branch};
   if(partialAmt>0&&partialAmt<fee){inv.paid=partialAmt;inv.pending=fee-partialAmt;}
   if(corpName)inv.corp=corpName;
   DB.invoices.push(inv);logAudit("Invoice","Invoice created",inv.patient||"");
@@ -1694,16 +1698,15 @@ function updateSessionBillSummary(){
  if(mode==="Package session"){lines.push("Session: covered by package (₹0)");}
  else if(mode==="No charge"){lines.push("Session: complimentary (₹0)");}
  else{
-   const sessionGross=Math.round(fee*1.18);
    if(partial>0&&partial<fee)lines.push("Session: ₹"+fee.toLocaleString("en-IN")+" (collecting ₹"+partial.toLocaleString("en-IN")+" now, ₹"+(fee-partial).toLocaleString("en-IN")+" pending)");
-   else lines.push("Session: ₹"+fee.toLocaleString("en-IN")+" + GST = ₹"+sessionGross.toLocaleString("en-IN"));
+   else lines.push("Session: ₹"+fee.toLocaleString("en-IN"));
  }
- if(consultFee>0){const cGross=Math.round(consultFee*1.18);lines.push("Consult: ₹"+consultFee.toLocaleString("en-IN")+" + GST = ₹"+cGross.toLocaleString("en-IN"));}
+ if(consultFee>0){lines.push("Consult: ₹"+consultFee.toLocaleString("en-IN"));}
  summary.innerHTML=lines.map(l=>"✓ "+l).join("<br>");
  summary.style.display=lines.length?"block":"none";
 }
 function saveSession(planId,sid,n){const v=k=>{const el=document.getElementById(k);return el?el.value:""};const t=DB.plans.find(x=>x.id===planId);t.visits=t.visits||[];
- const rec={id:sid||uid("se"),n,date:v("s_date"),therapist:v("s_ther"),modalities:v("s_mod").split("\n").filter(x=>x.trim()),exercises:v("s_ex").split("\n").filter(x=>x.trim()),pain:v("s_pain"),note:v("s_note")};
+ const rec={id:sid||uid("se"),n,date:v("s_date"),time:sid?(t.visits.find(x=>x.id===sid)||{}).time||nowTime():nowTime(),therapist:v("s_ther"),modalities:v("s_mod").split("\n").filter(x=>x.trim()),exercises:v("s_ex").split("\n").filter(x=>x.trim()),pain:v("s_pain"),note:v("s_note")};
  if(sid){const i=t.visits.findIndex(x=>x.id===sid);t.visits[i]=rec;}
  else{t.visits.push(rec);t.done=(t.done||0)+1;
    const p=pById(t.pid),pay=v("s_pay"),fee=+v("s_fee")||0;
@@ -1723,7 +1726,7 @@ function saveSession(planId,sid,n){const v=k=>{const el=document.getElementById(
        items.push({d:sessionDesc+" (covered by package)",qty:1,rate:0});
        invStatus="Paid";invMode="Package";
      } else if(pay==="Wallet (advance)"){
-       const gross=Math.round(fee*1.18);
+       const gross=fee;
        if((p.wallet||0)>=gross)p.wallet-=gross;
        items.push({d:sessionDesc,qty:1,rate:fee});
        invStatus="Paid";invMode="Wallet";
@@ -1739,29 +1742,39 @@ function saveSession(planId,sid,n){const v=k=>{const el=document.getElementById(
        if(partialAmt>0&&partialAmt<fee){
          // Raise two invoices: one paid (partial), one pending (remainder)
          if(consultFee>0)items.push({d:"Consultation fee",qty:1,rate:consultFee});
-         const paidInv={id:nextInvNo(),pid:t.pid,date:rec.date,items:[{d:sessionDesc+" (partial payment)",qty:1,rate:partialAmt}],gst:0,status:"Paid",mode:pay,branch:p.branch};
+         const paidInv={id:nextInvNo(),pid:t.pid,date:rec.date,time:nowTime(),items:[{d:sessionDesc+" (partial payment)",qty:1,rate:partialAmt}],gst:0,status:"Paid",mode:pay,branch:p.branch};
          DB.invoices.push(paidInv);
-         const pendInv={id:nextInvNo(),pid:t.pid,date:rec.date,items:[{d:sessionDesc+" (balance)",qty:1,rate:fee-partialAmt},...(consultFee>0?[{d:"Consultation fee",qty:1,rate:consultFee}]:[])],gst:18,status:"Pending",mode:"—",branch:p.branch};
+         const pendInv={id:nextInvNo(),pid:t.pid,date:rec.date,time:nowTime(),items:[{d:sessionDesc+" (balance)",qty:1,rate:fee-partialAmt},...(consultFee>0?[{d:"Consultation fee",qty:1,rate:consultFee}]:[])],gst:0,status:"Pending",mode:"—",branch:p.branch};
          DB.invoices.push(pendInv);
          save();closeModal();render();return;
        }
        invStatus="Paid";invMode=pay;
      }
      if(consultFee>0)items.push({d:"Consultation fee",qty:1,rate:consultFee});
-     let inv={id:nextInvNo(),pid:t.pid,date:rec.date,items,gst:18,branch:p.branch,status:invStatus,mode:invMode};
+     let inv={id:nextInvNo(),pid:t.pid,date:rec.date,time:nowTime(),items,gst:0,branch:p.branch,status:invStatus,mode:invMode};
      DB.invoices.push(inv);
    } else if(pay==="No charge"){
      // Log complimentary session with ₹0 invoice for records
-     DB.invoices.push({id:nextInvNo(),pid:t.pid,date:rec.date,items:[{d:"Complimentary session"+(t.diagnosis?" — "+t.diagnosis:""),qty:1,rate:0}],gst:0,status:"Paid",mode:"Complimentary",branch:p.branch});
+     DB.invoices.push({id:nextInvNo(),pid:t.pid,date:rec.date,time:nowTime(),items:[{d:"Complimentary session"+(t.diagnosis?" — "+t.diagnosis:""),qty:1,rate:0}],gst:0,status:"Paid",mode:"Complimentary",branch:p.branch});
      if(consultFee>0){
-       DB.invoices.push({id:nextInvNo(),pid:t.pid,date:rec.date,items:[{d:"Consultation fee",qty:1,rate:consultFee}],gst:18,status:"Paid",mode:pay,branch:p.branch});
+       DB.invoices.push({id:nextInvNo(),pid:t.pid,date:rec.date,time:nowTime(),items:[{d:"Consultation fee",qty:1,rate:consultFee}],gst:0,status:"Paid",mode:pay,branch:p.branch});
      }
    }}
  save();closeModal();render();}
 function fillEx(regId,exId){const reg=document.getElementById(regId).value;document.getElementById(exId).innerHTML=(EXLIB[reg]||[]).map(e=>`<option>${e}</option>`).join("");}
 function addExTo(exId,taId){const val=document.getElementById(exId).value;if(!val)return;const ta=document.getElementById(taId);ta.value=(ta.value.trim()?ta.value.replace(/\s+$/,'')+"\n":"")+val+" — 3×10";}
 function addLine(selId,taId){const val=document.getElementById(selId).value;if(!val)return;const ta=document.getElementById(taId);const has=ta.value.split("\n").map(x=>x.trim()).includes(val);if(has)return;ta.value=(ta.value.trim()?ta.value.replace(/\s+$/,'')+"\n":"")+val;}
-function planForm(id){const t=id?DB.plans.find(x=>x.id===id):{pid:DB.patients[0].id,diagnosis:"",goal:"",sessions:12,done:0,exercises:[],modalities:[],home:[],homeFreq:"",notes:""};
+function planForm(id,forcedPid){
+ const t=id?DB.plans.find(x=>x.id===id):(function(){
+   const pid=forcedPid||DB.patients[0].id;
+   const latestAsmt=(DB.assessments||[]).filter(a=>a.pid===pid&&a.mode==='template'&&((a.modalities&&a.modalities.length)||(a.exercises&&a.exercises.length)||(a.home&&a.home.length)||a.dx)).sort((a,b)=>b.date.localeCompare(a.date))[0];
+   if(latestAsmt){
+     return {pid,diagnosis:latestAsmt.dx||"",goal:latestAsmt.stg||latestAsmt.ltg||"",sessions:latestAsmt.sessions||12,done:0,
+       exercises:latestAsmt.exercises||[],modalities:latestAsmt.modalities||[],home:latestAsmt.home||[],
+       homeFreq:latestAsmt.homeFreq||"",homeLinks:latestAsmt.homeLinks||[],notes:latestAsmt.advice||"",_fromAssessDate:latestAsmt.date};
+   }
+   return {pid,diagnosis:"",goal:"",sessions:12,done:0,exercises:[],modalities:[],home:[],homeFreq:"",notes:""};
+ })();
  // If plan has no modalities/exercises, pull from most recent session as fallback
  const visits=(t.visits||[]).slice().sort(function(a,b){return b.date.localeCompare(a.date)||b.n-a.n;});
  const lastVisit=visits[0]||null;
@@ -1773,7 +1786,8 @@ function planForm(id){const t=id?DB.plans.find(x=>x.id===id):{pid:DB.patients[0]
  window._hl=JSON.parse(JSON.stringify(t.homeLinks||[]));
  openModal(`<div class="modal-h"><h3>${id?"Edit":"New"} Treatment Plan</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
-  <div class="field"><label>Patient</label><select id="t_pid">${DB.patients.map(p=>`<option value="${p.id}" ${t.pid===p.id?'selected':''}>${p.name}</option>`).join("")}</select></div>
+  <div class="field"><label>Patient</label><select id="t_pid" ${id?'':`onchange="planForm('',this.value)"`}>${DB.patients.map(p=>`<option value="${p.id}" ${t.pid===p.id?'selected':''}>${p.name}</option>`).join("")}</select></div>
+  ${(!id&&t._fromAssessDate)?`<div class="muted" style="font-size:12px;margin:-6px 0 10px">✓ Pre-filled from this patient's assessment on ${fmtDate(t._fromAssessDate)} — review and adjust before saving.</div>`:''}
   <div class="field"><label>Diagnosis</label><input id="t_dx" list="dxlist2" value="${t.diagnosis}" placeholder="Pick from list or type your own"><datalist id="dxlist2">${DXLIST.map(d=>`<option value="${d}">`).join("")}</datalist></div>
   <div class="field"><label>Goal</label><input id="t_goal" value="${t.goal}"></div>
   <div class="grid2"><div class="field"><label>Total sessions</label><input id="t_sess" type="number" value="${t.sessions}"></div><div class="field"><label>Completed</label><input id="t_done" type="number" value="${t.done}"></div></div>
@@ -1782,7 +1796,7 @@ function planForm(id){const t=id?DB.plans.find(x=>x.id===id):{pid:DB.patients[0]
   <div class="field"><label>🏠 Home programme — add exercises for the patient to do at home</label>${picker('h_region','h_exsel','t_home')}<textarea id="t_home" rows="3" placeholder="One exercise per line">${thome.join("\n")}</textarea></div>
   <div class="field"><label>Home programme frequency</label><input id="t_homefreq" value="${t.homeFreq||''}" placeholder="e.g. 2× daily, 7 days a week"></div>
   <div class="field"><label>📎 Exercise video links <span class="muted" style="font-weight:400;font-size:12px">(optional — sent with WhatsApp message)</span></label>
-   <div id="homeLinks_list">${(window._hl).map((l,i)=>`<div style="display:flex;gap:6px;margin-bottom:6px"><input style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${l.name}" placeholder="Exercise name" oninput="window._hl[${i}].name=this.value"><input style="flex:2;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${l.link}" placeholder="YouTube or website link" oninput="window._hl[${i}].link=this.value"><button type="button" class="btn sm sec" onclick="window._hl.splice(${i},1);savePlanTemp();planForm('${id||''}')">✕</button></div>`).join("")}</div>
+   <div id="homeLinks_list">${(window._hl).map((l,i)=>`<div style="display:flex;gap:6px;margin-bottom:6px"><input style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${l.name}" placeholder="Exercise name" oninput="window._hl[${i}].name=this.value"><input style="flex:2;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${l.link}" placeholder="YouTube or website link" oninput="window._hl[${i}].link=this.value"><button type="button" class="btn sm sec" onclick="window._hl.splice(${i},1);savePlanTemp();planForm('${id||''}',document.getElementById('t_pid').value)">✕</button></div>`).join("")}</div>
    <button type="button" class="btn sm sec" style="margin-top:4px" onclick="addHomeLink()">+ Add video link</button>
   </div>
   <div class="field"><label>Clinical notes</label><textarea id="t_notes" rows="2">${t.notes}</textarea></div>
@@ -1908,9 +1922,9 @@ function savePkg(){const v=k=>document.getElementById(k);const pid=v("k_pid").va
  DB.patientPkgs.push({id:uid("pp"),pid,pkg:t.name,total:t.sessions,used:0,price:t.price,paidAmount:paidAmt,bought:todayISO,expires:expISO,status:"Active"});
  const p=pById(pid);
  // Raise invoice for amount paid today
- if(paidAmt>0){DB.invoices.push({id:nextInvNo(),pid,date:todayISO,items:[{d:t.name+(paidAmt<t.price?" (advance payment)":""),qty:1,rate:paidAmt}],gst:18,status:"Paid",mode:v("k_mode").value,branch:p.branch});}
+ if(paidAmt>0){DB.invoices.push({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items:[{d:t.name+(paidAmt<t.price?" (advance payment)":""),qty:1,rate:paidAmt}],gst:0,status:"Paid",mode:v("k_mode").value,branch:p.branch});}
  // If balance remaining, raise a pending invoice
- if(balance>0){DB.invoices.push({id:nextInvNo(),pid,date:todayISO,items:[{d:t.name+" (balance due)",qty:1,rate:balance}],gst:0,status:"Pending",mode:"—",branch:p.branch});}
+ if(balance>0){DB.invoices.push({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items:[{d:t.name+" (balance due)",qty:1,rate:balance}],gst:0,status:"Pending",mode:"—",branch:p.branch});}
  if(v("k_autobook")&&v("k_autobook").checked){const per=+v("k_perwk").value||3;const gap=Math.max(1,Math.round(7/per));let d=v("k_start").value||todayISO;const ther=v("k_ther").value;
    for(let i=0;i<t.sessions;i++){DB.appointments.push({id:uid("a"),pid,date:d,time:v("k_time").value||"10:00",type:"Therapy session",therapist:ther,status:"Pending",branch:p.branch});d=shiftDate(d,gap);}}
  save();closeModal();render();}
@@ -1931,7 +1945,7 @@ function savePkgPayment(pid){const v=k=>document.getElementById(k).value;const p
  const amt=+v("pp_amt")||0;const mode=v("pp_mode");
  k.paidAmount=(k.paidAmount||0)+amt;
  const p=pById(pid);
- DB.invoices.push({id:nextInvNo(),pid,date:todayISO,items:[{d:k.pkg+" — package balance installment",qty:1,rate:amt}],gst:0,status:"Paid",mode:mode,branch:p.branch});
+ DB.invoices.push({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items:[{d:k.pkg+" — package balance installment",qty:1,rate:amt}],gst:0,status:"Paid",mode:mode,branch:p.branch});
  // Update (or clear) the original balance-due invoice to reflect the new remaining balance —
  // otherwise it stays stuck showing the full original amount as Pending after a partial payment.
  const pendingPkgInv=DB.invoices.find(i=>i.pid===pid&&i.status==="Pending"&&i.items&&i.items[0]&&i.items[0].d.includes("balance due")&&i.items[0].d.includes(k.pkg));
@@ -1957,7 +1971,7 @@ views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.
  const q=_invSearch.toLowerCase().trim();
  const filtered=inv.filter(i=>{const p=pById(i.pid);const nameMatch=!q||p.name.toLowerCase().includes(q)||i.id.toLowerCase().includes(q);const dateMatch=!_invDate||i.date===_invDate;const monthMatch=!_invMonth||(i.date||"").startsWith(_invMonth);return nameMatch&&monthMatch&&dateMatch;});
  const isFiltering=!!(q||_invDate||_invMonth);
- const rowHTML=i=>{const p=pById(i.pid);const desc=(i.items&&i.items[0]&&i.items[0].d)||'';return `<tr class="clk" onclick="viewInvoice('${i.id}')"><td><b>${i.id}</b></td><td>${p.name}</td><td>${fmtDate(i.date)}</td><td><b>${inr(invTotals(i).total)}</b></td><td>${i.mode}<div class="muted" style="font-size:10.5px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${desc}</div></td><td><span class="tag ${statusTag(i.status)}">${i.status}</span></td><td style="text-align:right">${i.status==='Pending'?`<button class="btn sm" onclick="event.stopPropagation();markPaid('${i.id}')">Mark paid</button> <button class="btn sm sec" onclick="event.stopPropagation();payRemind('${i.id}')">🔔</button>`:'<span class="muted">✓</span>'}</td></tr>`;};
+ const rowHTML=i=>{const p=pById(i.pid);const desc=(i.items&&i.items[0]&&i.items[0].d)||'';return `<tr class="clk" onclick="viewInvoice('${i.id}')"><td><b>${i.id}</b></td><td>${p.name}</td><td>${fmtDate(i.date)}${i.time?`<div class="muted" style="font-size:10.5px">${i.time}</div>`:''}</td><td><b>${inr(invTotals(i).total)}</b></td><td>${i.mode}<div class="muted" style="font-size:10.5px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${desc}</div></td><td><span class="tag ${statusTag(i.status)}">${i.status}</span></td><td style="text-align:right">${i.status==='Pending'?`<button class="btn sm" onclick="event.stopPropagation();markPaid('${i.id}')">Mark paid</button> <button class="btn sm sec" onclick="event.stopPropagation();payRemind('${i.id}')">🔔</button>`:'<span class="muted">✓</span>'}</td></tr>`;};
  let invTableHTML;
  if(isFiltering){
    invTableHTML=`<table><thead><tr><th>Invoice #</th><th>Patient</th><th>Date</th><th>Amount</th><th>Mode</th><th>Status</th><th></th></tr></thead><tbody>
@@ -1988,7 +2002,7 @@ views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.
  return `<div class="cards" style="grid-template-columns:repeat(3,1fr)">
   <div class="stat"><div class="lbl">Collected</div><div class="val" style="color:var(--ok)">${inr(paid)}</div></div>
   <div class="stat"><div class="lbl">Outstanding</div><div class="val" style="color:var(--warn)">${inr(pend)}</div></div>
-  <div class="stat"><div class="lbl">GST collected (18%)</div><div class="val">${inr(Math.round(gst))}</div></div>
+  <div class="stat"><div class="lbl">GST collected</div><div class="val">${inr(Math.round(gst))}</div><div class="delta" style="color:var(--muted)">GST not currently applied</div></div>
  </div>
  <div class="panel"><div class="panel-h" style="flex-wrap:wrap;gap:8px"><h3>Invoices</h3>
   <div style="display:flex;gap:6px;flex:1;min-width:0;flex-wrap:wrap">
@@ -2057,7 +2071,7 @@ function walletForm(pid){openModal(`<div class="modal-h"><h3>Wallet Top-up (adva
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveTopup()">Add to wallet</button></div>`);}
 function walletFormPid(pid){walletForm(pid);}
 function saveTopup(){const v=k=>document.getElementById(k).value;const pid=v("w_pid");const amt=+v("w_amt")||0;const p=pById(pid);p.wallet=(p.wallet||0)+amt;
- DB.invoices.push({id:nextInvNo(),pid,date:todayISO,items:[{d:"Wallet top-up (advance)",qty:1,rate:amt}],gst:0,status:"Paid",mode:v("w_mode"),branch:p.branch,type:"wallet-topup"});
+ DB.invoices.push({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items:[{d:"Wallet top-up (advance)",qty:1,rate:amt}],gst:0,status:"Paid",mode:v("w_mode"),branch:p.branch,type:"wallet-topup"});
  save();closeModal();render();}
 // Standalone consultation invoice
 function consultInvForm(pid){openModal(`<div class="modal-h"><h3>Consultation Invoice</h3><button class="x" onclick="closeModal()">×</button></div>
@@ -2072,12 +2086,12 @@ function consultInvForm(pid){openModal(`<div class="modal-h"><h3>Consultation In
    <div class="field"><label>Payment mode</label><select id="ci_mode"><option>UPI</option><option>Cash</option><option>Card</option><option>Wallet (advance)</option><option>Bill later</option></select></div>
    <div class="field"><label>Therapist</label><select id="ci_ther">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${MYTHER===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
   </div>
-  <div class="muted" style="font-size:12.5px">18% GST will be added. This is a standalone consultation fee not linked to a session.</div>
+  <div class="muted" style="font-size:12.5px">This is a standalone consultation fee not linked to a session.</div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveConsultInv()">Generate Invoice</button></div>`);}
 function saveConsultInv(){const v=k=>document.getElementById(k).value;const pid=v("ci_pid");const fee=+v("ci_fee")||0;const mode=v("ci_mode");const p=pById(pid);
- let inv={id:nextInvNo(),pid,date:v("ci_date"),items:[{d:v("ci_desc")||"Consultation fee",qty:1,rate:fee}],gst:18,branch:p.branch};
- if(mode==="Wallet (advance)"){const gross=Math.round(fee*1.18);if((p.wallet||0)>=gross){p.wallet-=gross;inv.status="Paid";inv.mode="Wallet";}else{alert("Insufficient wallet balance ("+inr(p.wallet||0)+").");return;}}
+ let inv={id:nextInvNo(),pid,date:v("ci_date"),time:nowTime(),items:[{d:v("ci_desc")||"Consultation fee",qty:1,rate:fee}],gst:0,branch:p.branch};
+ if(mode==="Wallet (advance)"){const gross=fee;if((p.wallet||0)>=gross){p.wallet-=gross;inv.status="Paid";inv.mode="Wallet";}else{alert("Insufficient wallet balance ("+inr(p.wallet||0)+").");return;}}
  else if(mode==="Bill later"){inv.status="Pending";inv.mode="—";}
  else{inv.status="Paid";inv.mode=mode;}
  DB.invoices.push(inv);save();closeModal();render();}
@@ -2098,12 +2112,12 @@ function payRemind(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pi
 function viewInvoice(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);const t=invTotals(i);
  openModal(`<div class="modal-h"><h3>Tax Invoice — ${i.id}</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b"><div class="inv">
-  <div class="inv-h"><div><h2>${DB.settings.clinic}</h2><div class="muted">${bName(i.branch)}</div><div class="muted">GSTIN: ${DB.settings.gstin||"—"}</div><div class="muted">SAC: 999311</div></div><div style="text-align:right"><b>${i.id}</b><div class="muted">${fmtDate(i.date)}</div><span class="tag ${statusTag(i.status)}">${i.status}</span></div></div>
+  <div class="inv-h"><div><h2>${DB.settings.clinic}</h2><div class="muted">${bName(i.branch)}</div><div class="muted">GSTIN: ${DB.settings.gstin||"—"}</div><div class="muted">SAC: 999311</div></div><div style="text-align:right"><b>${i.id}</b><div class="muted">${fmtDate(i.date)}${i.time?' · '+i.time:''}</div><span class="tag ${statusTag(i.status)}">${i.status}</span></div></div>
   <div style="margin:6px 0"><b>Bill to:</b> ${p.name} · ${p.phone}${p.addr?`<br><span class="muted">${p.addr}</span>`:""}</div>
   <table><thead><tr><th>Description</th><th>SAC</th><th>Qty</th><th class="tot">Rate</th><th class="tot">Amount</th></tr></thead><tbody>
   ${i.items.map(it=>`<tr><td>${it.d}</td><td class="muted">999311</td><td>${it.qty}</td><td class="tot">${inr(it.rate)}</td><td class="tot">${inr(it.qty*it.rate)}</td></tr>`).join("")}</tbody></table>
-  <div class="tot"><div><span>Subtotal</span><span>${inr(t.sub)}</span></div><div><span>CGST (9%)</span><span>${inr(t.gst/2)}</span></div><div><span>SGST (9%)</span><span>${inr(t.gst/2)}</span></div><div class="grand"><span>Total</span><span>${inr(t.total)}</span></div>${i.paid&&i.paid<t.total?`<div><span style="color:var(--ok)">Paid</span><span style="color:var(--ok)">${inr(i.paid)}</span></div><div><span style="color:var(--danger)">Balance due</span><span style="color:var(--danger)">${inr(t.total-i.paid)}</span></div>`:""}</div>
-  <hr class="sep"><div class="muted" style="font-size:12px">Payment mode: ${i.mode||"—"} ${i.paidAt?"· Paid on "+fmtDate(i.paidAt):""} · ${DB.settings.clinic} · Computer-generated GST invoice.</div>
+  <div class="tot">${t.gst>0?`<div><span>Subtotal</span><span>${inr(t.sub)}</span></div><div><span>CGST (9%)</span><span>${inr(t.gst/2)}</span></div><div><span>SGST (9%)</span><span>${inr(t.gst/2)}</span></div>`:`<div><span class="muted">GST not applied</span><span></span></div>`}<div class="grand"><span>Total</span><span>${inr(t.total)}</span></div>${i.paid&&i.paid<t.total?`<div><span style="color:var(--ok)">Paid</span><span style="color:var(--ok)">${inr(i.paid)}</span></div><div><span style="color:var(--danger)">Balance due</span><span style="color:var(--danger)">${inr(t.total-i.paid)}</span></div>`:""}</div>
+  <hr class="sep"><div class="muted" style="font-size:12px">Payment mode: ${i.mode||"—"} ${i.paidAt?"· Paid on "+fmtDate(i.paidAt):""} · ${DB.settings.clinic} · ${t.gst>0?"Computer-generated GST invoice.":"Computer-generated invoice."}</div>
  </div></div>
  <div class="modal-f" style="flex-wrap:wrap;gap:6px">
   <button class="btn danger sec" style="margin-right:auto" onclick="deleteInvoice('${id}')">🗑 Delete</button>
@@ -2124,7 +2138,7 @@ function editInvoiceForm(id){const i=DB.invoices.find(x=>x.id===id);if(i.status!
  </div>
  <div class="modal-f"><button class="btn sec" onclick="viewInvoice('${id}')">Cancel</button><button class="btn" onclick="saveEditInvoice('${id}',${i.items.length})">Save</button></div>`);
  setTimeout(updEInvTotal,50);}
-function updEInvTotal(){let sub=0;let idx=0;while(document.getElementById("eit_r"+idx)){const r=+(document.getElementById("eit_r"+idx).value||0);const q=+(document.getElementById("eit_q"+idx).value||1);sub+=r*q;idx++;}const gst=Math.round(sub*18)/100;document.getElementById("ei_total_preview").textContent="Total: "+inr(sub+gst)+" (incl. 18% GST)";}
+function updEInvTotal(){let sub=0;let idx=0;while(document.getElementById("eit_r"+idx)){const r=+(document.getElementById("eit_r"+idx).value||0);const q=+(document.getElementById("eit_q"+idx).value||1);sub+=r*q;idx++;}document.getElementById("ei_total_preview").textContent="Total: "+inr(sub);}
 function saveEditInvoice(id,n){const v=k=>document.getElementById(k);const i=DB.invoices.find(x=>x.id===id);for(let idx=0;idx<n;idx++){i.items[idx].rate=+(v("eit_r"+idx).value||0);i.items[idx].qty=+(v("eit_q"+idx).value||1);}const m=v("ei_mode").value;i.mode=m==="Corporate / Insurance"?"Corporate":m;if(i.mode!=="Bill later")i.status="Pending";logAudit("Invoice","Edited "+id);save();closeModal();viewInvoice(id);}
 async function downloadReceiptPDF(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);const t=invTotals(i);
  const jsPDFLib=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;if(!jsPDFLib){alert("PDF library not loaded. Refresh the page and try again.");return;}
@@ -2157,12 +2171,13 @@ async function downloadReceiptPDF(id){const i=DB.invoices.find(x=>x.id===id);con
  rule();
  // Totals
  doc.setFontSize(10);
- const rows=[['Subtotal',inr(t.sub)],['CGST (9%)',inr(t.gst/2)],['SGST (9%)',inr(t.gst/2)]];
+ const rows=t.gst>0?[['Subtotal',inr(t.sub)],['CGST (9%)',inr(t.gst/2)],['SGST (9%)',inr(t.gst/2)]]:[];
+ if(!rows.length){doc.setFont("helvetica","italic");doc.setTextColor(120);doc.text("GST not applied",100,y);doc.setTextColor(0);y+=6;}
  rows.forEach(r=>{doc.setFont("helvetica","normal");doc.text(r[0],100,y);doc.text(r[1],W-M,y,{align:"right"});y+=5;});
  rule();
  doc.setFont("helvetica","bold");doc.setFontSize(12);doc.text("TOTAL",100,y);doc.text(inr(t.total),W-M,y,{align:"right"});y+=7;
  doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(100);
- doc.text("Thank you for choosing "+DB.settings.clinic+". Computer-generated GST invoice. SAC Code: 999311",M,y,{maxWidth:W-2*M});
+ doc.text("Thank you for choosing "+DB.settings.clinic+(t.gst>0?". Computer-generated GST invoice. SAC Code: 999311":"."),M,y,{maxWidth:W-2*M});
  doc.save("Receipt_"+i.id+"_"+p.name.replace(/ /g,"_")+".pdf");}
 const INV_SVCS=[
  {d:"Physiotherapy session",r:800},{d:"Post-op rehab session",r:1000},
@@ -2187,7 +2202,7 @@ function invForm(){openModal(`<div class="modal-h"><h3>New Invoice</h3><button c
    <div style="text-align:right;font-size:13px;margin-top:6px">Subtotal: <b id="i_sub">₹0</b> &nbsp;+18% GST = <b id="i_tot">₹0</b></div>
   </div>
   <div class="field"><label>Payment mode</label><select id="i_mode"><option>UPI</option><option>Card</option><option>Cash</option><option>Wallet</option><option>Package session</option><option>Pending</option></select></div>
-  <div class="muted" style="font-size:12.5px">18% GST applied. <b>Wallet</b> deducts advance balance; <b>Package session</b> uses a prepaid session (no charge).</div>
+  <div class="muted" style="font-size:12.5px"><b>Wallet</b> deducts advance balance; <b>Package session</b> uses a prepaid session (no charge).</div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveInv()">Generate</button></div>`);
  invAddLine();}
@@ -2210,7 +2225,7 @@ function invCalc(){
  let sub=0;
  rows.forEach(r=>{const rate=+(r.querySelector(".inv-r").value)||0;const qty=+(r.querySelector(".inv-q").value)||1;sub+=rate*qty;});
  document.getElementById("i_sub").textContent=inr(sub);
- document.getElementById("i_tot").textContent=inr(Math.round(sub*1.18));}
+ document.getElementById("i_tot").textContent=inr(sub);}
 function saveInv(){
  const mode=document.getElementById("i_mode").value;
  const pid=document.getElementById("i_pid").value;
@@ -2219,8 +2234,8 @@ function saveInv(){
  if(!rows.length){alert("Add at least one service.");return;}
  const items=rows.map(r=>({d:r.querySelector(".inv-d").value||"Service",qty:+(r.querySelector(".inv-q").value)||1,rate:+(r.querySelector(".inv-r").value)||0}));
  const subtotal=items.reduce((s,i)=>s+i.rate*i.qty,0);
- const gross=Math.round(subtotal*1.18);
- let inv={id:nextInvNo(),pid,date:todayISO,items,gst:18,branch:p.branch,total:gross};
+ const gross=subtotal;
+ let inv={id:nextInvNo(),pid,date:todayISO,time:nowTime(),items,gst:0,branch:p.branch,total:gross};
  if(mode==="Package session"){const pk=DB.patientPkgs.find(k=>k.pid===pid&&k.status==="Active"&&k.used<k.total&&(!k.expires||k.expires>=todayISO));if(!pk){alert("No active (non-expired) package with sessions left for this patient.");return;}pk.used++;inv.items=items.map(i=>({...i,d:i.d+" (package)",rate:0}));inv.total=0;inv.status="Paid";inv.mode="Package";inv.paidAt=todayISO;}
  else if(mode==="Wallet"){if((p.wallet||0)<gross){alert("Insufficient wallet balance ("+inr(p.wallet||0)+"). Top up first.");return;}p.wallet-=gross;inv.status="Paid";inv.mode="Wallet";inv.paidAt=todayISO;}
  else if(mode==="Pending"){inv.status="Pending";inv.mode="—";}
@@ -2235,7 +2250,7 @@ views.expenses=()=>{const ex=DB.expenses.filter(inBranch);const total=ex.reduce(
  const curMonth=todayISO.slice(0,7);
  const byMonth={};ex.forEach(e=>{const m=(e.date||'').slice(0,7)||'unknown';(byMonth[m]=byMonth[m]||[]).push(e);});
  const months=Object.keys(byMonth).sort().reverse();
- const rowHTML=e=>`<tr><td>${fmtDate(e.date)}</td><td><span class="tag purple">${e.cat}</span></td><td>${e.note||''}${e.bill?` <span class="tag gray">📎 ${e.bill}</span>${e.billPath?` <button class="btn ghost" onclick="viewExpBill('${e.id}')">👁 View</button>`:''}`:''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td></tr>`;
+ const rowHTML=e=>`<tr><td>${fmtDate(e.date)}${e.time?`<div class="muted" style="font-size:10.5px">${e.time}</div>`:''}</td><td><span class="tag purple">${e.cat}</span></td><td>${e.note||''}${e.bill?` <span class="tag gray">📎 ${e.bill}</span>${e.billPath?` <button class="btn ghost" onclick="viewExpBill('${e.id}')">👁 View</button>`:''}`:''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td></tr>`;
  const monthBlocks=months.map(m=>{
    const list=byMonth[m].slice().sort((a,b)=>b.date.localeCompare(a.date));
    const monthTotal=list.reduce((s,e)=>s+e.amount,0);
@@ -2297,7 +2312,7 @@ async function saveExp(){
  const v=k=>document.getElementById(k).value;
  const rawF=document.getElementById("x_bill").files[0];
  const id=uid("e");
- const exp={id,date:v("x_date"),cat:v("x_cat")||"Other",amount:+v("x_amt")||0,note:v("x_note"),bill:rawF?rawF.name:"",billPath:"",billType:rawF&&rawF.type&&rawF.type.indexOf("pdf")>-1?"pdf":"image",branch:curBranch()==="all"?"b1":curBranch()};
+ const exp={id,date:v("x_date"),time:nowTime(),cat:v("x_cat")||"Other",amount:+v("x_amt")||0,note:v("x_note"),bill:rawF?rawF.name:"",billPath:"",billType:rawF&&rawF.type&&rawF.type.indexOf("pdf")>-1?"pdf":"image",branch:curBranch()==="all"?"b1":curBranch()};
  if(rawF){
    if(!sb){alert("Supabase isn't connected — bill photo can't be uploaded right now. Saving expense without it.");}
    else{
@@ -2310,6 +2325,13 @@ async function saveExp(){
    }
  }
  DB.expenses.push(exp);save();closeModal();render();
+}
+async function viewAssessScan(path){
+ if(!sb){alert("Supabase isn't connected.");return;}
+ const w=window.open('','_blank'); // open synchronously first, so popup blockers allow it
+ const {data,error}=await sb.storage.from('assessment-pdfs').createSignedUrl(path,3600);
+ if(error||!data){if(w)w.close();alert("Couldn't load file: "+(error&&error.message||'unknown error'));return;}
+ if(w)w.location=data.signedUrl;
 }
 async function viewExpBill(id){
  const e=(DB.expenses||[]).find(x=>x.id===id);if(!e||!e.billPath){alert("No bill photo saved for this expense.");return;}
@@ -2375,11 +2397,11 @@ views.reports=()=>{
 </div>
 ${_rptMonth?`<div class="panel" style="margin:0 17px 17px">
   <div class="panel-h"><h3>Week-wise revenue — ${monthLabel}</h3></div>
-  <div class="panel-b" style="display:flex;gap:12px;align-items:flex-end;height:100px;padding:12px 17px">
-    ${weekRev.map((w,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
-      <div style="width:100%;background:var(--brand);opacity:${w?1:0.15};border-radius:4px 4px 0 0;height:${Math.round(w/maxW*80)}px;min-height:4px"></div>
-      <span style="font-size:11px;color:var(--muted)">Wk ${i+1}</span>
-      <span style="font-size:11px;font-weight:600">${w?inr(w):'-'}</span>
+  <div class="panel-b" style="display:flex;gap:12px;align-items:flex-end;height:150px;padding:12px 17px">
+    ${weekRev.map((w,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end">
+      <div style="width:100%;background:var(--brand);opacity:${w?1:0.15};border-radius:4px 4px 0 0;height:${Math.round(w/maxW*80)}px;min-height:4px;flex-shrink:0"></div>
+      <span style="font-size:11px;color:var(--muted);flex-shrink:0">Wk ${i+1}</span>
+      <span style="font-size:11px;font-weight:600;flex-shrink:0">${w?inr(w):'-'}</span>
     </div>`).join('')}
   </div>
 </div>`:''}
@@ -3093,7 +3115,19 @@ function assessForm(_,pid){
  },30);
 }
 function caMode(m){window._caMode=m;window._aForm&&(window._aForm.mode=m);document.getElementById("ca-upload").style.display=m==='upload'?'block':'none';document.getElementById("ca-template").style.display=m==='template'?'block':'none';document.querySelectorAll("#catabs button").forEach(b=>b.classList.toggle("active",b.dataset.m===m));}
-function caPreview(inp){const f=inp.files[0];if(!f)return;window._aForm&&(window._aForm.assessFile=f.name);const r=new FileReader();r.onload=e=>{document.getElementById("ca_imgprev").innerHTML='<img src="'+e.target.result+'" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)"><div style="margin-top:4px">📎 '+f.name+'</div>';};r.readAsDataURL(f);}
+async function caPreview(inp){
+  const rawF=inp.files[0];if(!rawF)return;
+  const a=window._aForm;if(!a)return;
+  a.assessFile=rawF.name;
+  document.getElementById("ca_imgprev").innerHTML='<span class="muted">Uploading…</span>';
+  if(!sb){document.getElementById("ca_imgprev").innerHTML='⚠️ Supabase not connected — file will not be saved.';return;}
+  const f=await compressImage(rawF);
+  const path="assessments/"+a.id+"/scan_"+Date.now()+"_"+f.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+  const {error}=await sb.storage.from("assessment-pdfs").upload(path,f,{upsert:false,contentType:f.type});
+  if(error){document.getElementById("ca_imgprev").innerHTML='⚠️ Upload failed: '+error.message;return;}
+  a.assessFilePath=path;
+  const r=new FileReader();r.onload=e=>{document.getElementById("ca_imgprev").innerHTML='<img src="'+e.target.result+'" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)"><div style="margin-top:4px">📎 '+f.name+' — ✓ uploaded</div>';};r.readAsDataURL(f);
+}
 
 function saveAssess(){
   if(!DB.assessments)DB.assessments=[];
@@ -3279,7 +3313,7 @@ function assessDocHTML(id){
       ${p.dob?`<div class="adoc-mi"><b>DOB</b>${fmtDate(p.dob)}</div>`:''}
       <div class="adoc-mi"><b>Therapist</b>${c.therapist}</div>
       ${c.mode==='upload'?`<div class="adoc-mi"><b>Mode</b><span class="tag amber">Paper scan</span></div>`:`<div class="adoc-mi"><b>Mode</b><span class="tag teal">Digital template</span></div>`}
-      ${c.assessFile?`<div class="adoc-mi"><b>Attachment</b>📎 ${c.assessFile}</div>`:""}
+      ${c.assessFile?`<div class="adoc-mi"><b>Attachment</b>📎 ${c.assessFile}${c.assessFilePath?` <button class="btn ghost" style="padding:2px 8px" onclick="viewAssessScan('${c.assessFilePath.replace(/'/g,"\\'")}')">👁 View</button>`:''}</div>`:""}
       ${painHTML?`<div class="adoc-mi" style="margin-left:auto">${painHTML}</div>`:""}
     </div>
   </div>
@@ -3904,6 +3938,18 @@ function filterAudit(){render();}
 function bnav(v){document.querySelectorAll(".bnav-btn").forEach(function(b){b.classList.remove("active");});var btn=document.getElementById("bn-"+v);if(btn)btn.classList.add("active");}
 function toggleMoreDrawer(){var d=document.getElementById("moreDrawer"),b=document.getElementById("moreBackdrop");if(d&&d.classList.contains("open")){closeMoreDrawer();}else{if(d)d.classList.add("open");if(b)b.style.display="block";}}
 function closeMoreDrawer(){var d=document.getElementById("moreDrawer"),b=document.getElementById("moreBackdrop");if(d)d.classList.remove("open");if(b)b.style.display="none";}
+// Backup enforcement of desktop vs mobile layout, in JS rather than relying only on the CSS
+// media query — some installed/wrapped app windows don't report their real width to CSS
+// correctly, which can leave the mobile bottom bar showing even on a full-width desktop window.
+function applyLayoutMode(){
+  const isDesktop=window.innerWidth>640;
+  const bn=document.getElementById("bottomNav");
+  const app=document.querySelector(".app");
+  if(bn)bn.style.display=isDesktop?"none":"";
+  if(app)app.style.paddingBottom=isDesktop?"0":"";
+}
+window.addEventListener("resize",applyLayoutMode);
+applyLayoutMode();
 </script>
 <nav class="bottom-nav" id="bottomNav"><div class="bottom-nav-inner"><button class="bnav-btn active" id="bn-dashboard" onclick="go('dashboard');bnav('dashboard')"><span class="bico">🏠</span><span>Home</span></button><button class="bnav-btn" id="bn-patients" onclick="go('patients');bnav('patients')"><span class="bico">👤</span><span>Patients</span></button><button class="bnav-btn" id="bn-appointments" onclick="go('appointments');bnav('appointments')"><span class="bico">📅</span><span>Calendar</span></button><button class="bnav-btn" id="bn-billing" onclick="go('billing');bnav('billing')"><span class="bico">💰</span><span>Billing</span></button><button class="bnav-btn" id="bn-more" onclick="toggleMoreDrawer()"><span class="bico">&#8801;</span><span>More</span></button></div></nav><div class="more-drawer" id="moreDrawer"><div class="more-drawer-handle"></div><div class="more-drawer-grid"><button class="more-item" onclick="go('assessment');bnav('more');closeMoreDrawer()"><span class="mico">📝</span>Assessment</button><button class="more-item" onclick="go('treatment');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Treatments</button><button class="more-item" onclick="go('packages');bnav('more');closeMoreDrawer()"><span class="mico">🎁</span>Packages</button><button class="more-item" onclick="go('reminders');bnav('more');closeMoreDrawer()"><span class="mico">🔔</span>Reminders</button><button class="more-item" onclick="go('reports');bnav('more');closeMoreDrawer()"><span class="mico">📈</span>Reports</button><button class="more-item" onclick="go('expenses');bnav('more');closeMoreDrawer()"><span class="mico">💸</span>Expenses</button><button class="more-item" onclick="go('staff');bnav('more');closeMoreDrawer()"><span class="mico">👥</span>Staff</button><button class="more-item" onclick="go('audit');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Audit Log</button><button class="more-item" onclick="go('settings');bnav('more');closeMoreDrawer()"><span class="mico">&#9881;</span>Settings</button></div></div><div id="moreBackdrop" onclick="closeMoreDrawer()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:998;backdrop-filter:blur(2px)"></div></body>
 </html>
