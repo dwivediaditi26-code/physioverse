@@ -459,6 +459,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 <!-- PDF generation -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <meta name="theme-color" content="#0b1b3d"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="PhysioMind"><link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;PhysioMind Clinic OS&quot;,&quot;short_name&quot;:&quot;PhysioMind&quot;,&quot;start_url&quot;:&quot;/&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230b1b3d&quot;,&quot;theme_color&quot;:&quot;%230b1b3d&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;https://img.icons8.com/fluency/192/heart-with-pulse.png&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/png&quot;}]}"></head>
 <body>
 <div id="demoGate" style="position:fixed;inset:0;z-index:2000;background:linear-gradient(135deg,#0b1b3d,#2563eb);display:flex;align-items:center;justify-content:center;padding:20px">
@@ -467,22 +468,18 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
       <div class="logo" style="width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);display:grid;place-items:center;font-weight:800;color:#fff;font-size:22px">PM</div>
     </div>
     <h1 style="font-size:22px;margin-bottom:4px;color:#fff">PhysioMind</h1>
-    <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:22px">Enter the access code to continue</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:22px">Sign in to your clinic</div>
     <div class="field" style="text-align:left">
-      <label style="color:rgba(255,255,255,0.8)">Access Code</label>
-      <input type="password" id="demoPassInput" placeholder="Enter code..." onkeydown="if(event.key==='Enter')checkDemoPass()" style="font-size:16px;letter-spacing:2px">
+      <label style="color:rgba(255,255,255,0.8)">Email</label>
+      <input type="email" id="loginEmail" placeholder="you@clinic.com" autocomplete="username">
     </div>
-    <div id="demoPassErr" style="color:#f87171;font-size:13px;margin:-6px 0 10px;display:none">Incorrect code. Try again.</div>
-    <button class="btn" style="width:100%;justify-content:center;font-size:15px;padding:12px" onclick="checkDemoPass()">Continue →</button>
+    <div class="field" style="text-align:left">
+      <label style="color:rgba(255,255,255,0.8)">Password</label>
+      <input type="password" id="loginPassInput" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')sbSignIn()">
+    </div>
+    <div id="demoPassErr" style="color:#f87171;font-size:13px;margin:-6px 0 10px;display:none"></div>
+    <button class="btn" id="loginBtn" style="width:100%;justify-content:center;font-size:15px;padding:12px" onclick="sbSignIn()">Sign In →</button>
     <div style="margin-top:16px;font-size:11px;color:rgba(255,255,255,0.4)">PhysioMind · Clinic OS</div>
-  </div>
-</div>
-<div id="login" class="hide">
-  <div class="login-card">
-    <div class="lhead"><div class="logo">PM</div><div><h1>PhysioMind</h1><small>CLINIC OS</small></div></div>
-    <div class="login-sub">Sign in — choose your role to see what that person can access. (Demo: no password needed.)</div>
-    <button class="role-opt" onclick="login('owner')"><div class="ra" style="background:#2563eb">NV</div><div><div class="rn">Dr. Neha Verma</div><div class="rt">Owner / Senior Physiotherapist</div><div class="rsee">Full access — incl. revenue, payroll & reports</div></div><div class="arr">→</div></button>
-    <button class="role-opt" onclick="login('staff')"><div class="ra" style="background:#0d9488">AJ</div><div><div class="rn">Dr. Amit Joshi</div><div class="rt">Therapist & Front Desk</div><div class="rsee">Patients, appointments, treatments & billing — no payroll/reports</div></div><div class="arr">→</div></button>
   </div>
 </div>
 <div class="app">
@@ -524,7 +521,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
       <div class="right">
         <select id="branchSel" class="clinic-chip" onchange="render()" style="cursor:pointer"></select>
         <div id="userChip" class="userchip"></div>
-        <button class="btn sec sm" onclick="logout()" title="Switch user">Switch</button>
+        <button class="btn sec sm" onclick="sbLogout()" title="Sign out">Sign out</button>
       </div>
     </div>
     <div id="activeBar" class="activebar"></div>
@@ -536,30 +533,14 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 <div id="toast"></div>
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 <script>
-// ── Access code gate ──
-const DEMO_CODE = "physio2026";
-function checkDemoPass(){
-  const val=(document.getElementById('demoPassInput').value||'').trim();
-  const err=document.getElementById('demoPassErr');
-  if(val===DEMO_CODE){
-    sessionStorage.setItem('pm_access','1');
-    document.getElementById('demoGate').style.display='none';
-    document.getElementById('login').classList.remove('hide');
-    setTimeout(()=>document.getElementById('demoPassInput')&&(document.getElementById('demoPassInput').value=''),100);
-  } else {
-    err.style.display='block';
-    document.getElementById('demoPassInput').value='';
-    document.getElementById('demoPassInput').focus();
-  }
-}
-(function(){
-  if(sessionStorage.getItem('pm_access')==='1'){
-    document.getElementById('demoGate').style.display='none';
-    document.getElementById('login').classList.remove('hide');
-  }
-})();
+// ══ SUPABASE SETUP — paste your real values here ══
+const SUPABASE_URL = "PASTE_YOUR_SUPABASE_PROJECT_URL_HERE";
+const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";
+const sb = (SUPABASE_URL.indexOf("PASTE_")===-1) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+// ══════════════════════════════════════════════════
 
-const todayISO=new Date().toISOString().slice(0,10);
+function localISO(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+const todayISO=localISO(new Date());
 function uid(p){return p+Math.random().toString(36).slice(2,8)}
 const seed={
  branches:[{id:"b1",name:"PhysioMind — Vijay Nagar",address:"12 Vijay Nagar, Indore, MP 452010",phone:"+91 731 400 1100"},
@@ -569,6 +550,7 @@ const seed={
   {id:"s2",name:"Dr. Amit Joshi",role:"Physiotherapist",phone:"+91 98260 20202",branch:"b1",salary:42000,present:23,leave:3},
   {id:"s3",name:"Priya Nair",role:"Receptionist",phone:"+91 98260 30303",branch:"b1",salary:22000,present:25,leave:1},
   {id:"s4",name:"Dr. Karan Mehta",role:"Physiotherapist",phone:"+91 98260 40404",branch:"b2",salary:40000,present:22,leave:4}],
+ attendance:[],
  patients:[
   {id:"p1",name:"Rajesh Sharma",dob:"1972-03-15",age:54,gender:"M",phone:"+91 98260 11223",condition:"Lower back pain (L4-L5)",since:"2026-05-02",therapist:"Dr. Neha Verma",branch:"b1",wallet:500,status:"Active",email:"rajesh.s@gmail.com",occ:"Bank manager (desk job)",addr:"42 Sapna Sangeeta Rd, Indore",emName:"Sunita Sharma",emPhone:"+91 98260 11999",refDr:"Dr. R. Malhotra (Ortho)",docs:[{n:"MRI Lumbar Spine.pdf",d:"2026-05-02"},{n:"X-Ray L-S.jpg",d:"2026-05-02"}]},
   {id:"p2",name:"Sunita Patel",dob:"1985-07-22",age:40,gender:"F",phone:"+91 99770 44556",condition:"Frozen shoulder (Rt)",since:"2026-05-18",therapist:"Dr. Amit Joshi",branch:"b1",wallet:0,status:"Active",docs:[{n:"Shoulder USG.pdf",d:"2026-05-18"}]},
@@ -681,32 +663,65 @@ const ROLES={
    views:["dashboard","patients","appointments","assessment","treatment","packages","billing","reminders"]}
 };
 function canDo(cap){return true;}
-const APP_VER="pm_v14"; // bump this whenever a breaking reset is needed
-function load(){
- // If old PhysioVerse data or wrong version detected — wipe and start fresh
- const ver=localStorage.getItem("pm_app_ver");
- const oldKey=localStorage.getItem("physioverse_v1");
- const hasOldName=(()=>{try{const s=localStorage.getItem("physioverse_v2");if(!s)return false;const d=JSON.parse(s);return d&&d.settings&&d.settings.clinic&&d.settings.clinic.toLowerCase().includes("physioverse");}catch(e){return false;}})();
- if(ver!==APP_VER||oldKey||hasOldName){
-  // Clear all old keys
-  ["physioverse_v1","physioverse_v2","pm_app_ver","pm_gate","pm_gate_ts","pm_last_dl"].forEach(k=>localStorage.removeItem(k));
-  DB=JSON.parse(JSON.stringify(seed));
-  localStorage.setItem("pm_app_ver",APP_VER);
-  save();
-  return;
- }
- try{const s=localStorage.getItem("physioverse_v2");DB=s?JSON.parse(s):JSON.parse(JSON.stringify(seed));}catch(e){DB=JSON.parse(JSON.stringify(seed));}
- if(!DB.msgTemplates||!DB.msgTemplates.length) DB.msgTemplates=JSON.parse(JSON.stringify(seed.msgTemplates));
- else{const haveIds=new Set(DB.msgTemplates.map(t=>t.id));seed.msgTemplates.forEach(t=>{if(!haveIds.has(t.id))DB.msgTemplates.push(JSON.parse(JSON.stringify(t)));});}
- // Migration: patch plans missing modalities/exercises/home from seed
- if(DB.plans&&seed.plans){DB.plans.forEach(function(p){var sp=seed.plans.find(function(x){return x.id===p.id;});if(sp){if(!p.modalities||!p.modalities.length)p.modalities=sp.modalities||[];if(!p.exercises||!p.exercises.length)p.exercises=sp.exercises||[];if(!p.home||!p.home.length)p.home=sp.home||[];if(!p.homeFreq)p.homeFreq=sp.homeFreq||"";}if(!p.homeLinks)p.homeLinks=[];});}
- localStorage.setItem("pm_app_ver",APP_VER);
+async function sbSignIn(){
+ if(!sb){document.getElementById('demoPassErr').textContent="Supabase isn't configured yet — paste your Project URL and anon key at the top of the script.";document.getElementById('demoPassErr').style.display='block';return;}
+ const email=(document.getElementById('loginEmail').value||'').trim();
+ const pass=document.getElementById('loginPassInput').value;
+ const errEl=document.getElementById('demoPassErr');const btn=document.getElementById('loginBtn');
+ errEl.style.display='none';btn.disabled=true;btn.textContent='Signing in…';
+ const {data,error}=await sb.auth.signInWithPassword({email,password:pass});
+ btn.disabled=false;btn.textContent='Sign In →';
+ if(error){errEl.textContent=error.message;errEl.style.display='block';return;}
+ await afterLogin(data.user);
 }
+async function afterLogin(user){
+ const role=(user.user_metadata&&user.user_metadata.role==='staff')?'staff':'owner';
+ CURROLE=role;const r=ROLES[role];MYTHER=r.scope;
+ document.getElementById('loginBtn').textContent='Loading your data…';
+ await sbLoadData();
+ document.getElementById("demoGate").style.display='none';
+ document.querySelectorAll("#nav button").forEach(b=>{b.style.display=r.views.includes(b.dataset.v)?"":"none";});
+ const kids=[...document.getElementById("nav").children];
+ kids.forEach((el,i)=>{if(el.classList.contains("grp")){let any=false;for(let j=i+1;j<kids.length;j++){const k=kids[j];if(k.classList.contains("grp"))break;if(k.tagName==="BUTTON"&&k.style.display!=="none"){any=true;break;}}el.style.display=any?"":"none";}});
+ document.getElementById("userChip").innerHTML=`<div class="avatar" style="background:${r.color}">${r.init}</div><div class="uc-text" style="line-height:1.15"><div style="font-weight:700;font-size:13px">${r.name}</div><div style="font-size:11px;color:var(--muted)">${r.title}</div></div>`;
+ fillBranches();document.getElementById("branchSel").value="b1";
+ logAudit("Login","Role: "+role);
+ go(r.home);
+}
+async function sbLoadData(){
+ const {data,error}=await sb.from('clinic_data').select('data').eq('id','main').maybeSingle();
+ if(error){alert("Could not load your data from Supabase:\n\n"+error.message+"\n\nCheck your internet connection, then refresh the page.");DB=JSON.parse(JSON.stringify(seed));return;}
+ if(data&&data.data){
+  DB=data.data;
+  if(!DB.msgTemplates||!DB.msgTemplates.length)DB.msgTemplates=JSON.parse(JSON.stringify(seed.msgTemplates));
+  else{const haveIds=new Set(DB.msgTemplates.map(t=>t.id));seed.msgTemplates.forEach(t=>{if(!haveIds.has(t.id))DB.msgTemplates.push(JSON.parse(JSON.stringify(t)));});}
+  if(!DB.attendance)DB.attendance=[];
+  (DB.patientPkgs||[]).forEach(k=>{if(k.status==="Active"&&k.expires&&k.expires<todayISO)k.status="Expired";});
+  if(DB.plans&&seed.plans){DB.plans.forEach(function(p){var sp=seed.plans.find(function(x){return x.id===p.id;});if(sp){if(!p.modalities||!p.modalities.length)p.modalities=sp.modalities||[];if(!p.exercises||!p.exercises.length)p.exercises=sp.exercises||[];if(!p.home||!p.home.length)p.home=sp.home||[];if(!p.homeFreq)p.homeFreq=sp.homeFreq||"";}if(!p.homeLinks)p.homeLinks=[];});}
+ } else {
+  // First login for this clinic — nothing in Supabase yet, seed it fresh
+  DB=JSON.parse(JSON.stringify(seed));
+  await sbSaveData();
+ }
+}
+let _sbSaving=false,_sbQueued=false;
+async function sbSaveData(){
+ if(!DB||!sb)return true;
+ if(_sbSaving){_sbQueued=true;return true;}
+ _sbSaving=true;
+ const {error}=await sb.from('clinic_data').upsert({id:'main',data:DB,updated_at:new Date().toISOString()});
+ _sbSaving=false;
+ if(error){toast("⚠️ Sync failed — check your connection. Retrying…",4000);setTimeout(sbSaveData,3000);return false;}
+ if(_sbQueued){_sbQueued=false;sbSaveData();}
+ return true;
+}
+function save(){sbSaveData();return true;}
+function resetDB(){if(confirm("Reset to sample data? This replaces everything currently in your clinic's Supabase data.")){DB=JSON.parse(JSON.stringify(seed));save();fillBranches();render();}}
+async function sbLogout(){await sb.auth.signOut();DB=undefined;location.reload();}
+function logout(){sbLogout();}
 
 let _toastTimer=null;
 function toast(msg,dur){dur=dur||2200;const el=document.getElementById("toast");if(!el)return;el.textContent=msg;el.classList.add("show");clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>el.classList.remove("show"),dur);}
-function save(){try{localStorage.setItem("physioverse_v2",JSON.stringify(DB));idbSnap();return true;}catch(e){console.error("Save failed:",e);const full=e&&(e.name==="QuotaExceededError"||e.code===22||e.code===1014);alert(full?"⚠️ Storage is full — this change was NOT saved. Go to Settings and download a backup, then remove some older data to free up space.":"⚠️ Could not save your changes: "+(e&&e.message||e));return false;}}
-function resetDB(){if(confirm("Reset demo to sample data?")){DB=JSON.parse(JSON.stringify(seed));save();fillBranches();render();}}
 
 /* ── IndexedDB auto-backup ────────────────────────────────────────────────── */
 const IDB_NAME="physioverse_backup",IDB_STORE="snapshots",IDB_PDF_STORE="pdfs",IDB_MAX=7;
@@ -737,7 +752,8 @@ function showBackups(){
 (function(){const K="pm_last_dl";const last=+localStorage.getItem(K)||0;const days=(Date.now()-last)/(864e5);if(last&&days>7){setTimeout(()=>{const b=document.createElement("div");b.id="backup_nudge";b.style.cssText="position:fixed;bottom:18px;right:18px;z-index:9999;background:#1a1a2e;color:#fff;border-radius:12px;padding:12px 16px;max-width:300px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.3)";b.innerHTML=`<b>📥 Backup reminder</b><div style="margin:6px 0 10px;color:#ccc">It's been ${Math.floor(days)} days since your last data backup.</div><div style="display:flex;gap:8px"><button class="btn sm" onclick="exportDB();localStorage.setItem('${K}',Date.now());document.getElementById('backup_nudge').remove()">Download now</button><button class="btn sm sec" style="background:transparent;color:#ccc;border:1px solid #555" onclick="document.getElementById('backup_nudge').remove()">Later</button></div>`;document.body.appendChild(b);},2000);}})();
 function exportDB(){const b=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="PhysioMind_backup_"+todayISO+".json";a.click();localStorage.setItem("pm_last_dl",Date.now());}
 function importDB(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!d.patients||!d.plans){alert("Invalid backup file");return;}DB=d;save();fillBranches();render();alert("Data imported successfully ✅");}catch{alert("Could not read file");}};r.readAsText(f);}
-load();
+// App data loads after sign-in (see afterLogin → sbLoadData above), not synchronously here.
+if(!sb){const eEl=document.getElementById('demoPassErr');if(eEl){eEl.innerHTML="⚠️ Supabase isn't configured yet.<br>Paste your Project URL and anon key at the top of the &lt;script&gt; tag.";eEl.style.display='block';}}
 
 const DXLIST=["Mechanical low back pain","Lumbar disc prolapse (PIVD)","Sacroiliac joint dysfunction","Cervical spondylosis","Cervical radiculopathy","Postural neck pain","Frozen shoulder (adhesive capsulitis)","Rotator cuff tendinopathy","Subacromial impingement","Tennis elbow (lateral epicondylitis)","Golfer's elbow (medial epicondylitis)","Carpal tunnel syndrome","De Quervain's tenosynovitis","Knee osteoarthritis","ACL reconstruction rehab","Meniscal injury","Patellofemoral pain syndrome","Plantar fasciitis","Ankle sprain (lateral ligament)","Achilles tendinopathy","Sciatica","Post-fracture stiffness","Stroke (hemiplegia) rehab","Bell's palsy","Parkinson's — balance & gait","Post-natal back pain"];
 const MODALITIES=[
@@ -787,7 +803,7 @@ const MM=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec
 const MNAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fmtDate=iso=>{if(!iso)return"—";const[y,m,d]=iso.split("-");return +d+" "+MM[+m-1]+" "+y;};
 function invTotals(inv){const items=Array.isArray(inv.items)?inv.items:[];const sub=items.reduce((s,i)=>s+(+i.qty||0)*(+i.rate||0),0);const gst=Math.round(sub*(+inv.gst||0))/100;return{sub,gst,total:sub+gst};}
-function nextInvNo(){let max=40;DB.invoices.forEach(i=>{const m=(i.id||"").match(/(\d+)$/);if(m)max=Math.max(max,+m[1]);});return "INV-2026-"+String(max+1).padStart(3,"0");}
+function nextInvNo(){const yr=new Date(todayISO).getFullYear();let max=0;DB.invoices.forEach(i=>{const m=(i.id||"").match(new RegExp("INV-"+yr+"-(\\d+)$"));if(m)max=Math.max(max,+m[1]);});return "INV-"+yr+"-"+String(max+1).padStart(3,"0");}
 function painTrendSVG(visits){
  const v=(visits||[]).filter(s=>s.pain!==""&&s.pain!=null&&!isNaN(+s.pain)).slice().sort((a,b)=>(a.date+("0"+a.n).slice(-2)).localeCompare(b.date+("0"+b.n).slice(-2)));
  if(v.length<2)return '<div class="muted" style="font-size:12.5px;padding:4px 0">📈 Pain trend appears after 2+ logged sessions.</div>';
@@ -820,8 +836,28 @@ function renderActiveBar(){const el=document.getElementById("activeBar");if(!el)
  el.innerHTML=`<div class="abar-inner"><span class="abar-title">🟢 Active now <span class="tag blue">${pids.length} in session</span></span><div class="abar-chips">${pids.map(pid=>{const p=pById(pid);const nm=p.name.split(" ");return `<div class="achip" onclick="openConsole('${pid}')"><span class="achip-av">${initials(p.name)}</span>${nm[0]}${nm[1]?" "+nm[1][0]+".":""}<span class="achip-x" title="End session" onclick="event.stopPropagation();endSession('${pid}')">✕</span></div>`;}).join("")}</div><button class="btn sec sm" onclick="endAllSessions()" style="margin-left:auto;white-space:nowrap">End all</button></div>`;}
 function startSession(pid){DB.active=DB.active||[];if(!DB.active.includes(pid))DB.active.push(pid);save();renderActiveBar();}
 function completeTodayAppt(pid){const a=DB.appointments.find(x=>x.pid===pid&&x.date===todayISO&&(x.status==="Checked-in"||x.status==="Confirmed"));if(a)a.status="Completed";}
-function endSession(pid){DB.active=(DB.active||[]).filter(x=>(typeof x==='string'?x:x.pid)!==pid);completeTodayAppt(pid);save();render();setTimeout(()=>invForm(pid),80);}
-function endAllSessions(){const pids=(DB.active||[]).map(x=>typeof x==='string'?x:x.pid);pids.forEach(completeTodayAppt);DB.active=[];save();render();if(pids.length===1){setTimeout(()=>invForm(pids[0]),80);}else if(pids.length>1){setTimeout(()=>invForm(),80);}}
+function endSession(pid){
+ DB.active=(DB.active||[]).filter(x=>(typeof x==='string'?x:x.pid)!==pid);
+ completeTodayAppt(pid);save();render();
+ // End & Pay now goes straight into the patient's treatment plan session log (same form as
+ // "+Log #N"), instead of a separate generic invoice — that separate path used to let a
+ // session get billed twice (once here, once when logged in Treatment) with no link between them.
+ const plan=DB.plans.find(t=>t.pid===pid&&(t.done||0)<(t.sessions||1e9))||DB.plans.find(t=>t.pid===pid);
+ if(plan){setTimeout(()=>sessionForm(plan.id),80);}
+ else{setTimeout(()=>invForm(pid),80);}
+}
+function endAllSessions(){
+ const pids=(DB.active||[]).map(x=>typeof x==='string'?x:x.pid);
+ pids.forEach(completeTodayAppt);DB.active=[];save();render();
+ if(pids.length===1){
+   const pid=pids[0];
+   const plan=DB.plans.find(t=>t.pid===pid&&(t.done||0)<(t.sessions||1e9))||DB.plans.find(t=>t.pid===pid);
+   if(plan){setTimeout(()=>sessionForm(plan.id),80);}
+   else{setTimeout(()=>invForm(pid),80);}
+ }
+ // Ending several sessions at once: each patient has their own plan (or none), so billing can't
+ // be done in one shared popup — no modal auto-opens here. Log/bill each from the Treatment tab.
+}
 function openConsole(pid){const t=DB.plans.find(x=>x.pid===pid);if(!t){if(confirm(pById(pid).name+" has no active treatment plan. Create one now?")){closeModal();go("treatment");setTimeout(planForm,40);}return;}sessionForm(t.id);}
 const ov=document.getElementById("overlay"),md=document.getElementById("modal");
 function openModal(html,wide){md.className="modal"+(wide?" wide":"");md.innerHTML=html;ov.classList.add("show");}
@@ -1291,7 +1327,7 @@ function saveAppt(){const v=k=>document.getElementById(k).value;
   const base=new Date(dt+"T00:00:00");let count=0;
   for(let w=0;w<repWeeks;w++){for(let d=1;d<=7;d++){const nd=new Date(base);nd.setDate(base.getDate()+w*7+d);
    const dayN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][nd.getDay()];
-   if(repDays.includes(dayN)){addAppt(nd.toISOString().split("T")[0]);count++;}}}
+   if(repDays.includes(dayN)){addAppt(localISO(nd));count++;}}}
   if(count>0)alert(count+" additional appointment"+(count>1?"s":"")+" booked ("+repDays.join(", ")+" for "+repWeeks+" week"+(repWeeks>1?"s":"")+").");
  }
  calDate=dt;save();closeModal();render();}
@@ -1567,7 +1603,7 @@ function saveSessionPayment(planId,sid){
   // Deduct from patientPkgs. The session itself is already fully paid for as part of the
   // package purchase, so it's logged at ₹0 here — charging the session fee again would be
   // double-billing on top of the package price already collected.
-  var pkg=(DB.patientPkgs||[]).find(function(pk){return pk.pid===t.pid&&pk.status==="Active"&&pk.used<pk.total;});
+  var pkg=(DB.patientPkgs||[]).find(function(pk){return pk.pid===t.pid&&pk.status==="Active"&&pk.used<pk.total&&(!pk.expires||pk.expires>=todayISO);});
   if(pkg){pkg.used=(pkg.used||0)+1;if(pkg.used>=pkg.total)pkg.status="Completed";}
   else{alert("No active package found for this patient. Invoice logged as package.");}
   var pkgItems=[{d:"Physiotherapy session (covered by package)",qty:1,rate:0}];
@@ -1680,7 +1716,7 @@ function saveSession(planId,sid,n){const v=k=>{const el=document.getElementById(
      let sessionRate=fee;
      let invStatus="Paid",invMode=pay;
      if(pay==="Package session"){
-       const pk=DB.patientPkgs.find(k=>k.pid===t.pid&&k.status==="Active"&&k.used<k.total);
+       const pk=DB.patientPkgs.find(k=>k.pid===t.pid&&k.status==="Active"&&k.used<k.total&&(!k.expires||k.expires>=todayISO));
        if(pk)pk.used++;
        items.push({d:sessionDesc+" (covered by package)",qty:1,rate:0});
        invStatus="Paid";invMode="Package";
@@ -1762,7 +1798,7 @@ function savePlan(id){const v=k=>document.getElementById(k).value;
   const pain=document.getElementById("t_pain")?document.getElementById("t_pain").value:"";
   if(prog||pain){
    if(!DB.visitNotes)DB.visitNotes=[];
-   DB.visitNotes.push({id:uid("vn"),planId:id,pid:obj.pid,date:new Date().toISOString().slice(0,10),pain:pain,note:prog,by:ROLES[CURROLE].name});
+   DB.visitNotes.push({id:uid("vn"),planId:id,pid:obj.pid,date:todayISO,pain:pain,note:prog,by:ROLES[CURROLE].name});
   }
  }else{DB.plans.push({id:uid("t"),...obj});}save();closeModal();render();}
 
@@ -1865,7 +1901,7 @@ function assignPkg(pid){openModal(`<div class="modal-h"><h3>Assign Package</h3><
 function updatePkgPrice(){const sel=document.getElementById("k_pkg");if(!sel)return;const t=DB.pkgTemplates.find(x=>x.id===sel.value);if(!t)return;const priceEl=document.getElementById("k_total_price");if(priceEl)priceEl.value=t.price;updatePkgBalance();}
 function updatePkgBalance(){const totalEl=document.getElementById("k_total_price");const paidEl=document.getElementById("k_paid");if(!totalEl||!paidEl)return;const total=+totalEl.value||0;const paid=+paidEl.value||0;const bal=total-paid;const row=document.getElementById("k_balance_row");const valEl=document.getElementById("k_balance_val");if(row&&valEl){if(paid>0&&paid<total){row.style.display="block";valEl.textContent=inr(bal);}else{row.style.display="none";}}}
 function savePkg(){const v=k=>document.getElementById(k);const pid=v("k_pid").value;const t=DB.pkgTemplates.find(x=>x.id===v("k_pkg").value);
- const exp=new Date("2026-06-15");exp.setDate(exp.getDate()+t.validity);const expISO=exp.toISOString().slice(0,10);
+ const exp=new Date(todayISO);exp.setDate(exp.getDate()+t.validity);const expISO=exp.toISOString().slice(0,10);
  const paidAmt=+v("k_paid").value||t.price;const balance=t.price-paidAmt;
  DB.patientPkgs.push({id:uid("pp"),pid,pkg:t.name,total:t.sessions,used:0,price:t.price,paidAmount:paidAmt,bought:todayISO,expires:expISO,status:"Active"});
  const p=pById(pid);
@@ -2154,7 +2190,7 @@ function saveInv(){
  const subtotal=items.reduce((s,i)=>s+i.rate*i.qty,0);
  const gross=Math.round(subtotal*1.18);
  let inv={id:nextInvNo(),pid,date:todayISO,items,gst:18,branch:p.branch,total:gross};
- if(mode==="Package session"){const pk=DB.patientPkgs.find(k=>k.pid===pid&&k.status==="Active"&&k.used<k.total);if(!pk){alert("No active package with sessions left for this patient.");return;}pk.used++;inv.items=items.map(i=>({...i,d:i.d+" (package)",rate:0}));inv.total=0;inv.status="Paid";inv.mode="Package";inv.paidAt=todayISO;}
+ if(mode==="Package session"){const pk=DB.patientPkgs.find(k=>k.pid===pid&&k.status==="Active"&&k.used<k.total&&(!k.expires||k.expires>=todayISO));if(!pk){alert("No active (non-expired) package with sessions left for this patient.");return;}pk.used++;inv.items=items.map(i=>({...i,d:i.d+" (package)",rate:0}));inv.total=0;inv.status="Paid";inv.mode="Package";inv.paidAt=todayISO;}
  else if(mode==="Wallet"){if((p.wallet||0)<gross){alert("Insufficient wallet balance ("+inr(p.wallet||0)+"). Top up first.");return;}p.wallet-=gross;inv.status="Paid";inv.mode="Wallet";inv.paidAt=todayISO;}
  else if(mode==="Pending"){inv.status="Pending";inv.mode="—";}
  else{inv.status="Paid";inv.mode=mode;inv.paidAt=todayISO;}
@@ -2177,11 +2213,12 @@ function expForm(){openModal(`<div class="modal-h"><h3>Add Expense</h3><button c
   <div class="field"><label>Category</label><input id="x_cat" list="catlist" placeholder="Pick from list or type your own"><datalist id="catlist">${CATLIST.map(c=>`<option value="${c}">`).join("")}</datalist></div></div>
   <div class="field"><label>Amount (₹)</label><input id="x_amt" type="number"></div>
   <div class="field"><label>Note</label><input id="x_note"></div>
-  <div class="field"><label>Bill photo (optional)</label><input type="file" id="x_bill" accept="image/*" capture="environment" onchange="previewBill(this)"><div id="x_billprev" class="muted" style="font-size:12px;margin-top:6px">No bill attached.</div></div></div>
+  <div class="field"><label>Bill photo (optional)</label><input type="file" id="x_bill" accept="image/*,application/pdf" onchange="previewBill(this)"><div id="x_billprev" class="muted" style="font-size:12px;margin-top:6px">No bill attached.</div></div></div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveExp()">Save</button></div>`);}
-function previewBill(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{window._expBillData=e.target.result;document.getElementById("x_billprev").innerHTML='<img src="'+e.target.result+'" style="max-width:100%;max-height:170px;border-radius:8px;border:1px solid var(--line)"><div style="margin-top:4px">📎 '+f.name+'</div>';};r.readAsDataURL(f);}
-function saveExp(){const v=k=>document.getElementById(k).value;const f=document.getElementById("x_bill").files[0];DB.expenses.push({id:uid("e"),date:v("x_date"),cat:v("x_cat")||"Other",amount:+v("x_amt")||0,note:v("x_note"),bill:f?f.name:"",billData:f?(window._expBillData||""):"",branch:curBranch()==="all"?"b1":curBranch()});window._expBillData=null;save();closeModal();render();}
+function previewBill(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{window._expBillData=e.target.result;const isPdf=f.type&&f.type.indexOf("pdf")>-1;document.getElementById("x_billprev").innerHTML=(isPdf?'<div style="padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg2)">📄 '+f.name+'</div>':'<img src="'+e.target.result+'" style="max-width:100%;max-height:170px;border-radius:8px;border:1px solid var(--line)"><div style="margin-top:4px">📎 '+f.name+'</div>');};r.readAsDataURL(f);}
+function saveExp(){const v=k=>document.getElementById(k).value;const f=document.getElementById("x_bill").files[0];DB.expenses.push({id:uid("e"),date:v("x_date"),cat:v("x_cat")||"Other",amount:+v("x_amt")||0,note:v("x_note"),bill:f?f.name:"",billData:f?(window._expBillData||""):"",billType:f&&f.type&&f.type.indexOf("pdf")>-1?"pdf":"image",branch:curBranch()==="all"?"b1":curBranch()});window._expBillData=null;save();closeModal();render();}
 function viewExpBill(id){const e=(DB.expenses||[]).find(x=>x.id===id);if(!e||!e.billData){alert("No bill photo saved for this expense.");return;}
+ if(e.billType==="pdf"){window.open(e.billData,"_blank");return;}
  const w=window.open('','_blank');w.document.write('<!DOCTYPE html><html><head><title>'+(e.bill||'Bill')+'</title><style>body{margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh}img{max-width:100%;max-height:100vh}</style></head><body><img src="'+e.billData+'"></body></html>');w.document.close();}
 
 /* REPORTS */
@@ -2254,16 +2291,49 @@ ${_rptMonth?`<div class="panel" style="margin:0 17px 17px">
   </div>
 </div>`;
 };
+function getAttendance(sid,date){return (DB.attendance||[]).find(a=>a.sid===sid&&a.date===date);}
+function setAttendance(sid,date,status){
+ DB.attendance=DB.attendance||[];
+ const rec=DB.attendance.find(a=>a.sid===sid&&a.date===date);
+ if(rec)rec.status=status;else DB.attendance.push({id:uid("at"),sid,date,status});
+ save();
+}
+function monthAttendance(sid,ym){
+ const recs=(DB.attendance||[]).filter(a=>a.sid===sid&&a.date.startsWith(ym));
+ let present=0,leave=0,half=0;
+ recs.forEach(r=>{if(r.status==="Present")present++;else if(r.status==="Half-day"){present+=0.5;half++;}else if(r.status==="Leave")leave++;});
+ return {present,leave,half,marked:recs.length};
+}
+function attendanceForm(forDate){
+ const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===curBranch());
+ const date=forDate||todayISO;
+ openModal(`<div class="modal-h"><h3>Mark Attendance</h3><button class="x" onclick="closeModal()">×</button></div>
+ <div class="modal-b">
+  <div class="field"><label>Date</label><div style="display:flex;gap:6px;align-items:center"><input type="date" value="${date}" max="${todayISO}" style="flex:1" onchange="attendanceForm(this.value)"><button type="button" class="btn sm sec" onclick="attendanceForm(todayISO)">Today</button></div></div>
+  ${list.map(s=>{const rec=getAttendance(s.id,date);const cur=rec?rec.status:"";
+   return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap">
+     <b style="font-size:13.5px">${s.name}</b>
+     <div style="display:flex;gap:5px">
+      ${["Present","Half-day","Leave"].map(st=>`<button type="button" class="btn sm ${cur===st?'':'sec'}" style="padding:4px 9px;font-size:11.5px" onclick="setAttendance('${s.id}','${date}','${st}');attendanceForm('${date}')">${st}</button>`).join("")}
+     </div>
+    </div>`;}).join("")}
+ </div>
+ <div class="modal-f"><button class="btn" onclick="closeModal();render()">Done</button></div>`,true);
+}
 views.staff=()=>{const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===curBranch());
- return `<div class="panel"><div class="panel-h"><h3>Clinic Members</h3><button class="btn" onclick="staffForm()">+ Add Member</button></div>
+ const ym=todayISO.slice(0,7);
+ const monthLabel=new Date(todayISO).toLocaleString("en-IN",{month:"long",year:"numeric"});
+ const daysSoFar=new Date(todayISO).getDate();
+ return `<div class="panel"><div class="panel-h"><h3>Clinic Members</h3><div style="display:flex;gap:8px"><button class="btn sm sec" onclick="attendanceForm()">📅 Mark today's attendance</button><button class="btn" onclick="staffForm()">+ Add Member</button></div></div>
  <div class="panel-b flush"><table><thead><tr><th>Member</th><th>Role</th><th>Phone</th><th>Branch</th><th>Attendance</th><th>Leaves</th><th style="text-align:right">Salary</th></tr></thead><tbody>
- ${list.map(s=>`<tr><td><div class="pcell"><div class="avatar t">${initials(s.name)}</div><div class="nm">${s.name}</div></div></td><td><span class="tag ${s.role.includes('Senior')?'purple':s.role.includes('Physio')?'blue':'gray'}">${s.role}</span></td><td>${s.phone}</td><td>${bName(s.branch).replace('PhysioMind — ','')}</td><td><b style="color:var(--ok)">${s.present}</b> days</td><td>${s.leave}</td><td style="text-align:right"><b>${inr(s.salary)}</b></td></tr>`).join("")}
+ ${list.map(s=>{const ma=monthAttendance(s.id,ym);const present=ma.marked?ma.present:s.present;const lv=ma.marked?ma.leave:s.leave;return `<tr><td><div class="pcell"><div class="avatar t">${initials(s.name)}</div><div class="nm">${s.name}</div></div></td><td><span class="tag ${s.role.includes('Senior')?'purple':s.role.includes('Physio')?'blue':'gray'}">${s.role}</span></td><td>${s.phone}</td><td>${bName(s.branch).replace('PhysioMind — ','')}</td><td><b style="color:var(--ok)">${present}</b> days</td><td>${lv}</td><td style="text-align:right"><b>${inr(s.salary)}</b></td></tr>`;}).join("")}
  </tbody></table></div></div>
  <div class="two-col">
-  <div class="panel"><div class="panel-h"><h3>Attendance (June)</h3></div><div class="panel-b">
-   ${list.map(s=>`<div class="list-row"><div style="display:flex;justify-content:space-between"><b>${s.name}</b><span class="muted">${s.present}/26 present · ${s.leave} leave</span></div><div class="bar"><div style="width:${Math.round(s.present/26*100)}%;background:var(--ok)"></div></div></div>`).join("")}
+  <div class="panel"><div class="panel-h"><h3>Attendance (${monthLabel})</h3></div><div class="panel-b">
+   ${list.map(s=>{const ma=monthAttendance(s.id,ym);const present=ma.marked?ma.present:s.present;const lv=ma.marked?ma.leave:s.leave;const denom=ma.marked?daysSoFar:26;return `<div class="list-row"><div style="display:flex;justify-content:space-between"><b>${s.name}</b><span class="muted">${present}/${denom} present · ${lv} leave</span></div><div class="bar"><div style="width:${Math.min(100,Math.round(present/denom*100))}%;background:var(--ok)"></div></div></div>`;}).join("")}
+   <div class="muted" style="font-size:11.5px;margin-top:8px">Figures reflect actual daily marks for ${monthLabel} once you start using "Mark today's attendance"; until then they show the starting totals.</div>
   </div></div>
-  <div class="panel"><div class="panel-h"><h3>Payroll (June)</h3></div><div class="panel-b">
+  <div class="panel"><div class="panel-h"><h3>Payroll (${monthLabel})</h3></div><div class="panel-b">
    ${list.map(s=>`<div class="list-row" style="display:flex;justify-content:space-between"><span>${s.name}</span><b>${inr(s.salary)}</b></div>`).join("")}
    <div class="list-row" style="display:flex;justify-content:space-between"><b>Total payroll</b><b style="color:var(--brand)">${inr(list.reduce((a,s)=>a+s.salary,0))}</b></div>
    <button class="btn sm" style="margin-top:10px" onclick="downloadPayslips()">⬇ Generate payslips</button>
@@ -2286,7 +2356,9 @@ function downloadPayslips(){
   ln(s.name,12,true);
   ln(s.role+(s.phone?"  ·  "+s.phone:""),9.5);
   rule();
-  ln("Attendance: "+s.present+" days present, "+s.leave+" leave(s)",10);
+  const ma=monthAttendance(s.id,todayISO.slice(0,7));
+  const presentDays=ma.marked?ma.present:s.present;const leaveDays=ma.marked?ma.leave:s.leave;
+  ln("Attendance: "+presentDays+" days present, "+leaveDays+" leave(s)",10);
   rule();
   const gross=s.salary||0;
   ln("Gross salary: "+inr(gross),11,true);
@@ -2715,6 +2787,7 @@ function aToggleRegion(r){
   aUpdateRegChips();aRenderObs();aRenderROM();aRenderMMT();aRenderTests();
 }
 function aSetSide(r,s){const a=window._aForm;if(!a)return;a.regionSides[r]=a.regionSides[r]===s?null:s;aUpdateRegChips();aRenderObs();aRenderROM();aRenderMMT();aRenderTests();}
+function sideKey(a,r){const s=a.regionSides[r];return s?r+"::"+s:r;}
 function aUpdateRegChips(){
   const a=window._aForm;if(!a)return;
   AREGIONS.forEach(r=>{
@@ -2779,14 +2852,13 @@ function aRenderROM(){
   const allRom=[...new Set([...a.regions,...a.romRegions])];
   const bar=aSectionRegBar('rom',a.romRegions);
   if(!a.regions.length&&!a.romRegions.length){body.innerHTML=bar+'<div class="empty-reg">Select a body region above or use the pills to add regions here.</div>';return;}
-  body.innerHTML=bar+allRom.map(r=>{const mvs=AROM[r]||[];const sv=a.rom[r]||{};
+  body.innerHTML=bar+allRom.map(r=>{const mvs=AROM[r]||[];const side=a.regionSides[r];const sv=a.rom[sideKey(a,r)]||{};
     const fromMain=a.regions.includes(r);
-    const side=a.regionSides[r];
-    const sideBtns='<div class="rsa-inline">'+['L','R','B'].map(function(sv2){return'<button type="button" class="rside-a'+(side===sv2?' rsa-active':'')+'" onclick="aSetSide(\''+r+'\',\''+sv2+'\')">'+sv2+'</button>';}).join('')+'</div>';
+    const sideBtns='<div class="rsa-inline">'+['L','R'].map(function(sv2){return'<button type="button" class="rside-a'+(side===sv2?' rsa-active':'')+'" onclick="aSetSide(\''+r+'\',\''+sv2+'\')">'+sv2+'</button>';}).join('')+'</div>';
     return'<div class="aregion-block"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+r+' — ROM</span>'+sideBtns+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div><div style="overflow-x:auto"><table class="rom-tbl"><thead><tr><th>Movement</th><th>Active</th><th>Passive</th><th>Normal</th></tr></thead><tbody>'+mvs.map(function(item){var mv=item.mv,norm=item.norm;var s=sv[mv]||{};return'<tr><td>'+mv+'</td><td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="'+(s.active||'')+'" oninput="aROM(\''+r+'\',\''+mv+'\',\'active\',this.value)"><span>°</span></div></td><td><div class="rom-num-a"><input type="number" min="0" max="360" placeholder="—" value="'+(s.passive||'')+'" oninput="aROM(\''+r+'\',\''+mv+'\',\'passive\',this.value)"><span>°</span></div></td><td class="rom-norm-a">'+norm+'</td></tr>';}).join('')+'</tbody></table></div></div>';
   }).join('');
 }
-function aROM(r,mv,t,v){const a=window._aForm;if(!a)return;if(!a.rom[r])a.rom[r]={};if(!a.rom[r][mv])a.rom[r][mv]={};a.rom[r][mv][t]=v;}
+function aROM(r,mv,t,v){const a=window._aForm;if(!a)return;const k=sideKey(a,r);if(!a.rom[k])a.rom[k]={};if(!a.rom[k][mv])a.rom[k][mv]={};a.rom[k][mv][t]=v;}
 
 function aRenderMMT(){
   const a=window._aForm;if(!a)return;
@@ -2795,15 +2867,14 @@ function aRenderMMT(){
   const allMmt=[...new Set([...a.regions,...a.mmtRegions])];
   const bar=aSectionRegBar('mmt',a.mmtRegions);
   if(!a.regions.length&&!a.mmtRegions.length){body.innerHTML=bar+'<div class="empty-reg">Select a body region above or use the pills to add regions here.</div>';return;}
-  body.innerHTML=bar+allMmt.map(r=>{const ms=AMMT[r]||[];const sv=a.mmt[r]||{};
+  body.innerHTML=bar+allMmt.map(r=>{const ms=AMMT[r]||[];const side=a.regionSides[r];const sv=a.mmt[sideKey(a,r)]||{};
     const fromMain=a.regions.includes(r);
-    const side=a.regionSides[r];
-    const sideBtns='<div class="rsa-inline">'+['L','R','B'].map(function(sv2){return'<button type="button" class="rside-a'+(side===sv2?' rsa-active':'')+'" onclick="aSetSide(\''+r+'\',\''+sv2+'\')">'+sv2+'</button>';}).join('')+'</div>';
+    const sideBtns='<div class="rsa-inline">'+['L','R'].map(function(sv2){return'<button type="button" class="rside-a'+(side===sv2?' rsa-active':'')+'" onclick="aSetSide(\''+r+'\',\''+sv2+'\')">'+sv2+'</button>';}).join('')+'</div>';
     return'<div class="aregion-block"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="aregion-label">'+r+' — MMT</span>'+sideBtns+(fromMain?'':'<span class="tag blue" style="font-size:10px">Added</span>')+'</div><div style="overflow-x:auto"><table class="mmt-tbl"><thead><tr><th>Muscle</th><th>Grade (0–5)</th><th>Notes</th></tr></thead><tbody>'+ms.map(function(m){var g=sv[m]!=null?sv[m]:null;var mid=(r+'_'+m).replace(/[\s\/\(\)]/g,'_');return'<tr><td>'+m+'</td><td><div class="mmt-btns">'+[0,1,2,3,4,5].map(function(gv){return'<button id="ammt-'+mid+'-'+gv+'" class="'+(g===gv?'mmt-on':'')+'" onclick="aMMT(\''+r+'\',\''+m+'\','+gv+')">'+gv+'</button>';}).join('')+'</div></td><td><input style="width:130px;padding:4px 7px;border:1px solid var(--line);border-radius:5px;font-size:12px" placeholder="e.g. pain…" value="'+(sv[m+'_note']||'')+'" oninput="aMMTNote(\''+r+'\',\''+m+'\',this.value)"></td></tr>';}).join('')+'</tbody></table></div></div>';
   }).join('');
 }
-function aMMT(r,m,g){const a=window._aForm;if(!a)return;if(!a.mmt[r])a.mmt[r]={};a.mmt[r][m]=g;const mid=(r+"_"+m).replace(/[\s\/\(\)]/g,"_");[0,1,2,3,4,5].forEach(gv=>{const b=document.getElementById("ammt-"+mid+"-"+gv);if(b)b.classList.toggle("mmt-on",gv===g);});}
-function aMMTNote(r,m,v){const a=window._aForm;if(!a)return;if(!a.mmt[r])a.mmt[r]={};a.mmt[r][m+"_note"]=v;}
+function aMMT(r,m,g){const a=window._aForm;if(!a)return;const k=sideKey(a,r);if(!a.mmt[k])a.mmt[k]={};a.mmt[k][m]=g;const mid=(r+"_"+m).replace(/[\s\/\(\)]/g,"_");[0,1,2,3,4,5].forEach(gv=>{const b=document.getElementById("ammt-"+mid+"-"+gv);if(b)b.classList.toggle("mmt-on",gv===g);});}
+function aMMTNote(r,m,v){const a=window._aForm;if(!a)return;const k=sideKey(a,r);if(!a.mmt[k])a.mmt[k]={};a.mmt[k][m+"_note"]=v;}
 
 function aRenderTests(){
   const a=window._aForm;if(!a)return;
@@ -3412,7 +3483,7 @@ function buildAssessPDF(id){
     doc.text('Page '+i+' of '+pages,W-M-12,293);
   }
 
-  const fname='Assessment_'+(p.name||'Patient').replace(/\s+/g,'_')+'_'+(c.date||new Date().toISOString().split('T')[0])+'.pdf';
+  const fname='Assessment_'+(p.name||'Patient').replace(/\s+/g,'_')+'_'+(c.date||todayISO)+'.pdf';
   return {doc,fname,pid:c.pid};
 }
 
@@ -3604,16 +3675,8 @@ printRx=function(id,src){
 /* ══════════════════════════════════════════════════════ */
 
 function fillBranches(){const sel=document.getElementById("branchSel");const cur=sel.value;sel.innerHTML='<option value="all">🏥 All Branches</option>'+DB.branches.map(b=>`<option value="${b.id}">🏥 ${b.name}</option>`).join("");sel.value=cur||"b1";}
-function login(role){CURROLE=role;const r=ROLES[role];MYTHER=r.scope;logAudit("Login","Role: "+role);
- document.getElementById("login").classList.add("hide");
- document.querySelectorAll("#nav button").forEach(b=>{b.style.display=r.views.includes(b.dataset.v)?"":"none";});
- const kids=[...document.getElementById("nav").children];
- kids.forEach((el,i)=>{if(el.classList.contains("grp")){let any=false;for(let j=i+1;j<kids.length;j++){const k=kids[j];if(k.classList.contains("grp"))break;if(k.tagName==="BUTTON"&&k.style.display!=="none"){any=true;break;}}el.style.display=any?"":"none";}});
- document.getElementById("userChip").innerHTML=`<div class="avatar" style="background:${r.color}">${r.init}</div><div class="uc-text" style="line-height:1.15"><div style="font-weight:700;font-size:13px">${r.name}</div><div style="font-size:11px;color:var(--muted)">${r.title}</div></div>`;
- go(r.home);
-}
-function logout(){document.getElementById("login").classList.remove("hide");}
-fillBranches();document.getElementById("branchSel").value="b1";
+// (Real login/logout live earlier in the script as sbSignIn/afterLogin/sbLogout — fillBranches()
+// is called from afterLogin() once DB has actually loaded, not here at page-load time.)
 
 let _assessPage=0,_assessQ="",_assessTher="";
 function setAssessPage(n){_assessPage=n;renderAssessTable();}
