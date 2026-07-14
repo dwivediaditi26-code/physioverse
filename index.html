@@ -106,7 +106,8 @@ tr.clk:hover{background:#f7fafc;cursor:pointer}
 .list-row{padding:12px 0;border-bottom:1px solid var(--line)}
 .list-row:last-child{border:none}
 .inv{background:#fff;border:1px solid var(--line);border-radius:10px;padding:24px;font-size:13px}
-.inv-h{display:flex;justify-content:space-between;border-bottom:2px solid var(--brand);padding-bottom:13px;margin-bottom:13px}
+.inv-h{display:flex;justify-content:space-between;border-bottom:2px solid var(--brand);padding-bottom:13px;margin-bottom:13px;flex-wrap:wrap;gap:8px}
+.inv-h > div{min-width:0}
 .inv-h h2{color:var(--brand-dark)}
 .inv table{margin:13px 0}.inv th,.inv td{padding:7px 9px;font-size:12.5px}
 .inv .tot{text-align:right}
@@ -839,7 +840,23 @@ let current="dashboard";
 function go(v){current=v;document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.v===v));document.getElementById("pageTitle").textContent=titles[v][0];document.getElementById("pageSub").textContent=titles[v][1];render();window.scrollTo(0,0);}
 document.getElementById("nav").addEventListener("click",e=>{const b=e.target.closest("button");if(b){go(b.dataset.v);toggleNav(false);}});
 function toggleNav(force){const sb=document.querySelector(".sidebar"),bd=document.getElementById("backdrop");const open=force!==undefined?force:!sb.classList.contains("open");sb.classList.toggle("open",open);bd.classList.toggle("show",open);}
-function render(){document.getElementById("view").innerHTML=views[current]();renderActiveBar();}
+function render(){
+  // Remember what was focused before the re-render (search boxes trigger render on every keystroke,
+  // so without this the input gets destroyed and rebuilt, kicking the mobile keyboard off after 1 letter).
+  const active=document.activeElement;
+  const focusedId=(active&&active.id)?active.id:null;
+  const selStart=(active&&typeof active.selectionStart==='number')?active.selectionStart:null;
+  const selEnd=(active&&typeof active.selectionEnd==='number')?active.selectionEnd:null;
+  document.getElementById("view").innerHTML=views[current]();
+  renderActiveBar();
+  if(focusedId){
+    const el=document.getElementById(focusedId);
+    if(el){
+      el.focus();
+      if(selStart!=null&&typeof el.setSelectionRange==='function'){try{el.setSelectionRange(selStart,selEnd);}catch(e){}}
+    }
+  }
+}
 function activePids(){return (DB.active||[]).map(x=>typeof x==='string'?x:x.pid).filter(pid=>DB.patients.some(p=>p.id===pid)).filter(pid=>!MYTHER||pById(pid).therapist===MYTHER);}
 function renderActiveBar(){const el=document.getElementById("activeBar");if(!el)return;const pids=activePids();
  if(!pids.length){el.style.display="none";el.innerHTML="";return;}el.style.display="block";
@@ -2215,7 +2232,7 @@ views.expenses=()=>{const ex=DB.expenses.filter(inBranch);const total=ex.reduce(
  <div class="panel-b flush">${monthBlocks}</div></div>`;};
 function expForm(){openModal(`<div class="modal-h"><h3>Add Expense</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b"><div class="grid2"><div class="field"><label>Date</label><input id="x_date" type="date" value="${todayISO}"></div>
-  <div class="field"><label>Category</label><input id="x_cat" list="catlist" placeholder="Pick from list or type your own"><datalist id="catlist">${CATLIST.map(c=>`<option value="${c}">`).join("")}</datalist></div></div>
+  <div class="field"><label>Category</label><select id="x_cat_sel" onchange="document.getElementById('x_cat_custom').style.display=this.value==='__other__'?'block':'none';document.getElementById('x_cat').value=this.value==='__other__'?'':this.value">${CATLIST.map(c=>`<option value="${c}">${c}</option>`).join("")}<option value="__other__">Other (type below)…</option></select><input id="x_cat_custom" placeholder="Custom category name" style="display:none;margin-top:6px" oninput="document.getElementById('x_cat').value=this.value"><input id="x_cat" type="hidden" value="${CATLIST[0]||''}"></div></div>
   <div class="field"><label>Amount (₹)</label><input id="x_amt" type="number"></div>
   <div class="field"><label>Note</label><input id="x_note"></div>
   <div class="field"><label>Bill photo (optional)</label><input type="file" id="x_bill" accept="image/*,application/pdf" onchange="previewBill(this)"><div id="x_billprev" class="muted" style="font-size:12px;margin-top:6px">No bill attached.</div></div></div>
@@ -2294,13 +2311,14 @@ async function viewExpBill(id){
 }
 
 /* REPORTS */
-let _rptMonth="";
+let _rptMonth=null; // null = never set, "" = user picked All time, "YYYY-MM" = user picked a month
 views.reports=()=>{
   const allInv=DB.invoices.filter(inBranch);
   const allExp=DB.expenses.filter(inBranch);
   // Month options from invoices + expenses
   const allMonths=[...new Set([...allInv.map(i=>i.date?i.date.slice(0,7):''),...allExp.map(e=>e.date?e.date.slice(0,7):'')].filter(Boolean))].sort().reverse();
-  if(!_rptMonth&&allMonths.length)_rptMonth=allMonths[0];
+  // First time only: default to the most recent month with data. After that, respect the user's choice (including "" for All time).
+  if(_rptMonth===null)_rptMonth=allMonths.length?allMonths[0]:"";
   // Filter by selected month
   const inv=_rptMonth?allInv.filter(i=>(i.date||'').startsWith(_rptMonth)):allInv;
   const ex=_rptMonth?allExp.filter(e=>(e.date||'').startsWith(_rptMonth)):allExp;
@@ -2787,8 +2805,8 @@ function toggleAssessMonth(m){_assessOpenMonths[m]=!(_assessOpenMonths[m]!==unde
 views.assessment=()=>{
   if(!DB.assessments) DB.assessments=[];
   const therOpts=DB.staff.filter(st=>st.role.includes("Physio")).map(st=>`<option value="${st.name}">${st.name}</option>`).join("");
-  const all=(DB.assessments||[]).filter(c=>inBranch(pById(c.pid))).filter(c=>!MYTHER||c.therapist===MYTHER).sort((a,b)=>b.date.localeCompare(a.date));
-  const filtered=all.filter(c=>{const p=pById(c.pid);const txt=(p.name+" "+(c.dx||"")+" "+c.therapist).toLowerCase();return (!_assessQ||txt.includes(_assessQ))&&(!_assessTher||c.therapist===_assessTher);});
+  const all=(DB.assessments||[]).filter(c=>{const p=pById(c.pid);return p&&inBranch(p);}).filter(c=>!MYTHER||c.therapist===MYTHER).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const filtered=all.filter(c=>{const p=pById(c.pid);if(!p)return false;const txt=((p.name||"")+" "+(c.dx||"")+" "+(c.therapist||"")).toLowerCase();return (!_assessQ||txt.includes(_assessQ))&&(!_assessTher||c.therapist===_assessTher);});
   const isFiltering=!!(_assessQ||_assessTher);
   const rowHTML=c=>{const p=pById(c.pid);return `<tr class="clk" onclick="assessView('${c.id}')"><td>${fmtDate(c.date)}</td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div class="nm">${p.name}</div></div></td><td>${c.dx||'—'}</td><td>${c.therapist}</td><td style="text-align:right"><button class="btn sm sec" onclick="event.stopPropagation();printRx('${c.id}','assessment')">🖨 Rx</button></td></tr>`;};
   let bodyHTML;
@@ -3167,19 +3185,21 @@ function assessDocHTML(id){
        ${neuroExtra.length?`<div style="font-size:12px;color:var(--muted);margin-top:5px">${neuroExtra.join(" &nbsp;·&nbsp; ")}</div>`:""}`
       :"";
 
-    // ROM — only filled entries
-    const romData=c.rom&&c.rom[r]||{};
+    // ROM — only filled entries. Data can live under the plain region key OR under per-side
+    // keys (region::L, region::R) depending on whether a side was chosen when the value was entered.
+    // Merge all of them so we don't miss anything.
+    const romData=Object.assign({},c.rom&&c.rom[r],c.rom&&c.rom[r+"::L"],c.rom&&c.rom[r+"::R"]);
     const romEntries=(AROM[r]||[]).map(({mv,norm})=>{const s=romData[mv]||{};const active=s.active,passive=s.passive;if(!active&&!passive)return null;const parts=[active&&`A:${active}°`,passive&&`P:${passive}°`].filter(Boolean).join(" / ");return{mv,norm,parts};}).filter(Boolean);
     const romHTML=romEntries.length?`<div class="adoc-sub-lbl" style="margin-top:10px">Range of motion</div>
       <div class="adoc-rom-grid">${romEntries.map(e=>`<div class="adoc-rom-item"><div class="adoc-rom-mv">${e.mv}</div><div class="adoc-rom-val">${e.parts} <span class="adoc-rom-norm">/ ${e.norm}</span></div></div>`).join("")}</div>`:"";
 
-    // MMT — only graded muscles
-    const mmtData=c.mmt&&c.mmt[r]||{};
+    // MMT — only graded muscles. Same per-side-key merge as ROM.
+    const mmtData=Object.assign({},c.mmt&&c.mmt[r],c.mmt&&c.mmt[r+"::L"],c.mmt&&c.mmt[r+"::R"]);
     const mmtItems=(AMMT[r]||[]).map(m=>{const g=mmtData[m];if(g==null)return null;const note=mmtData[m+"_note"];return`${m} — ${g}/5${note?" ("+note+")":""}`;}).filter(Boolean);
     const mmtHTML=mmtItems.length?`<div class="adoc-sub-lbl" style="margin-top:10px">Manual muscle testing</div>${chips(mmtItems,+mmtItems.find(x=>+x.match(/(\d)\/5/)?.[1]||5)<4?"weak":"")}`:"";
 
     // Special tests — only positive ones
-    const testsData=c.tests&&c.tests[r]||{};
+    const testsData=Object.assign({},c.tests&&c.tests[r],c.tests&&c.tests[r+"::L"],c.tests&&c.tests[r+"::R"]);
     const posTests=(ATESTS[r]||[]).filter(t=>testsData[t]==="+").map(t=>t+" ✚");
     const negTests=(ATESTS[r]||[]).filter(t=>testsData[t]==="-").map(t=>t);
     const testsHTML=(posTests.length||negTests.length)?
@@ -3353,11 +3373,11 @@ function buildPDFHTML(id){
     const ns=c.neuro&&c.neuro[r]||{};
     const neuroSyms=ANEURO_SYMS.filter((_,i)=>ns['s'+i]);
     const neuroExtra=[ns.radTo&&'Radiates→'+ns.radTo,ns.dermatomal&&ns.dermatomal].filter(Boolean).join(' · ');
-    const romData=c.rom&&c.rom[r]||{};
+    const romData=Object.assign({},c.rom&&c.rom[r],c.rom&&c.rom[r+"::L"],c.rom&&c.rom[r+"::R"]);
     const romEntries=(AROM[r]||[]).map(({mv,norm})=>{const s=romData[mv]||{};if(!s.active&&!s.passive)return null;return `${mv} ${[s.active&&'A:'+s.active+'°',s.passive&&'P:'+s.passive+'°'].filter(Boolean).join('/')} <span style="color:#94a3b8">(N:${norm})</span>`;}).filter(Boolean);
-    const mmtData=c.mmt&&c.mmt[r]||{};
+    const mmtData=Object.assign({},c.mmt&&c.mmt[r],c.mmt&&c.mmt[r+"::L"],c.mmt&&c.mmt[r+"::R"]);
     const mmtItems=(AMMT[r]||[]).map(m=>{const g=mmtData[m];return g!=null?`${m} — ${g}/5`:null;}).filter(Boolean);
-    const testsData=c.tests&&c.tests[r]||{};
+    const testsData=Object.assign({},c.tests&&c.tests[r],c.tests&&c.tests[r+"::L"],c.tests&&c.tests[r+"::R"]);
     const posTests=(ATESTS[r]||[]).filter(t=>testsData[t]==='+');
     const negTests=(ATESTS[r]||[]).filter(t=>testsData[t]==='-');
 
@@ -3820,8 +3840,8 @@ function fillBranches(){const sel=document.getElementById("branchSel");const cur
 let _assessPage=0,_assessQ="",_assessTher="";
 function setAssessPage(n){_assessPage=n;render();}
 function renderAssessTable(){
-  const all=(DB.assessments||[]).filter(c=>inBranch(pById(c.pid))).filter(c=>!MYTHER||c.therapist===MYTHER).sort((a,b)=>b.date.localeCompare(a.date));
-  const filtered=all.filter(c=>{const p=pById(c.pid);const txt=(p.name+" "+(c.dx||"")+" "+c.therapist).toLowerCase();return (!_assessQ||txt.includes(_assessQ))&&(!_assessTher||c.therapist===_assessTher);});
+  const all=(DB.assessments||[]).filter(c=>{const p=pById(c.pid);return p&&inBranch(p);}).filter(c=>!MYTHER||c.therapist===MYTHER).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const filtered=all.filter(c=>{const p=pById(c.pid);if(!p)return false;const txt=((p.name||"")+" "+(c.dx||"")+" "+(c.therapist||"")).toLowerCase();return (!_assessQ||txt.includes(_assessQ))&&(!_assessTher||c.therapist===_assessTher);});
   const pg2=filtered.slice(_assessPage*PG,(_assessPage+1)*PG);
   const rows=pg2.map(c=>{const p=pById(c.pid);return `<tr class="clk" onclick="assessView('${c.id}')"><td>${fmtDate(c.date)}</td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div class="nm">${p.name}</div></div></td><td>${c.dx||'—'}</td><td>${c.therapist}</td><td style="text-align:right"><button class="btn sm sec" onclick="event.stopPropagation();printRx('${c.id}','assessment')">🖨 Rx</button></td></tr>`;}).join("")||'<tr><td colspan=5 class=empty>No assessments found</td></tr>';
   const tbody=document.getElementById("assessTbody");
