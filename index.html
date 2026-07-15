@@ -509,6 +509,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
       <button data-v="staff"><span class="ico">👥</span> Staff & Payroll</button>
       <button data-v="branches"><span class="ico">🏢</span> Branches</button>
       <button data-v="settings"><span class="ico">⚙️</span> Settings</button>
+      <button data-v="help"><span class="ico">❓</span> How to use</button>
     <button data-v="audit"><span class="ico">📋</span> Audit Log</button>
     </nav>
     <div class="side-foot" id="sideFoot"></div>
@@ -661,9 +662,9 @@ let DB;
 let CURROLE="owner", MYTHER=null;
 const ROLES={
  owner:{name:"Dr. Neha Verma",title:"Owner / Senior Physiotherapist",init:"NV",color:"#2563eb",home:"dashboard",scope:null,
-   views:["dashboard","reports","patients","appointments","assessment","treatment","packages","billing","expenses","reminders","staff","branches","settings"]},
+   views:["dashboard","reports","patients","appointments","assessment","treatment","packages","billing","expenses","reminders","staff","branches","settings","help"]},
  staff:{name:"Dr. Amit Joshi",title:"Therapist & Front Desk",init:"AJ",color:"#0d9488",home:"appointments",scope:"Dr. Amit Joshi",
-   views:["dashboard","patients","appointments","assessment","treatment","packages","billing","reminders"]}
+   views:["dashboard","patients","appointments","assessment","treatment","packages","billing","reminders","help"]}
 };
 function canDo(cap){return true;}
 async function sbSignIn(){
@@ -898,10 +899,13 @@ views.dashboard=()=>{
  const ap=DB.appointments.filter(inBranch),inv=DB.invoices.filter(inBranch),pt=DB.patients.filter(inBranch);
  const todayAppts=ap.filter(a=>a.date===todayISO);
  const pendingInv=inv.filter(i=>i.status==="Pending");
- const monthRev=inv.filter(i=>i.status==="Paid").reduce((s,i)=>s+invTotals(i).total,0);
+ const curMonth=todayISO.slice(0,7);
+ const monthRev=inv.filter(i=>i.status==="Paid"&&(i.paidAt||i.date||"").startsWith(curMonth)).reduce((s,i)=>s+invTotals(i).total,0);
  const outstanding=pendingInv.reduce((s,i)=>s+invTotals(i).total,0);
+ const weekAgo=(()=>{const d=new Date(todayISO);d.setDate(d.getDate()-7);return localISO(d);})();
+ const newThisWeek=pt.filter(p=>p.since&&p.since>=weekAgo).length;
  return `<div class="cards">
-  <div class="stat"><div class="lbl"><span class="ico" style="background:var(--brand-soft);color:var(--brand-dark)">👤</span>Active Patients</div><div class="val">${pt.length}</div><div class="delta">▲ 2 new this week</div></div>
+  <div class="stat"><div class="lbl"><span class="ico" style="background:var(--brand-soft);color:var(--brand-dark)">👤</span>Active Patients</div><div class="val">${pt.length}</div><div class="delta">${newThisWeek>0?'▲ '+newThisWeek+' new this week':'No new patients this week'}</div></div>
   <div class="stat"><div class="lbl"><span class="ico" style="background:#dbeafe;color:#1d4ed8">📅</span>Today's Appointments</div><div class="val">${todayAppts.length}</div><div class="delta" style="color:var(--muted)">${todayAppts.filter(a=>a.status==='Checked-in').length} checked-in</div></div>
   <div class="stat"><div class="lbl"><span class="ico" style="background:#dcfce7;color:#15803d">💰</span>Revenue (Paid)</div><div class="val">${inr(monthRev)}</div><div class="delta">This month</div></div>
   <div class="stat"><div class="lbl"><span class="ico" style="background:#fef3c7;color:#b45309">🧾</span>Outstanding</div><div class="val">${inr(outstanding)}</div><div class="delta" style="color:var(--warn)">${pendingInv.length} unpaid</div></div>
@@ -1215,18 +1219,57 @@ function calToday(){calDate=todayISO;render();}
 function setCalView(v){calView=v;render();}
 views.appointments=()=>{
  const thers=MYTHER?[MYTHER]:[...new Set(DB.staff.filter(s=>s.role.includes("Physio")).map(s=>s.name))];
+ const monthTitle=(()=>{const d=new Date(calDate);return d.toLocaleString("en-IN",{month:"long",year:"numeric"});})();
+ const dateTitle=calView==='month'?monthTitle:(dayName(calDate)+', '+fmtDate(calDate));
+ const shiftLabel=calView==='month'?'month':'day';
  const toolbar=`<div class="panel-h">
    <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
-     <button class="btn sec sm" onclick="calShift(-1)">◀</button>
-     <b style="min-width:160px;text-align:center">${dayName(calDate)}, ${fmtDate(calDate)}</b>
-     <button class="btn sec sm" onclick="calShift(1)">▶</button>
+     <button class="btn sec sm" onclick="calShift(${calView==='month'?-30:-1})">◀</button>
+     <b style="min-width:160px;text-align:center">${dateTitle}</b>
+     <button class="btn sec sm" onclick="calShift(${calView==='month'?30:1})">▶</button>
      <button class="btn sec sm" onclick="calToday()">Today</button>
    </div>
    <div class="tools">
+     <button class="btn sm ${calView==='month'?'':'sec'}" onclick="setCalView('month')">📅 Month</button>
      <button class="btn sm ${calView==='day'?'':'sec'}" onclick="setCalView('day')">Day grid</button>
      <button class="btn sm ${calView==='agenda'?'':'sec'}" onclick="setCalView('agenda')">Agenda</button>
      <button class="btn sm" onclick="apptForm('${calDate}')">+ Book</button>
    </div></div>`;
+ if(calView==='month'){
+   // Build month grid: 7 columns (Sun-Sat), rows as needed
+   const d0=new Date(calDate);const year=d0.getFullYear(),month=d0.getMonth();
+   const firstOfMonth=new Date(year,month,1);
+   const startOffset=firstOfMonth.getDay(); // 0=Sun
+   const daysInMonth=new Date(year,month+1,0).getDate();
+   // Count appointments per day
+   const ymPrefix=year+"-"+String(month+1).padStart(2,"0");
+   const monthAppts=DB.appointments.filter(inBranch).filter(a=>!MYTHER||a.therapist===MYTHER).filter(a=>(a.date||"").startsWith(ymPrefix));
+   const apptsByDay={};monthAppts.forEach(a=>{const day=+a.date.slice(8,10);(apptsByDay[day]=apptsByDay[day]||[]).push(a);});
+   // Build the grid cells
+   const cells=[];
+   for(let i=0;i<startOffset;i++)cells.push('<div style="min-height:80px;background:#fafafa;border-radius:6px"></div>');
+   for(let d=1;d<=daysInMonth;d++){
+     const dayISO=year+"-"+String(month+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+     const isToday=dayISO===todayISO;
+     const list=apptsByDay[d]||[];
+     const count=list.length;
+     const preview=list.slice(0,2).map(a=>{const p=pById(a.pid);return `<div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:${therColor(a.therapist)}">●</span> ${a.time} ${p?p.name:'?'}</div>`;}).join('');
+     const more=count>2?`<div style="font-size:10px;color:var(--accent);font-weight:600">+${count-2} more</div>`:'';
+     cells.push(`<div onclick="calDate='${dayISO}';setCalView('day')" style="min-height:80px;background:${isToday?'#eff6ff':'#fff'};border:1px solid ${isToday?'var(--accent)':'var(--line)'};border-radius:6px;padding:5px 6px;cursor:pointer;display:flex;flex-direction:column;gap:2px">
+       <div style="display:flex;justify-content:space-between;align-items:center">
+         <b style="font-size:13px;color:${isToday?'var(--accent)':'var(--ink)'}">${d}</b>
+         ${count>0?`<span style="font-size:10px;background:${isToday?'var(--accent)':'var(--muted)'};color:#fff;padding:1px 5px;border-radius:8px;font-weight:600">${count}</span>`:''}
+       </div>
+       ${preview}${more}
+     </div>`);
+   }
+   const dayHeaders=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;padding:6px 0">${d}</div>`).join('');
+   return `<div class="panel">${toolbar}<div class="panel-b">
+     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px">${dayHeaders}</div>
+     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">${cells.join('')}</div>
+     <div class="muted" style="font-size:11.5px;margin-top:10px">Tap any day to see its full schedule. Number badge = total appointments for that day.</div>
+   </div></div>`;
+ }
  if(calView==='agenda'){
   const list=DB.appointments.filter(inBranch).filter(a=>!MYTHER||a.therapist===MYTHER).slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
   const byDate={};list.forEach(a=>{(byDate[a.date]=byDate[a.date]||[]).push(a);});
@@ -1353,6 +1396,7 @@ function saveAppt(){const v=k=>document.getElementById(k).value;
   // the same therapist are allowed — that's the therapist's/clinic's call (e.g. group sessions).
   if(DB.appointments.some(a=>a.date===dateStr&&a.time===v("a_time")&&a.therapist===v("a_ther")&&a.pid===pid))return;
   DB.appointments.push({id:uid("a"),pid,date:dateStr,time:v("a_time"),type:v("a_type"),therapist:v("a_ther"),status:"Confirmed",branch:p.branch});
+  logAudit("Appointment","Booked "+dateStr+" "+v("a_time")+" with "+v("a_ther"),p.name);
  };
  addAppt(dt);
  if(repDays.length>0){
@@ -1447,14 +1491,30 @@ function printRx(id){const c=DB.consultations.find(x=>x.id===id);const p=pById(c
  <div class="modal-f"><button class="btn sec" onclick="window.print()">🖨 Print / PDF</button><button class="btn" onclick="closeModal()">Close</button></div>`,true);}
 
 /* TREATMENTS */
-let _treatOpen={};
+let _treatOpen={},_treatTab="active";
+function setTreatStatus(planId,status){
+  const t=DB.plans.find(x=>x.id===planId);if(!t)return;
+  const p=pById(t.pid);const pname=p?p.name:'';
+  t.status=status;
+  if(status==='Completed'&&!t.completedAt)t.completedAt=todayISO;
+  if(status!=='Completed')t.completedAt=null;
+  logAudit("Treatment plan","Marked "+status,pname);
+  save();render();
+}
 views.treatment=function(){
- var plans=DB.plans.filter(function(t){return inBranch(pById(t.pid));}).filter(function(t){return !MYTHER||pById(t.pid).therapist===MYTHER;});
+ var allPlans=DB.plans.filter(function(t){return inBranch(pById(t.pid));}).filter(function(t){return !MYTHER||pById(t.pid).therapist===MYTHER;});
+ // Split by status (default = "Active" for plans without a status field, so existing data keeps working)
+ var activePlans=allPlans.filter(function(t){return (t.status||"Active")!=="Completed";});
+ var completedPlans=allPlans.filter(function(t){return t.status==="Completed";});
+ var plans=_treatTab==="completed"?completedPlans:activePlans;
  // Group plans by patient
  var pidsSeen=[],groups=[];
  plans.forEach(function(t){if(!pidsSeen.includes(t.pid)){pidsSeen.push(t.pid);groups.push({pid:t.pid,plans:[]});}groups.find(function(g){return g.pid===t.pid;}).plans.push(t);});
- var html='<div class="panel"><div class="panel-h"><h3>Treatment Plans</h3><button class="btn" onclick="planForm()">+ New Plan</button></div><div class="panel-b" style="padding:0">';
- if(!groups.length){html+='<div class="empty">No treatment plans</div>';}
+ var html='<div class="panel"><div class="panel-h" style="flex-wrap:wrap;gap:8px"><h3>Treatment Plans</h3><button class="btn" onclick="planForm()">+ New Plan</button></div>'
+  +'<div style="display:flex;gap:8px;padding:10px 16px 0"><button class="btn sm '+(_treatTab==="active"?"":"sec")+'" onclick="_treatTab=\'active\';render()">🟢 Active / Paused <span class="tag" style="background:rgba(255,255,255,0.2);color:inherit;margin-left:4px">'+activePlans.length+'</span></button>'
+  +'<button class="btn sm '+(_treatTab==="completed"?"":"sec")+'" onclick="_treatTab=\'completed\';render()">✓ Completed <span class="tag" style="background:rgba(255,255,255,0.2);color:inherit;margin-left:4px">'+completedPlans.length+'</span></button></div>'
+  +'<div class="panel-b" style="padding:0">';
+ if(!groups.length){html+='<div class="empty">'+(_treatTab==="completed"?"No completed treatments yet":"No active treatment plans")+'</div>';}
  groups.forEach(function(g){
   var p=pById(g.pid);
   var isOpen=!!_treatOpen[g.pid];
@@ -1462,9 +1522,12 @@ views.treatment=function(){
   var doneSessions=g.plans.reduce(function(s,t){return s+t.done;},0);
   var pct=totalSessions>0?Math.round(doneSessions/totalSessions*100):0;
   var isActiveNow=(DB.active||[]).includes(g.pid);
-  var ongoingBtn=isActiveNow
+  var anyPaused=g.plans.some(function(t){return t.status==="Paused";});
+  var allCompleted=g.plans.every(function(t){return t.status==="Completed";});
+  var ongoingBtn=allCompleted?'':(isActiveNow
    ?'<button class="btn sm" style="font-size:11px;padding:3px 10px;background:var(--ok)" onclick="event.stopPropagation();endSession(\''+g.pid+'\');render()">🟢 End Session</button>'
-   :'<button class="btn sm" style="font-size:11px;padding:3px 10px;background:var(--teal)" onclick="event.stopPropagation();startSession(\''+g.pid+'\');render()">▶ Ongoing Treatment</button>';
+   :'<button class="btn sm" style="font-size:11px;padding:3px 10px;background:var(--teal)" onclick="event.stopPropagation();startSession(\''+g.pid+'\');render()">▶ Ongoing Treatment</button>');
+  var statusTag=allCompleted?'<span class="tag green">✓ Completed</span>':(anyPaused?'<span class="tag amber">⏸ Paused</span>':'');
   html+='<div class="list-row" style="padding:0;border-bottom:1px solid var(--line)">';
   // Patient header row — clickable to expand/collapse
   html+='<div style="display:flex;flex-wrap:wrap;align-items:center;padding:13px 16px;cursor:pointer;gap:10px" onclick="_treatOpen[\''+g.pid+'\']=!_treatOpen[\''+g.pid+'\'];this.closest(\'.list-row\').querySelector(\'.treat-body\').style.display=(_treatOpen[\''+g.pid+'\']?\'block\':\'none\');this.querySelector(\'.treat-arrow\').textContent=(_treatOpen[\''+g.pid+'\']+\'\')===\'true\'?\'▾\':\'▸\'">'
@@ -1473,6 +1536,7 @@ views.treatment=function(){
    +'<div class="mt muted" style="font-size:11.5px">'+g.plans.map(function(t){return t.diagnosis;}).join(' · ')+'</div></div></div>'
    +'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-left:auto">'
    +ongoingBtn
+   +statusTag
    +'<span class="tag teal">'+doneSessions+'/'+totalSessions+' sessions</span>'
    +'<span class="treat-arrow" style="font-size:18px;color:var(--muted)">'+(isOpen?'▾':'▸')+'</span>'
    +'</div></div>';
@@ -1551,9 +1615,13 @@ views.treatment=function(){
     +'</div>';
    }
    if(t.visits&&t.visits.length>=2)html+='<div style="margin-bottom:10px">'+painTrendSVG(t.visits)+'</div>';
-   html+='<div style="display:flex;gap:8px;margin-bottom:12px">'
-    +'<button class="btn sm" onclick="nextSessionForm(\''+t.id+'\')">▶ Next Session</button>'
+   html+='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">'
+    +(t.status!=="Completed"?'<button class="btn sm" onclick="nextSessionForm(\''+t.id+'\')">▶ Next Session</button>':'')
     +'<button class="btn sm sec" onclick="planForm(\''+t.id+'\')">Edit plan</button>'
+    +(t.status==="Paused"?'<button class="btn sm" style="background:var(--ok)" onclick="setTreatStatus(\''+t.id+'\',\'Active\')">▶ Continue</button>':'')
+    +(t.status!=="Paused"&&t.status!=="Completed"?'<button class="btn sm sec" style="color:#d97706;border-color:#d97706" onclick="setTreatStatus(\''+t.id+'\',\'Paused\')">⏸ Pause</button>':'')
+    +(t.status!=="Completed"?'<button class="btn sm sec" style="color:#16a34a;border-color:#16a34a" onclick="if(confirm(\'Mark this treatment plan as completed?\'))setTreatStatus(\''+t.id+'\',\'Completed\')">✓ Mark completed</button>':'<button class="btn sm sec" onclick="setTreatStatus(\''+t.id+'\',\'Active\')">↻ Reopen</button>')
+    +(CURROLE==='owner'?'<button class="btn sm danger sec" onclick="delPlan(\''+t.id+'\')">🗑 Delete plan</button>':'')
    +'</div></div>';
   });
   html+='</div></div>';
@@ -1562,6 +1630,17 @@ views.treatment=function(){
  return html;
 };
 function delSession(planId,sid){if(CURROLE!=='owner'){alert("Only the owner can delete sessions.");return;}if(!confirm("Remove this session entry?"))return;const t=DB.plans.find(x=>x.id===planId);t.visits=(t.visits||[]).filter(s=>s.id!==sid);if(t.done>0)t.done--;save();render();}
+function delPlan(planId){
+  if(CURROLE!=='owner'){alert("Only the owner can delete treatment plans.");return;}
+  const t=DB.plans.find(x=>x.id===planId);if(!t)return;
+  const p=pById(t.pid);const pname=p?p.name:'this patient';
+  const sessionCount=(t.visits||[]).length;
+  if(!confirm("Delete this treatment plan for "+pname+"?\n\n"+sessionCount+" logged session(s) will also be removed. This cannot be undone."))return;
+  if(!confirm("Are you absolutely sure? Tap OK to confirm permanent deletion."))return;
+  DB.plans=DB.plans.filter(x=>x.id!==planId);
+  logAudit("Treatment plan","Deleted plan ("+sessionCount+" sessions)",pname);
+  save();render();toast("✓ Treatment plan deleted");
+}
 // Next Session: pre-fills from last session, NO billing section
 function nextSessionForm(planId){
  var t=DB.plans.find(function(x){return x.id===planId;});
@@ -1715,6 +1794,8 @@ function saveSession(planId,sid,n){const v=k=>{const el=document.getElementById(
  const rec={id:sid||uid("se"),n,date:v("s_date"),time:sid?(t.visits.find(x=>x.id===sid)||{}).time||nowTime():nowTime(),therapist:v("s_ther"),modalities:v("s_mod").split("\n").filter(x=>x.trim()),exercises:v("s_ex").split("\n").filter(x=>x.trim()),pain:v("s_pain"),note:v("s_note")};
  if(sid){const i=t.visits.findIndex(x=>x.id===sid);t.visits[i]=rec;}
  else{rec.paid=false;t.visits.push(rec);t.done=(t.done||0)+1;}
+ const _pn=(pById(t.pid)||{}).name||'';
+ logAudit("Treatment session",(sid?"Edited":"Logged")+" session #"+n+" ("+t.diagnosis+")",_pn);
  save();closeModal();render();}
 function fillEx(regId,exId){const reg=document.getElementById(regId).value;document.getElementById(exId).innerHTML=(EXLIB[reg]||[]).map(e=>`<option>${e}</option>`).join("");}
 function addExTo(exId,taId){const val=document.getElementById(exId).value;if(!val)return;const ta=document.getElementById(taId);ta.value=(ta.value.trim()?ta.value.replace(/\s+$/,'')+"\n":"")+val+" — 3×10";}
@@ -1876,6 +1957,7 @@ function savePkg(){const v=k=>document.getElementById(k);const pid=v("k_pid").va
  const paidAmt=+v("k_paid").value||t.price;const balance=t.price-paidAmt;
  DB.patientPkgs.push({id:uid("pp"),pid,pkg:t.name,total:t.sessions,used:0,price:t.price,paidAmount:paidAmt,bought:todayISO,expires:expISO,status:"Active"});
  const p=pById(pid);
+ logAudit("Package","Assigned "+t.name+" ("+inr(paidAmt)+"/"+inr(t.price)+")",p.name);
  // Raise invoice for amount paid today
  if(paidAmt>0){DB.invoices.push({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items:[{d:t.name+(paidAmt<t.price?" (advance payment)":""),qty:1,rate:paidAmt}],gst:0,status:"Paid",mode:v("k_mode").value,branch:p.branch});}
  // If balance remaining, raise a pending invoice
@@ -1909,6 +1991,7 @@ function savePkgPayment(pid){const v=k=>document.getElementById(k).value;const p
    if(remaining<=0){pendingPkgInv.status="Paid";pendingPkgInv.mode=mode;pendingPkgInv.items[0].rate=0;pendingPkgInv.items[0].d=k.pkg+" (balance cleared)";}
    else{pendingPkgInv.items[0].rate=remaining;}
  }
+ logAudit("Package payment",inr(amt)+" installment via "+mode+" toward "+k.pkg,p?p.name:"");
  save();closeModal();render();}
 
 /* BILLING */
@@ -2027,6 +2110,7 @@ function walletForm(pid){openModal(`<div class="modal-h"><h3>Wallet Top-up (adva
 function walletFormPid(pid){walletForm(pid);}
 function saveTopup(){const v=k=>document.getElementById(k).value;const pid=v("w_pid");const amt=+v("w_amt")||0;const p=pById(pid);p.wallet=(p.wallet||0)+amt;
  DB.invoices.push({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items:[{d:"Wallet top-up (advance)",qty:1,rate:amt}],gst:0,status:"Paid",mode:v("w_mode"),branch:p.branch,type:"wallet-topup"});
+ logAudit("Wallet top-up",inr(amt)+" added via "+v("w_mode")+" (new balance: "+inr(p.wallet)+")",p.name);
  save();closeModal();render();}
 // Standalone consultation invoice
 function consultInvForm(pid){openModal(`<div class="modal-h"><h3>Consultation Invoice</h3><button class="x" onclick="closeModal()">×</button></div>
@@ -2049,7 +2133,9 @@ function saveConsultInv(){const v=k=>document.getElementById(k).value;const pid=
  if(mode==="Wallet (advance)"){const gross=fee;if((p.wallet||0)>=gross){p.wallet-=gross;inv.status="Paid";inv.mode="Wallet";}else{alert("Insufficient wallet balance ("+inr(p.wallet||0)+").");return;}}
  else if(mode==="Bill later"){inv.status="Pending";inv.mode="—";}
  else{inv.status="Paid";inv.mode=mode;}
- DB.invoices.push(inv);save();closeModal();render();}
+ DB.invoices.push(inv);
+ logAudit("Invoice created",inr(fee)+" consultation via "+inv.mode+" ("+inv.id+")",p.name);
+ save();closeModal();render();}
 function markPaid(id){
  const i=DB.invoices.find(x=>x.id===id);
  openModal(`<div class="modal-h"><h3>Mark Invoice Paid</h3><button class="x" onclick="closeModal()">×</button></div>
@@ -2062,7 +2148,9 @@ function doMarkPaid(id){const mode=document.getElementById("mp_mode").value;cons
  if(mode==="Wallet (advance)"){const gross=invTotals(i).total;if((p.wallet||0)<gross){alert("Wallet balance ("+inr(p.wallet||0)+") is insufficient for "+inr(gross)+". Top up first.");return;}p.wallet-=gross;i.mode="Wallet";}
  else if(mode==="Corporate / Insurance")i.mode="Corporate";
  else i.mode=mode;
- i.status="Paid";i.paidAt=todayISO;if(!i.total){i.total=invTotals(i).total;}save();closeModal();render();}
+ i.status="Paid";i.paidAt=todayISO;if(!i.total){i.total=invTotals(i).total;}
+ logAudit("Payment received",inr(invTotals(i).total)+" via "+i.mode+" for "+i.id,p?p.name:"");
+ save();closeModal();render();}
 function payRemind(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);sendWA(i.pid,"Payment",inr(invTotals(i).total)+" due — "+i.id,payMsg(p,inr(invTotals(i).total)+" pending for "+i.id));}
 function viewInvoice(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);const t=invTotals(i);
  openModal(`<div class="modal-h"><h3>Tax Invoice — ${i.id}</h3><button class="x" onclick="closeModal()">×</button></div>
@@ -2195,7 +2283,9 @@ function saveInv(){
  else if(mode==="Wallet"){if((p.wallet||0)<gross){alert("Insufficient wallet balance ("+inr(p.wallet||0)+"). Top up first.");return;}p.wallet-=gross;inv.status="Paid";inv.mode="Wallet";inv.paidAt=todayISO;}
  else if(mode==="Pending"){inv.status="Pending";inv.mode="—";}
  else{inv.status="Paid";inv.mode=mode;inv.paidAt=todayISO;}
- DB.invoices.push(inv);save();closeModal();render();}
+ DB.invoices.push(inv);
+ logAudit("Invoice created",inr(inv.total||gross)+" via "+inv.mode+" ("+inv.id+")",p.name);
+ save();closeModal();render();}
 
 /* EXPENSES */
 let _expOpenMonths={};
@@ -2279,7 +2369,9 @@ async function saveExp(){
      else{exp.billPath=path;}
    }
  }
- DB.expenses.push(exp);save();closeModal();render();
+ DB.expenses.push(exp);
+ logAudit("Expense",inr(exp.amount)+" — "+exp.cat+(exp.note?" ("+exp.note+")":""),"");
+ save();closeModal();render();
 }
 async function viewAssessScan(path){
  if(!sb){alert("Supabase isn't connected.");return;}
@@ -2394,6 +2486,20 @@ function monthAttendance(sid,ym){
  recs.forEach(r=>{if(r.status==="Present")present++;else if(r.status==="Half-day"){present+=0.5;half++;}else if(r.status==="Leave")leave++;});
  return {present,leave,half,marked:recs.length};
 }
+// Yearly breakdown — one entry per month for the given year (12 entries), so an owner
+// can see attendance patterns over a whole year without clicking through month by month.
+function yearAttendance(sid,year){
+ const months=[];
+ for(let m=1;m<=12;m++){
+   const ym=year+"-"+String(m).padStart(2,"0");
+   months.push({ym,label:MNAMES[m-1],...monthAttendance(sid,ym)});
+ }
+ const totalPresent=months.reduce((s,m)=>s+m.present,0);
+ const totalLeave=months.reduce((s,m)=>s+m.leave,0);
+ const totalMarked=months.reduce((s,m)=>s+m.marked,0);
+ return {months,totalPresent,totalLeave,totalMarked};
+}
+let _staffView="monthly",_staffYear=null;
 function attendanceForm(forDate){
  const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===curBranch());
  const date=forDate||todayISO;
@@ -2412,23 +2518,40 @@ function attendanceForm(forDate){
 }
 views.staff=()=>{const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===curBranch());
  const ym=todayISO.slice(0,7);
+ const curYear=+todayISO.slice(0,4);
+ if(_staffYear===null)_staffYear=curYear;
  const monthLabel=new Date(todayISO).toLocaleString("en-IN",{month:"long",year:"numeric"});
  const daysSoFar=new Date(todayISO).getDate();
  return `<div class="panel"><div class="panel-h"><h3>Clinic Members</h3><div style="display:flex;gap:8px"><button class="btn sm sec" onclick="attendanceForm()">📅 Mark today's attendance</button><button class="btn" onclick="staffForm()">+ Add Member</button></div></div>
  <div class="panel-b flush"><table><thead><tr><th>Member</th><th>Role</th><th>Phone</th><th>Branch</th><th>Attendance</th><th>Leaves</th><th style="text-align:right">Salary</th></tr></thead><tbody>
  ${list.map(s=>{const ma=monthAttendance(s.id,ym);const present=ma.marked?ma.present:s.present;const lv=ma.marked?ma.leave:s.leave;return `<tr><td><div class="pcell"><div class="avatar t">${initials(s.name)}</div><div class="nm">${s.name}</div></div></td><td><span class="tag ${s.role.includes('Senior')?'purple':s.role.includes('Physio')?'blue':'gray'}">${s.role}</span></td><td>${s.phone}</td><td>${bName(s.branch).replace('PhysioMind — ','')}</td><td><b style="color:var(--ok)">${present}</b> days</td><td>${lv}</td><td style="text-align:right"><b>${inr(s.salary)}</b></td></tr>`;}).join("")}
  </tbody></table></div></div>
- <div class="two-col">
-  <div class="panel"><div class="panel-h"><h3>Attendance (${monthLabel})</h3></div><div class="panel-b">
-   ${list.map(s=>{const ma=monthAttendance(s.id,ym);const present=ma.marked?ma.present:s.present;const lv=ma.marked?ma.leave:s.leave;const denom=ma.marked?daysSoFar:26;return `<div class="list-row"><div style="display:flex;justify-content:space-between"><b>${s.name}</b><span class="muted">${present}/${denom} present · ${lv} leave</span></div><div class="bar"><div style="width:${Math.min(100,Math.round(present/denom*100))}%;background:var(--ok)"></div></div></div>`;}).join("")}
-   <div class="muted" style="font-size:11.5px;margin-top:8px">Figures reflect actual daily marks for ${monthLabel} once you start using "Mark today's attendance"; until then they show the starting totals.</div>
-  </div></div>
-  <div class="panel"><div class="panel-h"><h3>Payroll (${monthLabel})</h3></div><div class="panel-b">
+ <div class="panel" style="margin-top:14px"><div class="panel-h" style="flex-wrap:wrap;gap:8px"><h3>Attendance</h3>
+   <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+     <button class="btn sm ${_staffView==='monthly'?'':'sec'}" onclick="_staffView='monthly';render()">Monthly</button>
+     <button class="btn sm ${_staffView==='yearly'?'':'sec'}" onclick="_staffView='yearly';render()">Yearly</button>
+     ${_staffView==='yearly'?`<select style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onchange="_staffYear=+this.value;render()">${[curYear,curYear-1,curYear-2].map(y=>`<option value="${y}" ${_staffYear===y?'selected':''}>${y}</option>`).join('')}</select>`:''}
+   </div>
+ </div>
+ <div class="panel-b">
+   ${_staffView==='monthly'?`
+     <div class="muted" style="font-size:12.5px;margin-bottom:8px">Showing ${monthLabel}</div>
+     ${list.map(s=>{const ma=monthAttendance(s.id,ym);const present=ma.marked?ma.present:s.present;const lv=ma.marked?ma.leave:s.leave;const denom=ma.marked?daysSoFar:26;return `<div class="list-row"><div style="display:flex;justify-content:space-between"><b>${s.name}</b><span class="muted">${present}/${denom} present · ${lv} leave</span></div><div class="bar"><div style="width:${Math.min(100,Math.round(present/denom*100))}%;background:var(--ok)"></div></div></div>`;}).join("")}
+     <div class="muted" style="font-size:11.5px;margin-top:8px">Figures reflect actual daily marks for ${monthLabel} once you start using "Mark today's attendance"; until then they show the starting totals.</div>
+   `:`
+     <div class="muted" style="font-size:12.5px;margin-bottom:10px">Month-by-month breakdown for ${_staffYear}</div>
+     ${list.map(s=>{const y=yearAttendance(s.id,_staffYear);return `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)">
+       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>${s.name}</b><span class="muted" style="font-size:12px">${y.totalPresent} present · ${y.totalLeave} leave · ${y.totalMarked} days marked</span></div>
+       <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:3px">${y.months.map(m=>{const denom=Math.max(m.marked,1);const pct=m.marked?Math.round(m.present/denom*100):0;const bg=m.marked?(pct>=80?'var(--ok)':pct>=50?'#f59e0b':'#dc2626'):'#e5e7eb';return `<div title="${m.label} ${_staffYear}: ${m.present} present, ${m.leave} leave${m.marked?'':' (no data)'}" style="height:36px;background:${bg};border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:${m.marked?'#fff':'var(--muted)'};font-size:9px;font-weight:600"><div>${m.label.slice(0,3)}</div><div style="font-size:10px">${m.marked?m.present:'–'}</div></div>`;}).join('')}</div>
+     </div>`;}).join("")||'<div class="empty">No staff to show</div>'}
+     <div class="muted" style="font-size:11.5px;margin-top:8px">Each cell shows one month. Colour: green = ≥80% attendance, amber = 50-79%, red = &lt;50%. Grey = no attendance marked yet for that month.</div>
+   `}
+ </div></div>
+ <div class="panel" style="margin-top:14px"><div class="panel-h"><h3>Payroll (${monthLabel})</h3></div><div class="panel-b">
    ${list.map(s=>`<div class="list-row" style="display:flex;justify-content:space-between"><span>${s.name}</span><b>${inr(s.salary)}</b></div>`).join("")}
    <div class="list-row" style="display:flex;justify-content:space-between"><b>Total payroll</b><b style="color:var(--brand)">${inr(list.reduce((a,s)=>a+s.salary,0))}</b></div>
    <button class="btn sm" style="margin-top:10px" onclick="downloadPayslips()">⬇ Generate payslips</button>
-  </div></div>
- </div>`;};
+ </div></div>`;};
 function downloadPayslips(){
  const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===curBranch());
  if(!list.length){alert("No staff members to generate payslips for.");return;}
@@ -3113,7 +3236,10 @@ function saveAssess(){
   if(gv("ca_sessions"))a.sessions=+gv("ca_sessions");
   if(!a.pid){alert("Select a patient.");return;}
   const idx=DB.assessments.findIndex(x=>x.id===a.id);
-  if(idx>-1)DB.assessments[idx]=a; else DB.assessments.push(a);
+  const isEdit=idx>-1;
+  if(isEdit)DB.assessments[idx]=a; else DB.assessments.push(a);
+  const _pn=(pById(a.pid)||{}).name||'';
+  logAudit("Assessment",(isEdit?"Edited assessment":"New assessment")+(a.dx?" — "+a.dx:""),_pn);
   save();closeModal();toast("✓ Assessment saved");
   // Go straight to the document view
   window._viewAssessId=a.id;
@@ -3278,6 +3404,7 @@ function assessDocHTML(id){
         <button class="btn sec" onclick="assessSavePDF('${id}')">⬇ Save PDF</button>
         ${(c.home&&c.home.length)?`<button class="btn sec" style="background:#25D366;color:#fff" onclick="sendAssessHomeWA('${id}')">📲 Send Home Plan</button>`:""}
         <button class="btn" style="background:#16a34a" onclick="startSessionFromAssess('${id}')">▶ Start Session</button>
+        ${CURROLE==='owner'?`<button class="btn danger sec" onclick="delAssess('${id}')">🗑 Delete</button>`:''}
       </div>
     </div>
     <div class="adoc-meta">
@@ -3617,6 +3744,22 @@ function buildAssessPDF(id){
 
 // Save: upload the actual PDF file to Supabase Storage (works from any device),
 // keep a local IndexedDB copy too for instant offline access, then download to the device.
+function delAssess(id){
+  if(CURROLE!=='owner'){alert("Only the owner can delete assessments.");return;}
+  const c=(DB.assessments||[]).find(x=>x.id===id);if(!c)return;
+  const p=pById(c.pid);const pname=p?p.name:'this patient';
+  if(!confirm("Delete this assessment for "+pname+"?\n\nThis cannot be undone. Any linked PDF and scan photos will also be removed."))return;
+  if(!confirm("Are you absolutely sure? Tap OK to confirm permanent deletion."))return;
+  // Remove from patient's docs list too
+  if(p&&p.docs){p.docs=p.docs.filter(d=>d.assessId!==id);}
+  DB.assessments=(DB.assessments||[]).filter(x=>x.id!==id);
+  logAudit("Assessment","Deleted assessment",pname);
+  save();
+  current="assessment";
+  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.v==="assessment"));
+  render();
+  toast("✓ Assessment deleted");
+}
 async function assessSavePDF(id){
   const built=buildAssessPDF(id);if(!built)return;
   const {doc,fname,pid}=built;
@@ -3852,6 +3995,135 @@ function filterAssessTable(){_assessQ=(document.getElementById("assessSearch")?.
 function logAudit(a,d,p){DB.auditLog=DB.auditLog||[];DB.auditLog.unshift({id:uid("al"),ts:new Date().toISOString(),action:a,detail:d,user:CURROLE||"owner",patient:p||""});if(DB.auditLog.length>2000)DB.auditLog=DB.auditLog.slice(0,2000);save();}
 let _auditOpenMonths={};
 function toggleAuditMonth(m){_auditOpenMonths[m]=!(_auditOpenMonths[m]!==undefined?_auditOpenMonths[m]:(m===todayISO.slice(0,7)));render();}
+views.help=function(){return `<div class="panel" style="max-width:900px">
+ <div class="panel-h"><h3>❓ How to use PhysioMind</h3></div>
+ <div class="panel-b" style="line-height:1.6;font-size:14px">
+  <p class="muted" style="margin-bottom:16px">A guide to daily tasks. Tap a section to expand it.</p>
+
+  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">📅 Booking an appointment</summary>
+   <ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Calendar</b> tab</li>
+    <li>Click <b>+ Book</b> button</li>
+    <li>Choose the patient (or add a new one), the therapist, date and time</li>
+    <li>Save — the appointment appears on the calendar and in Today's Schedule on the dashboard</li>
+   </ol>
+  </details>
+
+  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">➕ Adding a new patient</summary>
+   <ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Patients</b> tab → click <b>+ New Patient</b></li>
+    <li>Fill in name, phone, date of birth, and other details</li>
+    <li>Save — the patient appears at the top of the list (newest first)</li>
+   </ol>
+  </details>
+
+  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">📝 Doing an assessment</summary>
+   <ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Assessment</b> tab → click <b>+ New Assessment</b></li>
+    <li>Pick the patient and therapist</li>
+    <li>Choose <b>Digital template</b> (fill in the form) OR <b>Upload paper copy</b> (photo of a paper form)</li>
+    <li>For digital: pick body regions, then fill ROM, MMT, special tests, notes</li>
+    <li>Save — an assessment PDF is auto-generated and stored under the patient's Documents</li>
+    <li>Click <b>▶ Start Session</b> from the assessment to automatically build a treatment plan from what you entered</li>
+   </ol>
+  </details>
+
+  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">🏃 Running a session (Start → End → Bill)</summary>
+   <ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Treatments</b> tab → find the patient's plan → click <b>▶ Ongoing Treatment</b> to start the timer (they appear in "Active now")</li>
+    <li>When the session ends, click <b>🟢 End Session</b> — this opens the log form</li>
+    <li>Fill in what treatment was given, exercises done, pain level today</li>
+    <li>Click <b>Save session</b> — the session is now logged (unpaid)</li>
+    <li>To bill it: find that session in the Treatments list, click <b>💳 End &amp; Pay</b> — choose payment mode, save</li>
+   </ol>
+   <p class="muted" style="margin-top:8px;font-size:12.5px">Logging and billing are deliberately two separate steps to prevent accidentally billing the same session twice.</p>
+  </details>
+
+  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">💰 Billing &amp; invoices</summary>
+   <ol style="margin:10px 0 0 22px">
+    <li>Every billed session automatically becomes an invoice, viewable under <b>Billing &amp; GST</b> tab</li>
+    <li>Invoices are grouped by month (current month expanded by default; tap older months to open)</li>
+    <li>Pending payments show up on the dashboard's "Outstanding" card</li>
+    <li>Click any invoice to see full details, print, or download as PDF</li>
+   </ol>
+  </details>
+
+  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">🎁 Selling a package</summary>
+   <ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Packages</b> tab → click <b>+ Assign</b></li>
+    <li>Pick patient, choose a package template, take partial or full payment</li>
+    <li>The package tracks used vs remaining sessions, expiry date, and outstanding balance</li>
+    <li>When billing a session, pick <b>Package session</b> as payment mode — it deducts one prepaid session automatically (invoice shows ₹0)</li>
+    <li>Packages auto-expire when the expiry date passes; expired packages can no longer be used for billing</li>
+   </ol>
+  </details>
+
+  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">📱 WhatsApp reminders</summary>
+   <ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Reminders</b> tab</li>
+    <li>Choose category (Appointment / Payment / Package etc.)</li>
+    <li>Pick a message template (edit or add your own under Templates tab)</li>
+    <li>Tap on any patient's row — WhatsApp opens with the message pre-filled</li>
+   </ol>
+  </details>
+
+  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">👥 Staff attendance &amp; payroll</summary>
+   <ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Staff &amp; Payroll</b> tab → click <b>📅 Mark today's attendance</b></li>
+    <li>Pick Present / Half-day / Leave for each staff member — save</li>
+    <li>You can also back-fill previous days by changing the date at the top of the modal</li>
+    <li>Attendance figures and payroll summary update automatically</li>
+    <li>Click <b>⬇ Generate payslips</b> to download PDFs</li>
+   </ol>
+  </details>
+
+  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">💵 Recording an expense</summary>
+   <ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Expenses</b> tab → click <b>+ Add Expense</b></li>
+    <li>Pick date, category (or type your own), amount, optional note, optional bill photo</li>
+    <li>Expenses are grouped by month, same as invoices</li>
+   </ol>
+  </details>
+
+  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">📊 Reports</summary>
+   <ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Reports &amp; Analytics</b> tab</li>
+    <li>Use the month dropdown to switch view, or pick <b>All time</b> for cumulative</li>
+    <li>You'll see revenue, expenses, profit, income by payment mode, expenses by category, and therapist workload</li>
+   </ol>
+  </details>
+
+  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">🔒 Backup &amp; data safety</summary>
+   <ol style="margin:10px 0 0 22px">
+    <li>Your data lives in the cloud — sign in on any device, see the same data</li>
+    <li>Go to <b>Settings</b> → click <b>📥 Download backup (.json)</b> anytime to keep an independent copy</li>
+    <li>Restoring a backup replaces your live data <b>for everyone signed in</b> — only use it to undo a serious mistake</li>
+    <li>The <b>Audit Log</b> tab (owner only) shows a record of important actions and who did them</li>
+   </ol>
+  </details>
+
+  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">📊 Dashboard — what drives each number</summary>
+   <ul style="margin:10px 0 0 22px">
+    <li><b>Active Patients:</b> patients with status "Active" (not deactivated). "2 new this week" counts patients added in the last 7 days.</li>
+    <li><b>Today's Appointments:</b> total appointments booked for today. "checked-in" = appointments marked as Checked-in status.</li>
+    <li><b>Revenue (Paid) — This month:</b> sum of all invoices with status "Paid" in the current calendar month. Excludes pending and cancelled.</li>
+    <li><b>Outstanding:</b> sum of all invoices with status "Pending" (any date). Also shows the count.</li>
+    <li><b>Today's Schedule:</b> just today's appointments, sorted by time.</li>
+    <li><b>Pending Payments:</b> up to a few of the most recent pending invoices, for quick follow-up.</li>
+    <li><b>Messaging:</b> Sent = reminders you clicked to send today. Payment dues = same as Outstanding count.</li>
+   </ul>
+  </details>
+
+  <details style="padding:10px 0"><summary style="font-weight:600;cursor:pointer">🚨 Something looks wrong — what to do</summary>
+   <div style="margin:10px 0 0 22px">
+    <p><b>Data missing on this device but not another?</b> Sign out and back in — this forces a fresh sync from the cloud.</p>
+    <p><b>Sync failed warning?</b> Check your internet — the app will keep retrying automatically. Don't refresh mid-save.</p>
+    <p><b>Two invoices for the same session?</b> This shouldn't happen anymore, but if you see it, delete the wrong one from Billing &amp; GST.</p>
+    <p><b>Anything else broken?</b> Screenshot the exact screen and message the developer.</p>
+   </div>
+  </details>
+ </div>
+</div>`;};
 views.audit=function(){
   DB.auditLog=DB.auditLog||[];
   var l=DB.auditLog;
