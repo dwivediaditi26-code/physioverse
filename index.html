@@ -456,7 +456,24 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 .role-opt .rt{color:var(--muted);font-size:12px}
 .role-opt .rsee{font-size:11px;color:var(--brand);font-weight:600;margin-top:2px}
 .role-opt .arr{margin-left:auto;color:var(--muted);font-size:18px}
-.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:60px;padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:content-box;background:var(--sidebar);border-top:2px solid var(--accent);z-index:1000;flex-direction:row;align-items:stretch;box-shadow:0 -4px 20px rgba(0,0,0,0.15);overflow:hidden}.bottom-nav-inner{display:flex;width:100%;height:60px;align-items:stretch}.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;cursor:pointer;color:var(--muted);padding:4px 2px;font-size:10px;font-weight:500;letter-spacing:0.2px;transition:all 0.15s;-webkit-tap-highlight-color:transparent;overflow:hidden}.bnav-btn.active{color:var(--accent)}.bnav-btn.active .bico{transform:scale(1.15)}.bnav-btn .bico{font-size:20px;line-height:1;transition:transform 0.15s}.more-drawer{position:fixed;bottom:calc(60px + env(safe-area-inset-bottom,0px));left:0;right:0;background:var(--sidebar);border-top:2px solid var(--accent);border-radius:20px 20px 0 0;z-index:999;transform:translateY(100%);transition:transform 0.28s cubic-bezier(0.4,0,0.2,1);padding:16px 16px calc(24px + env(safe-area-inset-bottom,0px))}.more-drawer.open{transform:translateY(0)}.more-drawer-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px}.more-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:14px 4px;cursor:pointer;font-size:12px;font-weight:500;color:var(--tx);transition:all 0.15s;-webkit-tap-highlight-color:transparent}.more-item:active{background:var(--accent);color:#fff;transform:scale(0.96)}.mico{font-size:26px;line-height:1}.more-drawer-handle{width:44px;height:5px;background:var(--line);border-radius:3px;margin:0 auto 14px}@media(max-width:640px){.bottom-nav{display:flex!important}.app{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}}</style>
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:60px;padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:content-box;background:var(--sidebar);border-top:2px solid var(--accent);z-index:1000;flex-direction:row;align-items:stretch;box-shadow:0 -4px 20px rgba(0,0,0,0.15);overflow:hidden}.bottom-nav-inner{display:flex;width:100%;height:60px;align-items:stretch}.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;cursor:pointer;color:var(--muted);padding:4px 2px;font-size:10px;font-weight:500;letter-spacing:0.2px;transition:all 0.15s;-webkit-tap-highlight-color:transparent;overflow:hidden}.bnav-btn.active{color:var(--accent)}.bnav-btn.active .bico{transform:scale(1.15)}.bnav-btn .bico{font-size:20px;line-height:1;transition:transform 0.15s}.more-drawer{position:fixed;bottom:calc(60px + env(safe-area-inset-bottom,0px));left:0;right:0;background:var(--sidebar);border-top:2px solid var(--accent);border-radius:20px 20px 0 0;z-index:999;transform:translateY(100%);transition:transform 0.28s cubic-bezier(0.4,0,0.2,1);padding:16px 16px calc(24px + env(safe-area-inset-bottom,0px))}.more-drawer.open{transform:translateY(0)}.more-drawer-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px}.more-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:14px 4px;cursor:pointer;font-size:12px;font-weight:500;color:var(--tx);transition:all 0.15s;-webkit-tap-highlight-color:transparent}.more-item:active{background:var(--accent);color:#fff;transform:scale(0.96)}.mico{font-size:26px;line-height:1}.more-drawer-handle{width:44px;height:5px;background:var(--line);border-radius:3px;margin:0 auto 14px}
+/* Mobile-only bottom tab bar. Below 641px it's shown (and .app gets bottom padding to clear it);
+   at 641px and above this single rule is the one source of truth that keeps it hidden — no JS
+   width-detection needed, so there's nothing for a wrapped/embedded window to get wrong. */
+@media(max-width:640px){.bottom-nav{display:flex!important}.app{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}}
+@media(min-width:641px){.bottom-nav,.more-drawer,#moreBackdrop{display:none!important}.app{padding-bottom:0!important}}
+/* Desktop polish — make use of the extra width instead of just stretching the mobile layout */
+@media(min-width:1300px){
+ .content{padding:28px 34px}
+ .cards{gap:18px}
+ .stat{padding:19px 20px}
+ .two-col{gap:22px}
+}
+@media(min-width:1600px){
+ .content{max-width:1680px;margin:0 auto;width:100%}
+ .apphead .topbar,.apphead .activebar{max-width:1680px;margin:0 auto}
+}
+</style>
 <!-- PDF generation -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -506,7 +523,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
       <div class="grp">COMMUNICATION</div>
       <button data-v="reminders"><span class="ico">🔔</span> Reminders</button>
       <div class="grp">CLINIC</div>
-      <button data-v="staff"><span class="ico">👥</span> Staff & Payroll</button>
+      <button data-v="staff"><span class="ico">👥</span> Staff</button>
       <button data-v="branches"><span class="ico">🏢</span> Branches</button>
       <button data-v="settings"><span class="ico">⚙️</span> Settings</button>
       <button data-v="help"><span class="ico">❓</span> How to use</button>
@@ -832,11 +849,16 @@ function painTrendSVG(visits){
    <path d="${line}" fill="none" stroke="#2563eb" stroke-width="2.5"/>
    ${pts.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="${col(v[i].pain)}"/><text x="${p[0]}" y="${p[1]-7}" font-size="10" fill="#1a2233" text-anchor="middle">${v[i].pain}</text><text x="${p[0]}" y="${H-6}" font-size="9" fill="#6b7589" text-anchor="middle">#${v[i].n}</text>`).join("")}
   </svg>`;}
-const statusTag=s=>({Confirmed:"blue","Checked-in":"teal",Pending:"amber",Completed:"green",Cancelled:"red",Paid:"green",Delivered:"green",Sent:"teal",Scheduled:"amber",Active:"green",Expired:"red"}[s]||"gray");
+const statusTag=s=>({Confirmed:"blue","Checked-in":"teal",Pending:"amber",Completed:"green",Cancelled:"red",Paid:"green",Delivered:"green",Sent:"teal",Scheduled:"amber",Active:"green",Expired:"red",Late:"red"}[s]||"gray");
+// An appointment is "Late" once its scheduled time has passed today and the patient
+// hasn't been checked in, completed, or cancelled.
+function isApptLate(a){return a&&a.date===todayISO&&a.time&&a.time<nowTime()&&a.status!=="Checked-in"&&a.status!=="Completed"&&a.status!=="Cancelled";}
+function apptStatusLabel(a){return isApptLate(a)?"Late":a.status;}
+function apptStatusCls(a){return isApptLate(a)?"red":statusTag(a.status);}
 function curBranch(){return document.getElementById("branchSel").value;}
 const inBranch=x=>{const b=curBranch();return b==="all"||x.branch===b||x.branch===undefined;};
 
-const titles={dashboard:["Dashboard","Clinic overview at a glance"],reports:["Reports & Analytics","Revenue, appointments & staff performance"],patients:["Patients","Records, timeline, documents & wallet"],appointments:["Appointments","Color-coded scheduling"],assessment:["Assessment","Clinical notes, SOAP & prescriptions"],treatment:["Treatments","Session plans, exercises & progress"],packages:["Packages","Treatment packages & session tracking"],billing:["Billing & GST","Invoices, receipts & payments"],expenses:["Expenses","Track clinic spending"],reminders:["Reminders","WhatsApp & SMS automation"],staff:["Staff & Payroll","Members, roles, attendance & salary"],audit:["Audit Log","Activity history & change log"],branches:["Branches","Multi-location management"],settings:["Settings","Clinic configuration"]};
+const titles={dashboard:["Dashboard","Clinic overview at a glance"],reports:["Reports & Analytics","Revenue, appointments & staff performance"],patients:["Patients","Records, timeline, documents & wallet"],appointments:["Appointments","Color-coded scheduling"],assessment:["Assessment","Clinical notes, SOAP & prescriptions"],treatment:["Treatments","Session plans, exercises & progress"],packages:["Packages","Treatment packages & session tracking"],billing:["Billing & GST","Invoices, receipts & payments"],expenses:["Expenses","Track clinic spending"],reminders:["Reminders","WhatsApp & SMS automation"],staff:["Staff","Members, roles & attendance"],audit:["Audit Log","Activity history & change log"],branches:["Branches","Multi-location management"],settings:["Settings","Clinic configuration"]};
 let current="dashboard";
 function go(v){current=v;document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.v===v));document.getElementById("pageTitle").textContent=titles[v][0];document.getElementById("pageSub").textContent=titles[v][1];render();window.scrollTo(0,0);}
 document.getElementById("nav").addEventListener("click",e=>{const b=e.target.closest("button");if(b){go(b.dataset.v);toggleNav(false);}});
@@ -913,7 +935,7 @@ views.dashboard=()=>{
  <div class="two-col">
   <div class="panel"><div class="panel-h"><h3>Today's Schedule — ${fmtDate(todayISO)}</h3><button class="btn sm" onclick="go('appointments')">View all</button></div>
    <div class="panel-b flush"><table><thead><tr><th>Time</th><th>Patient</th><th>Type</th><th>Therapist</th><th>Status</th></tr></thead><tbody>
-   ${todayAppts.sort((a,b)=>a.time.localeCompare(b.time)).map(a=>{const p=pById(a.pid);return `<tr><td><b>${a.time}</b></td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt">${p.condition}</div></div></div></td><td>${a.type}</td><td>${a.therapist}</td><td><span class="tag ${statusTag(a.status)}">${a.status}</span></td></tr>`;}).join("")||'<tr><td colspan=5 class=empty>No appointments today</td></tr>'}
+   ${todayAppts.sort((a,b)=>a.time.localeCompare(b.time)).map(a=>{const p=pById(a.pid);return `<tr${isApptLate(a)?' style="background:#fef2f2"':''}><td><b>${a.time}</b></td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt">${p.condition}</div></div></div></td><td>${a.type}</td><td>${a.therapist}</td><td><span class="tag ${apptStatusCls(a)}">${apptStatusLabel(a)}</span></td></tr>`;}).join("")||'<tr><td colspan=5 class=empty>No appointments today</td></tr>'}
    </tbody></table></div></div>
   <div>
    <div class="panel"><div class="panel-h"><h3>Pending Payments</h3></div><div class="panel-b">
@@ -942,7 +964,7 @@ function therapistDash(){
  <div class="two-col">
   <div class="panel"><div class="panel-h"><h3>My Schedule — ${fmtDate(todayISO)}</h3><button class="btn sm" onclick="go('appointments')">View all</button></div>
    <div class="panel-b flush"><table><thead><tr><th>Time</th><th>Patient</th><th>Type</th><th>Status</th></tr></thead><tbody>
-   ${todayA.map(a=>{const p=pById(a.pid);return `<tr><td><b>${a.time}</b></td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt">${p.condition}</div></div></div></td><td>${a.type}</td><td><span class="tag ${statusTag(a.status)}">${a.status}</span></td></tr>`;}).join("")||'<tr><td colspan=4 class=empty>No sessions today</td></tr>'}
+   ${todayA.map(a=>{const p=pById(a.pid);return `<tr${isApptLate(a)?' style="background:#fef2f2"':''}><td><b>${a.time}</b></td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt">${p.condition}</div></div></div></td><td>${a.type}</td><td><span class="tag ${apptStatusCls(a)}">${apptStatusLabel(a)}</span></td></tr>`;}).join("")||'<tr><td colspan=4 class=empty>No sessions today</td></tr>'}
    </tbody></table></div></div>
   <div class="panel"><div class="panel-h"><h3>My Treatment Plans</h3></div><div class="panel-b">
    ${myPlans.map(t=>{const p=pById(t.pid);const pct=Math.round(t.done/t.sessions*100);return `<div class="list-row"><div style="display:flex;justify-content:space-between"><b>${p.name}</b><span class="muted">${t.done}/${t.sessions}</span></div><div class="mt muted">${t.diagnosis}</div><div class="bar"><div style="width:${pct}%"></div></div></div>`;}).join("")||'<div class=muted>No active plans</div>'}
@@ -952,7 +974,7 @@ function therapistDash(){
 }
 
 /* PATIENTS */
-let _ptab="active",_patPage=0;
+let _ptab="active",_patPage=0,_patMonth="";
 const PG=50;
 function pgBar(total,page,setFn){
   if(total<=PG)return'';
@@ -965,35 +987,52 @@ views.patients=()=>{
  const active=all.filter(p=>(p.status||"Active")==="Active");
  const inactive=all.filter(p=>p.status==="Inactive");
  const base=_ptab==="active"?active:_ptab==="inactive"?inactive:all;
+ const months=[...new Set(all.map(p=>(p.since||"").slice(0,7)).filter(Boolean))].sort().reverse();
+ const monthFiltered=_patMonth?base.filter(p=>(p.since||"").startsWith(_patMonth)):base;
  // Most recently added first — reverse first so same-day ties still favor whichever was added
- // later (patients are pushed to the end of the array as they're created), then stable-sort by date.
- const list=base.slice().reverse().sort((a,b)=>(b.since||"").localeCompare(a.since||""));
+ // later (patients are pushed to the end of the array as they're created), then stable-sort by
+ // registration date and time.
+ const list=monthFiltered.slice().reverse().sort((a,b)=>(b.since||"").localeCompare(a.since||"")||(b.sinceTime||"").localeCompare(a.sinceTime||""));
+ _patFiltered=list;
  return `<div class="panel">
   <div class="panel-h" style="flex-wrap:wrap;gap:8px">
-   <div style="display:flex;gap:6px">
+   <div style="display:flex;gap:6px;flex-wrap:wrap">
     <button class="btn sm${_ptab==="active"?"":' sec'}" onclick="_ptab='active';_patPage=0;render()">🟢 Active <span class="tag blue" style="margin-left:4px">${active.length}</span></button>
     <button class="btn sm${_ptab==="inactive"?"":' sec'}" onclick="_ptab='inactive';_patPage=0;render()">⛔ Inactive <span class="tag gray" style="margin-left:4px">${inactive.length}</span></button>
     <button class="btn sm${_ptab==="all"?"":' sec'}" onclick="_ptab='all';_patPage=0;render()">All <span class="tag gray" style="margin-left:4px">${all.length}</span></button>
    </div>
+   <select onchange="_patMonth=this.value;_patPage=0;render()" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px">
+    <option value="" ${!_patMonth?"selected":""}>📅 All months</option>
+    ${months.map(m=>`<option value="${m}" ${_patMonth===m?"selected":""}>${MNAMES[+m.slice(5,7)-1]} ${m.slice(0,4)}</option>`).join("")}
+   </select>
    <div style="display:flex;gap:8px;margin-left:auto">
     <div class="search">🔍<input id="psearch" placeholder="Search name, phone, DOB..." oninput="filterPatients(this.value)"></div>
     <button class="btn" onclick="patientForm()">+ New Patient</button>
    </div>
   </div>
-  <div class="panel-b flush" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>Patient</th><th>Patient ID</th><th>Age/Sex</th><th>Phone</th><th>Condition</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody id="prows">${patientRows(list.slice(_patPage*PG,(_patPage+1)*PG))}</tbody></table><div id="patPgBar">${pgBar(list.length,_patPage,'setPatPage')}</div></div>
+  <div class="panel-b flush" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>Patient</th><th>Patient ID</th><th>Age/Sex</th><th>Phone</th><th>Registered</th><th>Condition</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody id="prows">${patientRows(list.slice(_patPage*PG,(_patPage+1)*PG))}</tbody></table><div id="patPgBar">${pgBar(list.length,_patPage,'setPatPage')}</div></div>
  </div>`;
 };
 function patientRows(list){
+ let lastGroup=null;
  return list.map(function(p){
   var isActive=(p.status||"Active")==="Active";
   var toggleBtn=isActive
    ?'<button class="btn sm sec" style="color:var(--danger);border-color:var(--danger)" title="Deactivate" onclick="event.stopPropagation();togglePatientStatus(\''+p.id+'\')">Deactivate</button>'
    :'<button class="btn sm" style="background:var(--ok)" title="Activate" onclick="event.stopPropagation();togglePatientStatus(\''+p.id+'\')">Activate</button>';
-  return '<tr class="clk" onclick="patientView(\''+p.id+'\',\'assess\')">'
+  var grp=(p.since||"").slice(0,7);
+  var grpLabel=grp?MNAMES[+grp.slice(5,7)-1]+' '+grp.slice(0,4):'Registration date unknown';
+  var headerRow='';
+  if(grp!==lastGroup){
+   lastGroup=grp;
+   headerRow='<tr><td colspan="8" style="background:var(--bg2);font-weight:700;font-size:12px;color:var(--muted);padding:7px 12px;border-top:1px solid var(--line)">'+grpLabel+'</td></tr>';
+  }
+  return headerRow+'<tr class="clk" onclick="patientView(\''+p.id+'\',\'assess\')">'
    +'<td><div class="pcell"><div class="avatar">'+initials(p.name)+'</div><div><div class="nm">'+p.name+'</div><div class="mt muted">'+p.therapist+'</div></div></div></td>'
    +'<td><b style="color:var(--brand)">'+patientCode(p)+'</b><div class="mt muted">'+fmtDate(p.dob)+'</div></td>'
    +'<td>'+p.age+'/'+p.gender+'</td>'
    +'<td>'+p.phone+'</td>'
+   +'<td style="white-space:nowrap">'+fmtDate(p.since)+(p.sinceTime?'<div class="mt muted">'+p.sinceTime+'</div>':'')+'</td>'
    +'<td>'+p.condition+'</td>'
    +'<td><span class="tag '+(isActive?'green':'gray')+'">'+( isActive?'Active':'Inactive')+'</span></td>'
    +'<td style="text-align:right;white-space:nowrap">'
@@ -1003,7 +1042,7 @@ function patientRows(list){
    +'<button class="btn ghost" title="Edit" onclick="event.stopPropagation();patientForm(\''+p.id+'\')">✏️</button> '
    +toggleBtn
    +'</td></tr>';
- }).join("")||'<tr><td colspan=7 class=empty>No patients</td></tr>';
+ }).join("")||'<tr><td colspan=8 class=empty>No patients</td></tr>';
 }
 function togglePatientStatus(id){
  var p=pById(id);
@@ -1016,7 +1055,7 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
  const homePlans=plans.filter(t=>t.home&&Array.isArray(t.home)&&t.home.length);
  const visits=[];plans.forEach(t=>(t.visits||[]).forEach(s=>visits.push({...s,planId:t.id})));visits.sort((a,b)=>b.date.localeCompare(a.date)||b.n-a.n);
  const show=t=>T===t?"block":"none";
- openModal(`<div class="modal-h"><h3><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div>${p.name}</div><div class="mt muted">ID ${patientCode(p)} · ${p.age}y · ${p.gender==='M'?'Male':'Female'} · <a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a> · ${p.therapist}</div></div></div></h3><button class="x" onclick="closeModal()">×</button></div>
+ openModal(`<div class="modal-h"><h3><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div>${p.name}</div><div class="mt muted">ID ${patientCode(p)} · ${p.age}y · ${p.gender==='M'?'Male':'Female'} · <a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a> · ${p.therapist}</div><div class="mt muted">Registered ${fmtDate(p.since)}${p.sinceTime?' at '+p.sinceTime:''}</div></div></div></h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="tabs" id="pvtabs">
    <button class="${T==='assess'?'active':''}" onclick="pvtab(this,'assess')">📋 Assessment</button>
@@ -1204,7 +1243,7 @@ function patientForm(id){const p=id?pById(id):{name:"",dob:"",gender:"M",phone:"
 function savePatient(id){const v=k=>{const el=document.getElementById(k);return el?el.value:"";};const dob=v("f_dob");const obj={name:v("f_name"),dob,age:ageFromDob(dob),gender:v("f_gender"),phone:v("f_phone"),condition:v("f_cond"),email:v("f_email"),occ:v("f_occ"),addr:v("f_addr"),emName:v("f_emname"),emPhone:v("f_emphone"),refDr:v("f_refdr"),therapist:v("f_ther"),branch:v("f_branch")};
  if(!obj.name){alert("Name required");return;}
  if(!dob){alert("Date of birth required — it is the patient's ID");return;}
- if(id){Object.assign(pById(id),obj);}else{var _np={id:uid("p"),since:todayISO,wallet:0,docs:[],...obj};DB.patients.push(_np);logAudit("Patient Added","New patient",_np.name||"");}save();closeModal();render();}
+ if(id){Object.assign(pById(id),obj);}else{var _np={id:uid("p"),since:todayISO,sinceTime:nowTime(),wallet:0,docs:[],...obj};DB.patients.push(_np);logAudit("Patient Added","New patient",_np.name||"");}save();closeModal();render();}
 
 /* APPOINTMENTS */
 const therColor=t=>({"Dr. Neha Verma":"#2563eb","Dr. Amit Joshi":"#0d9488","Dr. Karan Mehta":"#7c3aed"}[t]||"#6b7589");
@@ -1275,12 +1314,12 @@ views.appointments=()=>{
   const byDate={};list.forEach(a=>{(byDate[a.date]=byDate[a.date]||[]).push(a);});
   return `<div class="panel">${toolbar}<div class="panel-b flush">
    ${Object.keys(byDate).map(d=>`<div class="cal-day">${fmtDate(d)} ${d===todayISO?'<span class="tag teal" style="margin-left:6px">Today</span>':''}</div>
-     <table><tbody>${byDate[d].map(a=>{const p=pById(a.pid);return `<tr class="clk" onclick="apptView('${a.id}')"><td style="width:70px;border-left:4px solid ${therColor(a.therapist)}"><b>${a.time}</b></td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt"><a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a></div></div></div></td><td>${a.type}</td><td>${a.therapist}</td><td><span class="tag ${statusTag(a.status)}">${a.status}</span></td></tr>`;}).join("")}</tbody></table>`).join("")||'<div class=empty>No appointments</div>'}
+     <table><tbody>${byDate[d].map(a=>{const p=pById(a.pid);return `<tr class="clk" onclick="apptView('${a.id}')"${isApptLate(a)?' style="background:#fef2f2"':''}><td style="width:70px;border-left:4px solid ${therColor(a.therapist)}"><b>${a.time}</b></td><td><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt"><a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a></div></div></div></td><td>${a.type}</td><td>${a.therapist}</td><td><span class="tag ${apptStatusCls(a)}">${apptStatusLabel(a)}</span></td></tr>`;}).join("")}</tbody></table>`).join("")||'<div class=empty>No appointments</div>'}
    </div></div>`;
  }
  const dayAppts=DB.appointments.filter(inBranch).filter(a=>a.date===calDate).filter(a=>!MYTHER||a.therapist===MYTHER);
  const hours=[];for(let h=0;h<=23;h++)hours.push(h);
- const block=a=>{const p=pById(a.pid);return `<div onclick="event.stopPropagation();apptView('${a.id}')" style="border-left:3px solid ${therColor(a.therapist)};background:#f3f7fc;border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer"><div style="font-weight:600;font-size:12px">${a.time} · ${p.name}</div><div style="font-size:11px;color:var(--muted)">${a.type}</div><span class="tag ${statusTag(a.status)}" style="font-size:10px;margin-top:2px">${a.status}</span></div>`;};
+ const block=a=>{const p=pById(a.pid);const late=isApptLate(a);return `<div onclick="event.stopPropagation();apptView('${a.id}')" style="border-left:3px solid ${late?'#dc2626':therColor(a.therapist)};background:${late?'#fef2f2':'#f3f7fc'};border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer"><div style="font-weight:600;font-size:12px">${a.time} · ${p.name}</div><div style="font-size:11px;color:var(--muted)">${a.type}</div><span class="tag ${apptStatusCls(a)}" style="font-size:10px;margin-top:2px">${apptStatusLabel(a)}</span></div>`;};
  const grid=`<table style="min-width:${120+thers.length*150}px"><thead><tr><th style="width:64px">Time</th>${thers.map(t=>`<th><span class="dot" style="background:${therColor(t)}"></span>${t.replace('Dr. ','')}</th>`).join("")}</tr></thead><tbody>
    ${hours.map(h=>`<tr><td style="font-weight:600;color:var(--muted);vertical-align:top">${pad2(h)}:00</td>${thers.map(t=>{const cell=dayAppts.filter(a=>a.therapist===t&&+a.time.split(":")[0]===h);return `<td style="vertical-align:top;cursor:pointer;min-width:140px" onclick="apptForm('${calDate}','${pad2(h)}:00','${t}')">${cell.map(block).join("")||'<span style="color:#cdd5e0;font-size:12px">+</span>'}</td>`;}).join("")}</tr>`).join("")}
  </tbody></table>`;
@@ -1307,7 +1346,7 @@ function apptView(id){const a=DB.appointments.find(x=>x.id===id);const p=pById(a
   <div class="pcell" style="margin-bottom:12px"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt muted">${p.phone}</div></div></div>
   <div class="grid2"><div><b class="muted">Date</b><div>${fmtDate(a.date)}</div></div><div><b class="muted">Time</b><div>${a.time}</div></div></div>
   <div class="grid2" style="margin-top:8px"><div><b class="muted">Type</b><div>${a.type}</div></div><div><b class="muted">Therapist</b><div>${a.therapist}</div></div></div>
-  <div class="field" style="margin-top:12px"><label>Status</label><select onchange="setApptStatus('${a.id}',this.value)">${["Pending","Confirmed","Checked-in","Completed","Cancelled"].map(s=>`<option ${a.status===s?'selected':''}>` + `${s}</option>`).join("")}</select></div>
+  <div class="field" style="margin-top:12px"><label>Status</label><select onchange="setApptStatus('${a.id}',this.value)">${["Pending","Confirmed","Checked-in","Completed","Cancelled"].map(s=>`<option ${a.status===s?'selected':''}>` + `${s}</option>`).join("")}</select>${isApptLate(a)?'<div style="margin-top:6px"><span class="tag red">⏰ Late — patient has not arrived</span></div>':''}</div>
  </div>
  <div class="modal-f" style="flex-wrap:wrap;gap:6px">
   <button class="btn danger sec" style="margin-right:auto" onclick="deleteAppt('${a.id}')">🗑 Delete</button>
@@ -1367,7 +1406,7 @@ function quickAddPatient(){
  if(!name){alert("Enter the patient's name.");return;}
  const phone=(document.getElementById("qap_phone").value||"").trim();
  const therEl=document.getElementById("a_ther");
- const _np={id:uid("p"),since:todayISO,wallet:0,docs:[],name,phone,dob:"",age:"",gender:"",condition:"",
+ const _np={id:uid("p"),since:todayISO,sinceTime:nowTime(),wallet:0,docs:[],name,phone,dob:"",age:"",gender:"",condition:"",
   therapist:(therEl&&therEl.value)||(DB.staff.find(s=>s.role.includes("Physio"))||{}).name||"",
   branch:curBranch()==="all"?DB.branches[0].id:curBranch()};
  DB.patients.push(_np);
@@ -1744,10 +1783,17 @@ function saveSessionPayment(planId,sid){
  if(sess)sess.paid=true;
  save();closeModal();render();
 }
+// Best assessment to pull treatment-plan data from: most recent one for this patient
+// that actually has usable clinical content (diagnosis, modalities, exercises or home programme).
+// Not restricted to mode==='template' so it still works if an assessment's mode is unset/legacy.
+function latestAssessmentFor(pid){
+ return (DB.assessments||[]).filter(a=>a.pid===pid&&((a.modalities&&a.modalities.length)||(a.exercises&&a.exercises.length)||(a.home&&a.home.length)||a.dx))
+   .sort((a,b)=>b.date.localeCompare(a.date))[0]||null;
+}
 function sessionForm(planId,sid,forcedN){const t=DB.plans.find(x=>x.id===planId);const p=pById(t.pid);const s=sid?(t.visits||[]).find(x=>x.id===sid):null;
  const nextN=s?s.n:(forcedN?forcedN:((t.visits&&t.visits.length?Math.max(...t.visits.map(x=>x.n)):(t.done||0))+1));
  // For new sessions: auto-fill from latest digital assessment, else fall back to treatment plan defaults
- const latestAsmt=s?null:(DB.assessments||[]).filter(a=>a.pid===t.pid&&a.mode==='template'&&(a.modalities&&a.modalities.length||a.exercises&&a.exercises.length)).sort((a,b)=>b.date.localeCompare(a.date))[0];
+ const latestAsmt=s?null:latestAssessmentFor(t.pid);
  const mods=s?s.modalities:(latestAsmt&&latestAsmt.modalities&&latestAsmt.modalities.length?latestAsmt.modalities:(t.modalities||[]));
  const exs=s?s.exercises:(latestAsmt&&latestAsmt.exercises&&latestAsmt.exercises.length?latestAsmt.exercises:(t.exercises||[]));
  const regOpts=REGIONS.map(r=>`<option>${r}</option>`).join("");
@@ -1803,7 +1849,7 @@ function addLine(selId,taId){const val=document.getElementById(selId).value;if(!
 function planForm(id,forcedPid){
  const t=id?DB.plans.find(x=>x.id===id):(function(){
    const pid=forcedPid||DB.patients[0].id;
-   const latestAsmt=(DB.assessments||[]).filter(a=>a.pid===pid&&a.mode==='template'&&((a.modalities&&a.modalities.length)||(a.exercises&&a.exercises.length)||(a.home&&a.home.length)||a.dx)).sort((a,b)=>b.date.localeCompare(a.date))[0];
+   const latestAsmt=latestAssessmentFor(pid);
    if(latestAsmt){
      return {pid,diagnosis:latestAsmt.dx||"",goal:latestAsmt.stg||latestAsmt.ltg||"",sessions:latestAsmt.sessions||12,done:0,
        exercises:latestAsmt.exercises||[],modalities:latestAsmt.modalities||[],home:latestAsmt.home||[],
@@ -1822,7 +1868,7 @@ function planForm(id,forcedPid){
  window._hl=JSON.parse(JSON.stringify(t.homeLinks||[]));
  openModal(`<div class="modal-h"><h3>${id?"Edit":"New"} Treatment Plan</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
-  <div class="field"><label>Patient</label><select id="t_pid" ${id?'':`onchange="planForm('',this.value)"`}>${DB.patients.map(p=>`<option value="${p.id}" ${t.pid===p.id?'selected':''}>${p.name}</option>`).join("")}</select></div>
+  <div class="field"><label>Patient</label><div style="display:flex;gap:6px"><select id="t_pid" style="flex:1" ${id?'':`onchange="planForm('',this.value)"`}>${DB.patients.map(p=>`<option value="${p.id}" ${t.pid===p.id?'selected':''}>${p.name}</option>`).join("")}</select><button type="button" class="btn sm sec" style="white-space:nowrap" onclick="pullFromAssessment()">📋 Pull from assessment</button></div></div>
   ${(!id&&t._fromAssessDate)?`<div class="muted" style="font-size:12px;margin:-6px 0 10px">✓ Pre-filled from this patient's assessment on ${fmtDate(t._fromAssessDate)} — review and adjust before saving.</div>`:''}
   <div class="field"><label>Diagnosis</label><input id="t_dx" list="dxlist2" value="${t.diagnosis}" placeholder="Pick from list or type your own"><datalist id="dxlist2">${DXLIST.map(d=>`<option value="${d}">`).join("")}</datalist></div>
   <div class="field"><label>Goal</label><input id="t_goal" value="${t.goal}"></div>
@@ -1853,6 +1899,24 @@ function savePlan(id){const v=k=>document.getElementById(k).value;
    DB.visitNotes.push({id:uid("vn"),planId:id,pid:obj.pid,date:todayISO,pain:pain,note:prog,by:ROLES[CURROLE].name});
   }
  }else{DB.plans.push({id:uid("t"),...obj});}save();closeModal();render();}
+function pullFromAssessment(){
+ const pidEl=document.getElementById("t_pid");if(!pidEl)return;
+ const pid=pidEl.value;
+ const a=latestAssessmentFor(pid);
+ if(!a){alert("No assessment with treatment details (diagnosis, modalities, exercises or home programme) found for this patient yet.");return;}
+ const hasExisting=["t_dx","t_mod","t_ex","t_home"].some(k=>{const el=document.getElementById(k);return el&&el.value&&el.value.trim();});
+ if(hasExisting&&!confirm("This will overwrite the diagnosis, goal, modalities, exercises, home programme and notes below with data from the assessment dated "+fmtDate(a.date)+". Continue?"))return;
+ const set=(k,val)=>{const el=document.getElementById(k);if(el)el.value=val;};
+ set("t_dx",a.dx||"");
+ set("t_goal",a.stg||a.ltg||"");
+ if(a.sessions)set("t_sess",a.sessions);
+ set("t_mod",(a.modalities||[]).join("\n"));
+ set("t_ex",(a.exercises||[]).join("\n"));
+ set("t_home",(a.home||[]).join("\n"));
+ set("t_homefreq",a.homeFreq||"");
+ set("t_notes",a.advice||"");
+ alert("Pulled diagnosis, goal, modalities, exercises and home programme from the assessment dated "+fmtDate(a.date)+".");
+}
 
 /* PACKAGES */
 views.packages=()=>`
@@ -2092,11 +2156,12 @@ function filterPatients(q){
   const raw=q.trim().toLowerCase();const dig=q.replace(/\D/g,"");
   const all=DB.patients.filter(inBranch).filter(p=>!MYTHER||p.therapist===MYTHER);
   const base=_ptab==="active"?all.filter(p=>(p.status||"Active")==="Active"):_ptab==="inactive"?all.filter(p=>p.status==="Inactive"):all;
-  _patFiltered=base.filter(p=>{
+  const monthFiltered=_patMonth?base.filter(p=>(p.since||"").startsWith(_patMonth)):base;
+  _patFiltered=monthFiltered.filter(p=>{
     const hay=(p.name+" "+(p.dob||"")+" "+patientCode(p)+" "+p.condition).toLowerCase();
     const phone=(p.phone||"").replace(/\D/g,"");
     return hay.includes(raw)||(dig.length>=2&&(phone.includes(dig)||patientCode(p).includes(dig)||(p.dob||"").replace(/\D/g,"").includes(dig)));
-  }).reverse().sort((a,b)=>(b.since||"").localeCompare(a.since||""));
+  }).reverse().sort((a,b)=>(b.since||"").localeCompare(a.since||"")||(b.sinceTime||"").localeCompare(a.sinceTime||""));
   _patPage=0;setPatPage(0);
 }
 function setInvPage(n){_invPage=n;render();}
@@ -2295,7 +2360,7 @@ views.expenses=()=>{const ex=DB.expenses.filter(inBranch);const total=ex.reduce(
  const curMonth=todayISO.slice(0,7);
  const byMonth={};ex.forEach(e=>{const m=(e.date||'').slice(0,7)||'unknown';(byMonth[m]=byMonth[m]||[]).push(e);});
  const months=Object.keys(byMonth).sort().reverse();
- const rowHTML=e=>`<tr><td>${fmtDate(e.date)}${e.time?`<div class="muted" style="font-size:10.5px">${e.time}</div>`:''}</td><td><span class="tag purple">${e.cat}</span></td><td>${e.note||''}${e.bill?` <span class="tag gray">📎 ${e.bill}</span>${e.billPath?` <button class="btn ghost" onclick="viewExpBill('${e.id}')">👁 View</button>`:''}`:''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td></tr>`;
+ const rowHTML=e=>`<tr><td>${fmtDate(e.date)}${e.time?`<div class="muted" style="font-size:10.5px">${e.time}</div>`:''}</td><td><span class="tag purple">${e.cat}</span>${e.bill?` <span class="tag gray">📎 ${e.bill}</span>${e.billPath?` <button class="btn ghost" onclick="viewExpBill('${e.id}')">👁 View</button>`:''}`:''}</td><td>${e.note||''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td></tr>`;
  const monthBlocks=months.map(m=>{
    const list=byMonth[m].slice().sort((a,b)=>b.date.localeCompare(a.date));
    const monthTotal=list.reduce((s,e)=>s+e.amount,0);
@@ -2310,7 +2375,7 @@ views.expenses=()=>{const ex=DB.expenses.filter(inBranch);const total=ex.reduce(
          <span style="font-size:15px;color:var(--muted)">${isOpen?'▾':'▸'}</span>
        </div>
      </div>
-     ${isOpen?`<table><thead><tr><th>Date</th><th>Category</th><th>Note</th><th style="text-align:right">Amount</th></tr></thead><tbody>${list.map(rowHTML).join("")}</tbody></table>`:''}
+     ${isOpen?`<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table><thead><tr><th>Date</th><th>Category</th><th>Note</th><th style="text-align:right">Amount</th></tr></thead><tbody>${list.map(rowHTML).join("")}</tbody></table></div>`:''}
    </div>`;
  }).join("")||'<div class="empty">No expenses</div>';
  return `<div class="cards" style="grid-template-columns:repeat(3,1fr)">
@@ -2523,8 +2588,8 @@ views.staff=()=>{const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===c
  const monthLabel=new Date(todayISO).toLocaleString("en-IN",{month:"long",year:"numeric"});
  const daysSoFar=new Date(todayISO).getDate();
  return `<div class="panel"><div class="panel-h"><h3>Clinic Members</h3><div style="display:flex;gap:8px"><button class="btn sm sec" onclick="attendanceForm()">📅 Mark today's attendance</button><button class="btn" onclick="staffForm()">+ Add Member</button></div></div>
- <div class="panel-b flush"><table><thead><tr><th>Member</th><th>Role</th><th>Phone</th><th>Branch</th><th>Attendance</th><th>Leaves</th><th style="text-align:right">Salary</th></tr></thead><tbody>
- ${list.map(s=>{const ma=monthAttendance(s.id,ym);const present=ma.marked?ma.present:s.present;const lv=ma.marked?ma.leave:s.leave;return `<tr><td><div class="pcell"><div class="avatar t">${initials(s.name)}</div><div class="nm">${s.name}</div></div></td><td><span class="tag ${s.role.includes('Senior')?'purple':s.role.includes('Physio')?'blue':'gray'}">${s.role}</span></td><td>${s.phone}</td><td>${bName(s.branch).replace('PhysioMind — ','')}</td><td><b style="color:var(--ok)">${present}</b> days</td><td>${lv}</td><td style="text-align:right"><b>${inr(s.salary)}</b></td></tr>`;}).join("")}
+ <div class="panel-b flush"><table><thead><tr><th>Member</th><th>Role</th><th>Phone</th><th>Branch</th><th>Attendance</th><th>Leaves</th><th style="text-align:right">Salary</th>${CURROLE==='owner'?'<th style="text-align:right">Actions</th>':''}</tr></thead><tbody>
+ ${list.map(s=>{const ma=monthAttendance(s.id,ym);const present=ma.marked?ma.present:s.present;const lv=ma.marked?ma.leave:s.leave;return `<tr><td><div class="pcell"><div class="avatar t">${initials(s.name)}</div><div class="nm">${s.name}</div></div></td><td><span class="tag ${s.role.includes('Senior')?'purple':s.role.includes('Physio')?'blue':'gray'}">${s.role}</span></td><td>${s.phone}</td><td>${bName(s.branch).replace('PhysioMind — ','')}</td><td><b style="color:var(--ok)">${present}</b> days</td><td>${lv}</td><td style="text-align:right"><b>${inr(s.salary)}</b></td>${CURROLE==='owner'?`<td style="text-align:right"><button class="btn sm danger sec" onclick="delStaff('${s.id}')">🗑 Remove</button></td>`:''}</tr>`;}).join("")}
  </tbody></table></div></div>
  <div class="panel" style="margin-top:14px"><div class="panel-h" style="flex-wrap:wrap;gap:8px"><h3>Attendance</h3>
    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -2546,43 +2611,7 @@ views.staff=()=>{const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===c
      </div>`;}).join("")||'<div class="empty">No staff to show</div>'}
      <div class="muted" style="font-size:11.5px;margin-top:8px">Each cell shows one month. Colour: green = ≥80% attendance, amber = 50-79%, red = &lt;50%. Grey = no attendance marked yet for that month.</div>
    `}
- </div></div>
- <div class="panel" style="margin-top:14px"><div class="panel-h"><h3>Payroll (${monthLabel})</h3></div><div class="panel-b">
-   ${list.map(s=>`<div class="list-row" style="display:flex;justify-content:space-between"><span>${s.name}</span><b>${inr(s.salary)}</b></div>`).join("")}
-   <div class="list-row" style="display:flex;justify-content:space-between"><b>Total payroll</b><b style="color:var(--brand)">${inr(list.reduce((a,s)=>a+s.salary,0))}</b></div>
-   <button class="btn sm" style="margin-top:10px" onclick="downloadPayslips()">⬇ Generate payslips</button>
  </div></div>`;};
-function downloadPayslips(){
- const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===curBranch());
- if(!list.length){alert("No staff members to generate payslips for.");return;}
- const jsPDFLib=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;if(!jsPDFLib){alert("PDF library not loaded. Refresh the page and try again.");return;}
- const doc=new jsPDFLib({unit:"mm",format:"a5"});const W=148,M=14;
- const monthLabel=new Date(todayISO).toLocaleString("en-IN",{month:"long",year:"numeric"});
- list.forEach((s,idx)=>{
-  if(idx>0)doc.addPage();
-  let y=15;
-  doc.setFillColor(11,27,61);doc.rect(0,0,W,20,'F');doc.setTextColor(255,255,255);doc.setFontSize(13);doc.setFont("helvetica","bold");
-  doc.text(DB.settings.clinic||"PhysioMind",M,12);doc.setFontSize(9);doc.setFont("helvetica","normal");doc.text("Payslip — "+monthLabel,W-M,12,{align:"right"});
-  doc.setTextColor(0,0,0);y=28;
-  function ln(txt,size,bold){doc.setFontSize(size||10.5);doc.setFont("helvetica",bold?"bold":"normal");const lines=doc.splitTextToSize(txt,W-2*M);doc.text(lines,M,y);y+=lines.length*(size?size*0.42:5)+2;}
-  function rule(){doc.setDrawColor(200);doc.line(M,y,W-M,y);y+=4;}
-  ln(s.name,12,true);
-  ln(s.role+(s.phone?"  ·  "+s.phone:""),9.5);
-  rule();
-  const ma=monthAttendance(s.id,todayISO.slice(0,7));
-  const presentDays=ma.marked?ma.present:s.present;const leaveDays=ma.marked?ma.leave:s.leave;
-  ln("Attendance: "+presentDays+" days present, "+leaveDays+" leave(s)",10);
-  rule();
-  const gross=s.salary||0;
-  ln("Gross salary: "+inr(gross),11,true);
-  ln("Deductions: ₹0",10);
-  ln("Net payable: "+inr(gross),12,true);
-  rule();
-  ln("Generated "+new Date().toLocaleDateString("en-IN"),8.5);
- });
- doc.save("Payslips_"+monthLabel.replace(" ","_")+".pdf");
- if(typeof logAudit==='function')logAudit('Payslips','Generated & downloaded for '+monthLabel,'');
-}
 function staffForm(){openModal(`<div class="modal-h"><h3>Add Member</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="field"><label>Name</label><input id="m_name"></div>
@@ -2594,6 +2623,18 @@ function staffForm(){openModal(`<div class="modal-h"><h3>Add Member</h3><button 
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveStaff()">Save</button></div>`);}
 function saveStaff(){const v=k=>document.getElementById(k).value;if(!v("m_name")){alert("Name required");return;}DB.staff.push({id:uid("s"),name:v("m_name"),role:v("m_role"),phone:v("m_phone"),branch:v("m_branch"),salary:+v("m_sal")||0,present:0,leave:0});save();closeModal();render();}
+function delStaff(id){
+ if(CURROLE!=='owner'){alert("Only the owner can remove staff members.");return;}
+ const s=DB.staff.find(x=>x.id===id);if(!s)return;
+ const assignedPatients=DB.patients.filter(p=>p.therapist===s.name).length;
+ const msg=assignedPatients
+  ?"Remove "+s.name+"? "+assignedPatients+" patient(s) are currently assigned to them — you'll need to reassign those patients to another therapist afterward. This cannot be undone."
+  :"Remove "+s.name+" from the clinic? This cannot be undone.";
+ if(!confirm(msg))return;
+ DB.staff=DB.staff.filter(x=>x.id!==id);
+ save();render();
+ logAudit("Staff removed",s.role+" — "+s.name,"");
+}
 
 /* BRANCHES */
 views.branches=()=>`<div class="panel"><div class="panel-h"><h3>Branches</h3><button class="btn" onclick="branchForm()">+ Add Branch</button></div>
@@ -2614,6 +2655,17 @@ function payMsg(p,txt){return `Namaste ${p.name.split(" ")[0]} ji 🙏\nGentle r
 function waLink(phone,text){return "https://wa.me/"+(phone||"").replace(/\D/g,"")+"?text="+encodeURIComponent(text);}
 function sendWA(pid,kind,when,text){const p=pById(pid);try{window.open(waLink(p.phone,text),"_blank");}catch(e){}
  DB.reminders.unshift({id:uid("r"),pid,channel:"WhatsApp",kind,when:"Sent "+fmtDate(todayISO),appt:when,status:"Sent",sentAt:todayISO});save();render();}
+function dismissReminder(apptId){
+ if(!confirm("Remove this reminder from the list? The appointment itself won't be affected — you just won't be prompted to remind this patient again."))return;
+ DB.dismissedReminders=DB.dismissedReminders||[];
+ if(!DB.dismissedReminders.includes(apptId))DB.dismissedReminders.push(apptId);
+ save();render();
+}
+function deleteSentReminder(id){
+ if(!confirm("Delete this sent message from the log? This can't be undone."))return;
+ DB.reminders=(DB.reminders||[]).filter(r=>r.id!==id);
+ save();render();
+}
 function copyTemplate(i){const el=document.getElementById("tmpl_"+i);if(!el)return;navigator.clipboard.writeText(el.innerText).then(function(){const btn=el.nextElementSibling.querySelector("button");const orig=btn.textContent;btn.textContent="✓ Copied!";setTimeout(function(){btn.textContent=orig;},1800);});}
 function sendTemplateWA(i){const el=document.getElementById("tmpl_"+i);if(!el)return;const msg=el.innerText;window.open("https://wa.me/?text="+encodeURIComponent(msg),"_blank");}
 function fillTemplate(msg,d){d=d||{};const clinic=DB.settings.clinic||"PhysioMind";return (msg||"")
@@ -2652,7 +2704,7 @@ views.reminders=()=>{
  const clinic=DB.settings.clinic||"PhysioMind";
  const fmtAppt=a=>fmtDate(a.date).replace(/ \d{4}$/,'')+", "+a.time;
  // Data sets for each tab
- const upcoming=DB.appointments.filter(inBranch).filter(a=>!MYTHER||a.therapist===MYTHER).filter(a=>a.date>=todayISO&&a.status!=="Cancelled"&&a.status!=="Completed").sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+ const upcoming=DB.appointments.filter(inBranch).filter(a=>!MYTHER||a.therapist===MYTHER).filter(a=>a.date>=todayISO&&a.status!=="Cancelled"&&a.status!=="Completed").filter(a=>!(DB.dismissedReminders||[]).includes(a.id)).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
  const dues=DB.invoices.filter(inBranch).filter(i=>i.status==="Pending"||i.status==="Partial");
  const missed=DB.appointments.filter(inBranch).filter(a=>a.date<todayISO&&a.status==="Pending").sort((a,b)=>b.date.localeCompare(a.date));
  const cancelled=DB.appointments.filter(inBranch).filter(a=>a.status==="Cancelled").sort((a,b)=>b.date.localeCompare(a.date));
@@ -2687,14 +2739,15 @@ views.reminders=()=>{
    <div class="r-body">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
      <b>${p.name} <span class="tag blue" style="margin-left:5px">Appointment</span></b>
-     <span class="muted" style="font-size:12px"><a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a></span>
+     <a href="tel:${(p.phone||'').replace(/\D/g,'')}" class="btn sm sec" style="text-decoration:none;padding:4px 10px;font-size:12px">📞 ${p.phone||'Call'}</a>
     </div>
-    <div class="muted" style="font-size:12px;margin:2px 0">${fmtDate(a.date)} at ${a.time} · ${a.therapist} · <span class="tag ${statusTag(a.status)}">${a.status}</span></div>
+    <div class="muted" style="font-size:12px;margin:2px 0">${fmtDate(a.date)} at ${a.time} · ${a.therapist} · <span class="tag ${apptStatusCls(a)}">${apptStatusLabel(a)}</span></div>
     <div>${tmplSelectHTML(recId,"Appointment")}</div>
     <div class="r-msg" id="rmsg_a_${a.id}">${msg}</div>
     <div style="margin-top:7px;display:flex;gap:7px;flex-wrap:wrap">
      <button class="btn sm" onclick="sendWA('${a.pid}','Appointment','${fmtAppt(a).replace(/'/g,'')}',document.getElementById('rmsg_a_${a.id}').innerText)">📲 WhatsApp</button>
      <button class="btn sm sec" onclick="setApptStatus('${a.id}','Confirmed');render()">✔ Confirm</button>
+     <button class="btn danger sec" style="margin-left:auto" onclick="dismissReminder('${a.id}')">🗑 Delete</button>
     </div>
    </div></div>`;}).join(''):'<div class="empty" style="padding:40px">No upcoming appointments 🎉</div>'}`;
 
@@ -2809,7 +2862,8 @@ views.reminders=()=>{
    return `<div style="margin:10px 0 4px"><div style="font-size:11.5px;font-weight:700;color:var(--muted);padding:5px 0;border-bottom:1px solid var(--line);margin-bottom:4px">${d!=="other"?fmtDate(d)+" — "+dayItems.length+" sent":"Unknown date"}</div>
     ${dayItems.map(r=>{const p=pById(r.pid);return `<div class="list-row" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0">
      <div style="flex:1;min-width:0"><b style="font-size:13px">${p.name}</b> <span class="tag ${r.kind==="Payment"?"amber":r.kind==="Reschedule"?"gray":"blue"}" style="font-size:10px;margin-left:4px">${r.kind}</span><div class="muted" style="font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.appt||r.when||""}</div></div>
-     <a href="tel:${(p.phone||"").replace(/\D/g,"")}" style="color:var(--accent);font-size:12px;text-decoration:none;white-space:nowrap;flex-shrink:0">📞 ${p.phone||""}</a>
+     <a href="tel:${(p.phone||"").replace(/\D/g,"")}" class="btn sm sec" style="text-decoration:none;padding:4px 10px;font-size:12px;white-space:nowrap;flex-shrink:0">📞 Call</a>
+     <button class="btn sm danger sec" style="padding:4px 10px;font-size:12px;flex-shrink:0" onclick="deleteSentReminder('${r.id}')">🗑</button>
     </div>`;
     }).join("")}</div>`;
   }).join("")||'<div class="empty" style="padding:32px 0;text-align:center">No messages sent in ${sentMonthLabel}.<br><span class="muted" style="font-size:12.5px">Select a different month above.</span></div>'}
@@ -3409,7 +3463,7 @@ function assessDocHTML(id){
     </div>
     <div class="adoc-meta">
       <div class="adoc-mi"><b>Date</b>${fmtDate(c.date)}</div>
-      <div class="adoc-mi"><b>Patient ID</b>${p.id}</div>
+      <div class="adoc-mi"><b>Patient ID</b>${patientCode(p)}</div>
       ${p.dob?`<div class="adoc-mi"><b>DOB</b>${fmtDate(p.dob)}</div>`:''}
       <div class="adoc-mi"><b>Therapist</b>${c.therapist}</div>
       ${c.mode==='upload'?`<div class="adoc-mi"><b>Mode</b><span class="tag amber">Paper scan</span></div>`:`<div class="adoc-mi"><b>Mode</b><span class="tag teal">Digital template</span></div>`}
@@ -3580,7 +3634,7 @@ function buildPDFHTML(id){
 
   <!-- FOOTER -->
   <div style="padding:8px 28px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:flex-end;flex-shrink:0">
-    <div style="font-size:8px;color:#94a3b8">Patient ID: ${p.id}${p.dob?' · DOB: '+fmtDate(p.dob):''} &nbsp;·&nbsp; Generated ${new Date().toLocaleDateString('en-IN')} &nbsp;·&nbsp; ${DB.settings.clinic}</div>
+    <div style="font-size:8px;color:#94a3b8">Patient ID: ${patientCode(p)}${p.dob?' · DOB: '+fmtDate(p.dob):''} &nbsp;·&nbsp; Generated ${new Date().toLocaleDateString('en-IN')} &nbsp;·&nbsp; ${DB.settings.clinic}</div>
     <div style="text-align:right">
       <div style="width:130px;border-bottom:1.5px solid #334155;margin-bottom:3px"></div>
       <div style="font-size:9.5px;font-weight:700;color:#1e293b">${c.therapist}</div>
@@ -3671,40 +3725,98 @@ function buildAssessPDF(id){
   fld('Posture',c.posture||'—');
   fld('Gait',c.gait||'—');
   fld('Swelling/Oedema',c.swelling||'—');
+  if(c.neuroNote)fld('Neurological (general)',c.neuroNote);
 
-  // ROM
-  if(c.rom&&Object.keys(c.rom).length){
-    const romLines=[];
-    Object.keys(c.rom).forEach(function(region){
-      const rv=c.rom[region];
-      Object.keys(rv).forEach(function(mv){
-        const m=rv[mv];
-        if(m&&(m.active||m.passive)){
-          romLines.push(region+' '+mv+': A='+m.active+'°  P='+(m.passive||'—')+'°');
-        }
+  // Per-region digital-template findings: Observation, Palpation/Tenderness,
+  // Neuro symptoms, ROM, MMT/Strength, +ve/-ve Special Tests
+  if(c.regions&&c.regions.length){
+    c.regions.forEach(function(r){
+      const side=c.regionSides&&c.regionSides[r];
+      const obsIdxs=(c.obs&&c.obs[r])||[];
+      const obsNames=(AOBS[r]||[]).filter(function(_,i){return obsIdxs.includes(i);});
+
+      const palpData=(c.palp&&c.palp[r])||{};
+      const palpItems=(APALP[r]||[]).map(function(pt,i){
+        const sv=palpData[i]||{};
+        if(!sv.tender)return null;
+        return pt.pt+(sv.side?' ('+sv.side+')':'')+(sv.note?' — '+sv.note:'');
+      }).filter(Boolean);
+
+      const ns=(c.neuro&&c.neuro[r])||{};
+      const neuroSyms=ANEURO_SYMS.filter(function(_,i){return ns['s'+i];});
+      const neuroExtra=[ns.radTo?'Radiates → '+ns.radTo:null,ns.dermatomal||null].filter(Boolean);
+      const neuroAll=neuroSyms.concat(neuroExtra);
+
+      const romData=Object.assign({},c.rom&&c.rom[r],c.rom&&c.rom[r+"::L"],c.rom&&c.rom[r+"::R"]);
+      const romEntries=(AROM[r]||[]).map(function(o){
+        const s=romData[o.mv]||{};
+        if(!s.active&&!s.passive)return null;
+        const parts=[s.active?'A:'+s.active+'°':null,s.passive?'P:'+s.passive+'°':null].filter(Boolean);
+        return o.mv+' '+parts.join('/')+' (N:'+o.norm+')';
+      }).filter(Boolean);
+
+      const mmtData=Object.assign({},c.mmt&&c.mmt[r],c.mmt&&c.mmt[r+"::L"],c.mmt&&c.mmt[r+"::R"]);
+      const mmtItems=(AMMT[r]||[]).map(function(m){
+        const g=mmtData[m];
+        return g!=null?m+' — '+g+'/5'+(mmtData[m+'_note']?' ('+mmtData[m+'_note']+')':''):null;
+      }).filter(Boolean);
+
+      const testsData=Object.assign({},c.tests&&c.tests[r],c.tests&&c.tests[r+"::L"],c.tests&&c.tests[r+"::R"]);
+      const posTests=(ATESTS[r]||[]).filter(function(t){return testsData[t]==='+';});
+      const negTests=(ATESTS[r]||[]).filter(function(t){return testsData[t]==='-';});
+
+      if(!obsNames.length&&!palpItems.length&&!neuroAll.length&&!romEntries.length&&!mmtItems.length&&!posTests.length&&!negTests.length)return;
+
+      chk();y+=1.5;
+      doc.setFontSize(9.5);doc.setFont('helvetica','bold');doc.setTextColor('#2563eb');
+      doc.text(r+(side?'  ·  '+side:''),M,y);y+=4.8;
+
+      if(obsNames.length)fld('Observation',obsNames.join(', '));
+      if(palpItems.length)fld('Tenderness / Palpation',palpItems.join('; '));
+      if(neuroAll.length)fld('Neuro symptoms',neuroAll.join('; '));
+      if(romEntries.length)fld('ROM',romEntries.join('  |  '));
+      if(mmtItems.length)fld('MMT / Strength',mmtItems.join('; '));
+      if(posTests.length)fld('+ve Special Tests',posTests.join(', '));
+      if(negTests.length)fld('-ve Special Tests',negTests.join(', '));
+      y+=1;
+    });
+
+    const funcNames=(c.func||[]).map(function(i){return AFUNCTIONAL[i];}).filter(Boolean);
+    if(funcNames.length||c.funcOther)fld('Functional Limitations',funcNames.concat(c.funcOther?[c.funcOther]:[]).join(', '));
+  } else {
+    // Legacy / non-digital assessments: flat ROM + Special Tests fields
+    if(c.rom&&Object.keys(c.rom).length){
+      const romLines=[];
+      Object.keys(c.rom).forEach(function(region){
+        const rv=c.rom[region];
+        Object.keys(rv).forEach(function(mv){
+          const m=rv[mv];
+          if(m&&(m.active||m.passive)){
+            romLines.push(region+' '+mv+': A='+m.active+'°  P='+(m.passive||'—')+'°');
+          }
+        });
       });
-    });
-    if(romLines.length){
-      chk();doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor('#0d9488');
-      doc.text('Range of Motion:',M,y);y+=4.5;
-      romLines.forEach(function(ln){
-        chk();doc.setFont('helvetica','normal');doc.setTextColor('#1a2233');
-        doc.setFontSize(8);doc.text('  '+ln,M,y);y+=4.2;
-      });y+=1;
+      if(romLines.length){
+        chk();doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor('#0d9488');
+        doc.text('Range of Motion:',M,y);y+=4.5;
+        romLines.forEach(function(ln){
+          chk();doc.setFont('helvetica','normal');doc.setTextColor('#1a2233');
+          doc.setFontSize(8);doc.text('  '+ln,M,y);y+=4.2;
+        });y+=1;
+      }
     }
+    if(c.tests&&Object.keys(c.tests).length){
+      const tlines=[];
+      Object.keys(c.tests).forEach(function(region){
+        const rt=c.tests[region];
+        Object.keys(rt).forEach(function(tn){tlines.push(tn+': '+rt[tn]);});
+      });
+      if(tlines.length)fld('Special Tests',tlines.join('  |  '));
+    }
+    if(c.special)fld('Special tests',c.special);
+    if(c.palp)fld('Palpation / tenderness',c.palp);
+    if(c.strength)fld('Strength',c.strength);
   }
-
-  // Special Tests
-  if(c.tests&&Object.keys(c.tests).length){
-    const tlines=[];
-    Object.keys(c.tests).forEach(function(region){
-      const rt=c.tests[region];
-      Object.keys(rt).forEach(function(tn){tlines.push(tn+': '+rt[tn]);});
-    });
-    if(tlines.length)fld('Special Tests',tlines.join('  |  '));
-  }
-
-  fld('Neurological',c.neuroNote||'—');
 
   sec('CLINICAL FINDINGS & DIAGNOSIS');
   fld('Clinical Assessment',c.assessment||'—');
@@ -4067,13 +4179,12 @@ views.help=function(){return `<div class="panel" style="max-width:900px">
    </ol>
   </details>
 
-  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">👥 Staff attendance &amp; payroll</summary>
+  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">👥 Staff attendance</summary>
    <ol style="margin:10px 0 0 22px">
-    <li>Go to <b>Staff &amp; Payroll</b> tab → click <b>📅 Mark today's attendance</b></li>
+    <li>Go to <b>Staff</b> tab → click <b>📅 Mark today's attendance</b></li>
     <li>Pick Present / Half-day / Leave for each staff member — save</li>
     <li>You can also back-fill previous days by changing the date at the top of the modal</li>
-    <li>Attendance figures and payroll summary update automatically</li>
-    <li>Click <b>⬇ Generate payslips</b> to download PDFs</li>
+    <li>Attendance figures update automatically</li>
    </ol>
   </details>
 
@@ -4185,40 +4296,35 @@ function filterAudit(){render();}
 function bnav(v){document.querySelectorAll(".bnav-btn").forEach(function(b){b.classList.remove("active");});var btn=document.getElementById("bn-"+v);if(btn)btn.classList.add("active");}
 function toggleMoreDrawer(){var d=document.getElementById("moreDrawer"),b=document.getElementById("moreBackdrop");if(d&&d.classList.contains("open")){closeMoreDrawer();}else{if(d)d.classList.add("open");if(b)b.style.display="block";}}
 function closeMoreDrawer(){var d=document.getElementById("moreDrawer"),b=document.getElementById("moreBackdrop");if(d)d.classList.remove("open");if(b)b.style.display="none";}
-// Backup enforcement of desktop vs mobile layout, in JS rather than relying only on the CSS
-// media query — some installed/wrapped app windows don't report their real width to CSS
-// correctly, which can leave the mobile bottom bar showing even on a full-width desktop window.
+// Backup enforcement of desktop vs mobile layout. The CSS media queries above are the source
+// of truth; this just clears any stale inline style (e.g. left over from a manual style tweak)
+// so it can never disagree with them. Uses matchMedia — the same breakpoint engine the CSS
+// itself uses — instead of polling window.innerWidth on a timer.
 function applyLayoutMode(){
-  const isDesktop=window.innerWidth>640;
   const bn=document.getElementById("bottomNav");
   const app=document.querySelector(".app");
   const md=document.getElementById("moreDrawer");
-  if(bn)bn.style.setProperty("display",isDesktop?"none":"flex","important");
-  if(app)app.style.setProperty("padding-bottom",isDesktop?"0":"","important");
-  if(isDesktop&&md)md.classList.remove("open");
-  showWidthDebug();
+  if(bn)bn.style.removeProperty("display");
+  if(app)app.style.removeProperty("padding-bottom");
+  if(window.matchMedia("(min-width:641px)").matches&&md)md.classList.remove("open");
 }
-function showWidthDebug(){
-  let el=document.getElementById("_widthDebug");
-  if(!el){
-    el=document.createElement("div");
-    el.id="_widthDebug";
-    el.style.cssText="position:fixed;top:4px;right:4px;z-index:99999;background:#dc2626;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;font-family:monospace;pointer-events:none";
-    document.body.appendChild(el);
-  }
-  el.textContent="innerWidth: "+window.innerWidth+"px";
-}
+const _desktopMQ=window.matchMedia("(min-width:641px)");
+(_desktopMQ.addEventListener?_desktopMQ.addEventListener.bind(_desktopMQ):_desktopMQ.addListener.bind(_desktopMQ))("change",applyLayoutMode);
 window.addEventListener("resize",applyLayoutMode);
-// Something is silently resetting the bottom-nav's display after a single fix runs — rather
-// than keep hunting for the exact cause, force the correct state on a recurring timer so
-// nothing can make it stick in the wrong state for more than a fraction of a second.
-setInterval(applyLayoutMode,400);
 // The bottom-nav element is defined further down in the HTML, after this script tag —
 // calling applyLayoutMode() immediately here would run before that element exists at all,
 // silently doing nothing. Wait until the full page has loaded instead.
 if(document.readyState==="complete"||document.readyState==="interactive"){setTimeout(applyLayoutMode,0);}
 else{document.addEventListener("DOMContentLoaded",applyLayoutMode);}
 window.addEventListener("load",applyLayoutMode);
+// Re-render once a minute so appointments flip to "Late" automatically as time passes.
+// Skipped while a modal is open or a form field is focused, so it never interrupts data entry.
+setInterval(function(){
+  if(ov&&ov.classList.contains("show"))return;
+  const ae=document.activeElement;
+  if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
+  if(["dashboard","appointments","reminders"].includes(current))render();
+},60000);
 </script>
 <nav class="bottom-nav" id="bottomNav"><div class="bottom-nav-inner"><button class="bnav-btn active" id="bn-dashboard" onclick="go('dashboard');bnav('dashboard')"><span class="bico">🏠</span><span>Home</span></button><button class="bnav-btn" id="bn-patients" onclick="go('patients');bnav('patients')"><span class="bico">👤</span><span>Patients</span></button><button class="bnav-btn" id="bn-appointments" onclick="go('appointments');bnav('appointments')"><span class="bico">📅</span><span>Calendar</span></button><button class="bnav-btn" id="bn-billing" onclick="go('billing');bnav('billing')"><span class="bico">💰</span><span>Billing</span></button><button class="bnav-btn" id="bn-more" onclick="toggleMoreDrawer()"><span class="bico">&#8801;</span><span>More</span></button></div></nav><div class="more-drawer" id="moreDrawer"><div class="more-drawer-handle"></div><div class="more-drawer-grid"><button class="more-item" onclick="go('assessment');bnav('more');closeMoreDrawer()"><span class="mico">📝</span>Assessment</button><button class="more-item" onclick="go('treatment');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Treatments</button><button class="more-item" onclick="go('packages');bnav('more');closeMoreDrawer()"><span class="mico">🎁</span>Packages</button><button class="more-item" onclick="go('reminders');bnav('more');closeMoreDrawer()"><span class="mico">🔔</span>Reminders</button><button class="more-item" onclick="go('reports');bnav('more');closeMoreDrawer()"><span class="mico">📈</span>Reports</button><button class="more-item" onclick="go('expenses');bnav('more');closeMoreDrawer()"><span class="mico">💸</span>Expenses</button><button class="more-item" onclick="go('staff');bnav('more');closeMoreDrawer()"><span class="mico">👥</span>Staff</button><button class="more-item" onclick="go('audit');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Audit Log</button><button class="more-item" onclick="go('settings');bnav('more');closeMoreDrawer()"><span class="mico">&#9881;</span>Settings</button></div></div><div id="moreBackdrop" onclick="closeMoreDrawer()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:998;backdrop-filter:blur(2px)"></div></body>
 </html>
