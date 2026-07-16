@@ -477,6 +477,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 <!-- PDF generation -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <meta name="theme-color" content="#0b1b3d"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="PhysioMind"><link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;PhysioMind Clinic OS&quot;,&quot;short_name&quot;:&quot;PhysioMind&quot;,&quot;start_url&quot;:&quot;/&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230b1b3d&quot;,&quot;theme_color&quot;:&quot;%230b1b3d&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;https://img.icons8.com/fluency/192/heart-with-pulse.png&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/png&quot;}]}"></head>
 <body>
@@ -775,8 +776,97 @@ function showBackups(){
     openModal(`<div class="modal-h"><h3>Auto-backups (last ${snaps.length})</h3><button class="x" onclick="closeModal()">×</button></div><div class="modal-b">${rows}<div class="muted" style="font-size:12px;margin-top:10px">Snapshots are saved automatically inside this browser every time data changes. Maximum ${IDB_MAX} kept.</div></div><div class="modal-f"><button class="btn sec" onclick="closeModal()">Close</button></div>`,true);
   });}
 // 7-day download nudge
-(function(){const K="pm_last_dl";const last=+localStorage.getItem(K)||0;const days=(Date.now()-last)/(864e5);if(last&&days>7){setTimeout(()=>{const b=document.createElement("div");b.id="backup_nudge";b.style.cssText="position:fixed;bottom:18px;right:18px;z-index:9999;background:#1a1a2e;color:#fff;border-radius:12px;padding:12px 16px;max-width:300px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.3)";b.innerHTML=`<b>📥 Backup reminder</b><div style="margin:6px 0 10px;color:#ccc">It's been ${Math.floor(days)} days since your last data backup.</div><div style="display:flex;gap:8px"><button class="btn sm" onclick="exportDB();localStorage.setItem('${K}',Date.now());document.getElementById('backup_nudge').remove()">Download now</button><button class="btn sm sec" style="background:transparent;color:#ccc;border:1px solid #555" onclick="document.getElementById('backup_nudge').remove()">Later</button></div>`;document.body.appendChild(b);},2000);}})();
+(function(){const K="pm_last_full_dl";const last=+localStorage.getItem(K)||0;const days=(Date.now()-last)/(864e5);if(!last||days>7){setTimeout(()=>{const b=document.createElement("div");b.id="backup_nudge";b.style.cssText="position:fixed;bottom:18px;right:18px;z-index:9999;background:#1a1a2e;color:#fff;border-radius:12px;padding:12px 16px;max-width:300px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.3)";b.innerHTML=`<b>📦 Backup reminder</b><div style="margin:6px 0 10px;color:#ccc">${last?"It's been "+Math.floor(days)+" days since your last full backup (with documents).":"You haven't taken a full backup yet."} Keep a local copy alongside the cloud data.</div><div style="display:flex;gap:8px"><button class="btn sm" onclick="exportFullBackup();document.getElementById('backup_nudge').remove()">Full backup now</button><button class="btn sm sec" style="background:transparent;color:#ccc;border:1px solid #555" onclick="document.getElementById('backup_nudge').remove()">Later</button></div>`;document.body.appendChild(b);},2000);}})();
 function exportDB(){const b=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="PhysioMind_backup_"+todayISO+".json";a.click();localStorage.setItem("pm_last_dl",Date.now());}
+
+function _fullBackupProgress(msg){
+  let el=document.getElementById("_fbProgress");
+  if(!el){
+    el=document.createElement("div");el.id="_fbProgress";
+    el.style.cssText="position:fixed;inset:0;z-index:99999;background:rgba(15,20,35,0.55);display:flex;align-items:center;justify-content:center";
+    el.innerHTML='<div style="background:#fff;border-radius:14px;padding:24px 28px;min-width:260px;max-width:90vw;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.3)"><div style="font-size:28px;margin-bottom:8px">📦</div><div id="_fbProgressMsg" style="font-size:13.5px;color:var(--ink);font-weight:600"></div></div>';
+    document.body.appendChild(el);
+  }
+  document.getElementById("_fbProgressMsg").textContent=msg;
+}
+function _fullBackupDone(){const el=document.getElementById("_fbProgress");if(el)el.remove();}
+
+// Full backup, like a WhatsApp-style export: bundles the data (same as the .json backup) together
+// with the ACTUAL uploaded files (X-rays, scans, assessment PDFs, expense bill photos) into one
+// zip, instead of just the Supabase storage paths that point to them.
+async function exportFullBackup(){
+  if(!sb){alert("Supabase isn't connected — can't fetch your uploaded documents right now. Use the plain .json backup instead.");return;}
+  if(typeof JSZip==="undefined"){alert("Couldn't load the zip library — check your internet connection and try again.");return;}
+  if(!confirm("This downloads all your data PLUS every uploaded document, X-ray, scan and bill photo into one .zip file. With this many files it can take a little while and uses your data connection. Continue?"))return;
+
+  // Collect every (bucket, path, savedAsName) file reference in the database, de-duplicated.
+  const files=[];const seen=new Set();
+  function add(bucket,path,name){
+    if(!path)return;
+    const key=bucket+"::"+path;
+    if(seen.has(key))return;
+    seen.add(key);
+    files.push({bucket,path,name:name||path.split("/").pop()});
+  }
+  (DB.patients||[]).forEach(p=>(p.docs||[]).forEach(d=>{
+    if(!d.path)return; // older records were metadata-only, with no actual file uploaded
+    add(d.type==="assessment-pdf"?"assessment-pdfs":"patient-documents",d.path,p.name+" — "+d.n);
+  }));
+  (DB.assessments||[]).forEach(a=>{
+    if(a.assessFilePath)add("assessment-pdfs",a.assessFilePath,(a.assessFile||"scan"));
+  });
+  (DB.expenses||[]).forEach(e=>{if(e.billPath)add("bill-photos",e.billPath,e.bill||"bill");});
+
+  _fullBackupProgress("Preparing…");
+  const zip=new JSZip();
+  zip.file("data.json",JSON.stringify(DB,null,2));
+  zip.file("README.txt","PhysioMind full backup — "+todayISO+"\n\n"+
+    "• data.json = all clinic records (patients, appointments, assessments, invoices, etc.)\n"+
+    "• files/ = the actual uploaded documents (X-rays, scans, assessment PDFs, bill photos) referenced from data.json\n\n"+
+    "To restore the records, use Settings → Restore from backup with data.json.\n"+
+    "Restoring uploaded files themselves isn't automated yet — this zip is your independent copy of them.");
+
+  let ok=0,failedCount=0,failed=[],bytesDone=0;
+  function fmtMB(n){return (n/1048576).toFixed(1)+" MB";}
+  // Fetch files with limited concurrency (6 at a time) instead of one-by-one — with a few hundred
+  // documents, sequential fetching would take far too long. This keeps it fast without hammering
+  // Supabase with hundreds of simultaneous requests.
+  let nextIdx=0;
+  async function worker(){
+    while(nextIdx<files.length){
+      const i=nextIdx++;const f=files[i];
+      try{
+        const {data,error}=await sb.storage.from(f.bucket).createSignedUrl(f.path,3600);
+        if(error||!data)throw error||new Error("no signed url");
+        const resp=await fetch(data.signedUrl);
+        if(!resp.ok)throw new Error("fetch failed");
+        const blob=await resp.blob();
+        zip.file("files/"+f.bucket+"/"+f.path,blob);
+        ok++;bytesDone+=blob.size||0;
+      }catch(e){failedCount++;failed.push(f.name);}
+      _fullBackupProgress("Downloading documents… "+(ok+failedCount)+" of "+files.length+" ("+fmtMB(bytesDone)+" so far)");
+    }
+  }
+  _fullBackupProgress("Downloading documents… 0 of "+files.length);
+  await Promise.all(Array.from({length:Math.min(6,files.length)||1},worker));
+
+  _fullBackupProgress("Zipping "+ok+" file(s)…");
+  const content=await zip.generateAsync({type:"blob",compression:"DEFLATE"},(meta)=>{
+    _fullBackupProgress("Zipping… "+Math.round(meta.percent)+"%");
+  });
+  _fullBackupDone();
+
+  const a=document.createElement("a");a.href=URL.createObjectURL(content);a.download="PhysioMind_full_backup_"+todayISO+".zip";a.click();
+  localStorage.setItem("pm_last_dl",Date.now());
+  localStorage.setItem("pm_last_full_dl",Date.now());
+  localStorage.setItem("pm_last_full_size",content.size);
+
+  if(failed.length){
+    alert("Backup downloaded ("+fmtMB(content.size)+"), but "+failed.length+" file(s) couldn't be fetched (they may have been deleted from storage):\n\n"+failed.slice(0,10).join("\n")+(failed.length>10?"\n…and "+(failed.length-10)+" more":""));
+  }else{
+    alert("Full backup downloaded — "+fmtMB(content.size)+", "+ok+" document(s) included.");
+  }
+}
 function importDB(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!d.patients||!d.plans){alert("Invalid backup file");return;}if(!confirm("This will replace your clinic's LIVE data in Supabase — everyone signed in will see this backup's data instead of what's there now. This cannot be undone. Continue?")){e.target.value="";return;}DB=d;save();fillBranches();render();alert("Data restored to Supabase successfully ✅");}catch{alert("Could not read file");}};r.readAsText(f);}
 // App data loads after sign-in (see afterLogin → sbLoadData above), not synchronously here.
 if(!sb){const eEl=document.getElementById('demoPassErr');if(eEl){eEl.innerHTML="⚠️ Supabase isn't configured yet.<br>Paste your Project URL and anon key at the top of the &lt;script&gt; tag.";eEl.style.display='block';}}
@@ -2893,10 +2983,22 @@ views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel
   <div class="field"><label>GSTIN</label><input value="${DB.settings.gstin}" onchange="DB.settings.gstin=this.value;save()"></div>
   <hr class="sep">
   <b>Data &amp; Backup</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">Your data lives in Supabase (cloud) — the same data shows up on every device you sign into. Download a backup here as an independent copy that doesn't depend on Supabase being reachable.</div>
-  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
-   <button class="btn sm" onclick="exportDB()">📥 Download backup (.json)</button>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+   <button class="btn sm" onclick="exportFullBackup()">📦 Download full backup (.zip — includes documents)</button>
+   <button class="btn sm sec" onclick="exportDB()">📥 Download data only (.json)</button>
    <label class="btn sm sec" style="cursor:pointer">📤 Restore from backup<input type="file" accept=".json" style="display:none" onchange="importDB(event)"></label>
   </div>
+  <div class="muted" style="font-size:11.5px;margin-bottom:6px">
+   ${(function(){
+     const lastFull=+localStorage.getItem("pm_last_full_dl")||0;
+     const lastFullSize=+localStorage.getItem("pm_last_full_size")||0;
+     const lastAny=+localStorage.getItem("pm_last_dl")||0;
+     const fmtMB2=n=>n?(n/1048576).toFixed(1)+" MB":"";
+     const fmtWhen=t=>t?new Date(t).toLocaleString("en-IN",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"never yet";
+     return "Last full backup (with documents): <b>"+fmtWhen(lastFull)+(lastFullSize?" · "+fmtMB2(lastFullSize):"")+"</b><br>Last backup of any kind: <b>"+fmtWhen(lastAny)+"</b>";
+   })()}
+  </div>
+  <div class="muted" style="font-size:11.5px;margin-bottom:10px">The <b>full backup</b> works like a WhatsApp-style export — one .zip with every clinic record <i>and</i> every uploaded file (X-rays, scans, assessment PDFs, bill photos), whatever that adds up to — a handful of MB today, hundreds of MB once you've built up a larger document library. Nothing is trimmed or sampled — it's a complete, independent copy, meant as your second layer of protection alongside the Supabase cloud copy. Doing this weekly (or daily, if you're uploading a lot of scans) gives you two levels of protection: the live cloud copy, and your own local copy on this device. The <b>data only</b> backup is faster but the file/photo bytes stay in Supabase Storage, not in the download. Restore currently reads data.json (or the plain .json backup) — restoring uploaded files back into storage isn't automated yet. For a very large document library (many hundreds of files), running the full backup on a desktop browser will be faster and more reliable than on mobile.</div>
   <div class="muted" style="font-size:11.5px;margin-bottom:10px">⚠️ Restoring a backup replaces your clinic's <b>live cloud data</b> for everyone signed in — not just this device. Use it to undo a serious mistake, not as routine practice.</div>
   <button class="btn sec sm" onclick="cleanOrphanedAppts()">🧹 Clean orphaned appointments</button>
   <button class="btn danger sm" onclick="resetDB()">↺ Reset demo data</button>
@@ -4207,7 +4309,7 @@ views.help=function(){return `<div class="panel" style="max-width:900px">
   <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">🔒 Backup &amp; data safety</summary>
    <ol style="margin:10px 0 0 22px">
     <li>Your data lives in the cloud — sign in on any device, see the same data</li>
-    <li>Go to <b>Settings</b> → click <b>📥 Download backup (.json)</b> anytime to keep an independent copy</li>
+    <li>Go to <b>Settings</b> → click <b>📦 Download full backup (.zip)</b> for everything including documents, or <b>📥 Download data only (.json)</b> for a quick records-only copy — anytime, to keep an independent copy</li>
     <li>Restoring a backup replaces your live data <b>for everyone signed in</b> — only use it to undo a serious mistake</li>
     <li>The <b>Audit Log</b> tab (owner only) shows a record of important actions and who did them</li>
    </ol>
