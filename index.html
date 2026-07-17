@@ -16,12 +16,12 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 button{font-family:inherit;cursor:pointer}
 input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink);background:#fff}
 .app{display:flex;min-height:100vh}
-.sidebar{width:236px;background:#0b1b3d;color:#cdd7df;display:flex;flex-direction:column;position:fixed;height:100vh;left:0;top:0}
+.sidebar{width:236px;background:#0b1b3d;color:#cdd7df;display:flex;flex-direction:column;position:fixed;height:100vh;height:100dvh;left:0;top:0}
 .brand{padding:18px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08)}
 .brand .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);display:grid;place-items:center;font-weight:800;color:#fff;font-size:16px}
 .brand h1{font-size:16px;color:#fff;line-height:1.1}
 .brand small{color:#7d93a0;font-size:10px;font-weight:700;letter-spacing:1px}
-.nav{padding:8px 10px;flex:1;overflow:auto}
+.nav{padding:8px 10px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0}
 .nav .grp{font-size:10px;letter-spacing:1px;color:#5d7286;font-weight:700;padding:12px 14px 5px}
 .nav button{width:100%;text-align:left;background:none;border:none;color:#aebcc7;padding:9px 14px;border-radius:8px;display:flex;align-items:center;gap:11px;font-size:13.5px;margin-bottom:1px}
 .nav button:hover{background:rgba(255,255,255,.06);color:#fff}
@@ -487,8 +487,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
       <div class="logo" style="width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);display:grid;place-items:center;font-weight:800;color:#fff;font-size:22px">PM</div>
     </div>
     <h1 style="font-size:22px;margin-bottom:4px;color:#fff">PhysioMind</h1>
-    <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:4px">Sign in to your clinic</div>
-    <div style="font-size:10px;color:#f87171;font-weight:700;margin-bottom:18px">BUILD-CHECK: v14-navfix</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:18px">Sign in to your clinic</div>
     <div class="field" style="text-align:left">
       <label style="color:rgba(255,255,255,0.8)">Email</label>
       <input type="email" id="loginEmail" placeholder="you@clinic.com" autocomplete="username">
@@ -565,6 +564,12 @@ function nowTime(){const d=new Date();return String(d.getHours()).padStart(2,"0"
 const todayISO=localISO(new Date());
 function uid(p){return p+Math.random().toString(36).slice(2,8)}
 const seed={
+ exerciseLinks:[
+  {id:"el1",name:"Chin tucks",link:"https://youtube.com/watch?v=example1"},
+  {id:"el2",name:"Cat-camel mobilisation",link:"https://youtube.com/watch?v=example2"},
+  {id:"el3",name:"Bridging",link:"https://youtube.com/watch?v=example3"},
+  {id:"el4",name:"Knee-to-chest stretch",link:"https://youtube.com/watch?v=example4"}
+ ],
  branches:[{id:"b1",name:"PhysioMind — Vijay Nagar",address:"12 Vijay Nagar, Indore, MP 452010",phone:"+91 731 400 1100"},
            {id:"b2",name:"PhysioMind — Palasia",address:"5 New Palasia, Indore, MP 452001",phone:"+91 731 400 2200"}],
  staff:[
@@ -709,6 +714,7 @@ async function afterLogin(user){
  fillBranches();document.getElementById("branchSel").value="b1";
  logAudit("Login","Role: "+role);
  go(r.home);
+ maybeShowBackupNudge();
 }
 async function sbLoadData(){
  const {data,error}=await sb.from('clinic_data').select('data').eq('id','main').maybeSingle();
@@ -718,6 +724,7 @@ async function sbLoadData(){
   if(!DB.msgTemplates||!DB.msgTemplates.length)DB.msgTemplates=JSON.parse(JSON.stringify(seed.msgTemplates));
   else{const haveIds=new Set(DB.msgTemplates.map(t=>t.id));seed.msgTemplates.forEach(t=>{if(!haveIds.has(t.id))DB.msgTemplates.push(JSON.parse(JSON.stringify(t)));});}
   if(!DB.attendance)DB.attendance=[];
+  if(!DB.exerciseLinks)DB.exerciseLinks=[];
   (DB.patientPkgs||[]).forEach(k=>{if(k.status==="Active"&&k.expires&&k.expires<todayISO)k.status="Expired";});
   if(DB.plans&&seed.plans){DB.plans.forEach(function(p){var sp=seed.plans.find(function(x){return x.id===p.id;});if(sp){if(!p.modalities||!p.modalities.length)p.modalities=sp.modalities||[];if(!p.exercises||!p.exercises.length)p.exercises=sp.exercises||[];if(!p.home||!p.home.length)p.home=sp.home||[];if(!p.homeFreq)p.homeFreq=sp.homeFreq||"";}if(!p.homeLinks)p.homeLinks=[];});}
   // One-time self-heal: sessions logged with inline billing (before this fix) never had
@@ -776,7 +783,7 @@ function showBackups(){
     openModal(`<div class="modal-h"><h3>Auto-backups (last ${snaps.length})</h3><button class="x" onclick="closeModal()">×</button></div><div class="modal-b">${rows}<div class="muted" style="font-size:12px;margin-top:10px">Snapshots are saved automatically inside this browser every time data changes. Maximum ${IDB_MAX} kept.</div></div><div class="modal-f"><button class="btn sec" onclick="closeModal()">Close</button></div>`,true);
   });}
 // 7-day download nudge
-(function(){const K="pm_last_full_dl";const last=+localStorage.getItem(K)||0;const days=(Date.now()-last)/(864e5);if(!last||days>7){setTimeout(()=>{const b=document.createElement("div");b.id="backup_nudge";b.style.cssText="position:fixed;bottom:18px;right:18px;z-index:9999;background:#1a1a2e;color:#fff;border-radius:12px;padding:12px 16px;max-width:300px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.3)";b.innerHTML=`<b>📦 Backup reminder</b><div style="margin:6px 0 10px;color:#ccc">${last?"It's been "+Math.floor(days)+" days since your last full backup (with documents).":"You haven't taken a full backup yet."} Keep a local copy alongside the cloud data.</div><div style="display:flex;gap:8px"><button class="btn sm" onclick="exportFullBackup();document.getElementById('backup_nudge').remove()">Full backup now</button><button class="btn sm sec" style="background:transparent;color:#ccc;border:1px solid #555" onclick="document.getElementById('backup_nudge').remove()">Later</button></div>`;document.body.appendChild(b);},2000);}})();
+function maybeShowBackupNudge(){const K="pm_last_full_dl";const last=+localStorage.getItem(K)||0;const days=(Date.now()-last)/(864e5);if(!last||days>7){setTimeout(()=>{const b=document.createElement("div");b.id="backup_nudge";b.style.cssText="position:fixed;bottom:18px;right:18px;z-index:9999;background:#1a1a2e;color:#fff;border-radius:12px;padding:12px 16px;max-width:300px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.3)";b.innerHTML=`<b>📦 Backup reminder</b><div style="margin:6px 0 10px;color:#ccc">${last?"It's been "+Math.floor(days)+" days since your last full backup (with documents).":"You haven't taken a full backup yet."} Keep a local copy alongside the cloud data.</div><div style="display:flex;gap:8px"><button class="btn sm" onclick="exportFullBackup();document.getElementById('backup_nudge').remove()">Full backup now</button><button class="btn sm sec" style="background:transparent;color:#ccc;border:1px solid #555" onclick="document.getElementById('backup_nudge').remove()">Later</button></div>`;document.body.appendChild(b);},2000);}}
 function exportDB(){const b=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="PhysioMind_backup_"+todayISO+".json";a.click();localStorage.setItem("pm_last_dl",Date.now());}
 
 function _fullBackupProgress(msg){
@@ -1282,13 +1289,68 @@ function addHomeLink(){
   window._hl=window._hl||[];
   window._hl.push({name:'',link:''});
   const i=window._hl.length-1;
-  document.getElementById('homeLinks_list').insertAdjacentHTML('beforeend',
-    `<div style="display:flex;gap:6px;margin-bottom:6px"><input style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" placeholder="Exercise name" oninput="window._hl[${i}].name=this.value"><input style="flex:2;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" placeholder="YouTube or website link" oninput="window._hl[${i}].link=this.value"><button type="button" class="btn sm sec" onclick="window._hl.splice(${i},1);this.parentNode.remove()">✕</button></div>`);
+  document.getElementById('homeLinks_list').insertAdjacentHTML('beforeend',hlRowHTML('hl',i,window._hl[i]));
+}
+// A small reusable library of exercise-name → video-link pairs, so a therapist only has to type
+// each exercise's link once, ever — after that it's a pick from a dropdown for any patient.
+function exLibOptionsHTML(){
+  return (DB.exerciseLinks||[]).slice().sort((a,b)=>a.name.localeCompare(b.name))
+    .map(e=>`<option value="${e.id}">${e.name}${e.link?' — '+(e.link.length>38?e.link.slice(0,38)+'…':e.link):''}</option>`).join("");
+}
+function hlLibPickerHTML(listVar){
+  return `<div style="display:flex;gap:6px;margin-bottom:8px">
+   <select id="${listVar}_pick" style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px;min-width:0">
+    <option value="">📚 Pick a saved exercise…</option>${exLibOptionsHTML()}
+   </select>
+   <button type="button" class="btn sm sec" onclick="pickHomeLinkFromLib('${listVar}')">+ Add</button>
+  </div>`;
+}
+function hlRowHTML(listVar,i,l){
+  return `<div style="display:flex;gap:6px;margin-bottom:6px"><input style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${(l.name||'').replace(/"/g,"&quot;")}" placeholder="Exercise name" oninput="window._${listVar}[${i}].name=this.value"><input style="flex:2;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${(l.link||'').replace(/"/g,"&quot;")}" placeholder="YouTube or website link" oninput="window._${listVar}[${i}].link=this.value"><button type="button" class="btn sm sec" title="Save this exercise + link for reuse with any patient" onclick="saveHomeLinkToLibrary('${listVar}',${i})">💾</button><button type="button" class="btn sm sec" title="Remove" onclick="removeHomeLinkRow('${listVar}',${i})">✕</button></div>`;
+}
+function saveHomeLinkToLibrary(listVar,i){
+  const l=(window["_"+listVar]||[])[i];
+  if(!l||!l.name||!l.name.trim()||!l.link||!l.link.trim()){alert("Add both an exercise name and a link before saving it to your library.");return;}
+  DB.exerciseLinks=DB.exerciseLinks||[];
+  const existing=DB.exerciseLinks.find(e=>e.name.trim().toLowerCase()===l.name.trim().toLowerCase());
+  if(existing){existing.link=l.link.trim();}
+  else{DB.exerciseLinks.push({id:uid("el"),name:l.name.trim(),link:l.link.trim()});}
+  save();
+  toast("💾 Saved \""+l.name.trim()+"\" to your exercise library — pick it for any future patient.",3000);
+  const sel=document.getElementById(listVar+"_pick");if(sel)sel.innerHTML='<option value="">📚 Pick a saved exercise…</option>'+exLibOptionsHTML();
+}
+function pickHomeLinkFromLib(listVar){
+  const sel=document.getElementById(listVar+"_pick");if(!sel||!sel.value)return;
+  const e=(DB.exerciseLinks||[]).find(x=>x.id===sel.value);if(!e)return;
+  window["_"+listVar]=window["_"+listVar]||[];
+  window["_"+listVar].push({name:e.name,link:e.link});
+  sel.value="";
+  if(listVar==='chl')renderConsultHomeLinks();
+  else document.getElementById('homeLinks_list').insertAdjacentHTML('beforeend',hlRowHTML(listVar,window["_"+listVar].length-1,e));
+}
+function removeHomeLinkRow(listVar,i){
+  window["_"+listVar].splice(i,1);
+  if(listVar==='chl')renderConsultHomeLinks();
+  else{planForm(window._planFormId||'',document.getElementById('t_pid').value);}
+}
+function manageExerciseLibrary(){
+  const list=(DB.exerciseLinks||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  openModal(`<div class="modal-h"><h3>📚 Saved exercise library</h3><button class="x" onclick="closeModal()">×</button></div>
+   <div class="modal-b">
+    <div class="muted" style="font-size:12.5px;margin-bottom:12px">These are the exercise + video link pairs you've saved. Pick them from the dropdown when building any patient's home programme instead of retyping the link.</div>
+    <div id="exLibList">${list.length?list.map(e=>`<div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b style="font-size:13.5px">${e.name}</b><div class="muted" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.link}</div></div><button class="btn sm sec" style="color:var(--danger);border-color:var(--danger)" onclick="deleteExerciseLibEntry('${e.id}')">🗑</button></div>`).join(""):'<div class="empty" style="padding:24px 0">No saved exercises yet — save one from any patient\'s home programme with the 💾 button.</div>'}</div>
+   </div>`);
+}
+function deleteExerciseLibEntry(id){
+  if(!confirm("Remove this exercise from your saved library? Existing patients' home programmes that already used it won't be affected."))return;
+  DB.exerciseLinks=(DB.exerciseLinks||[]).filter(e=>e.id!==id);save();manageExerciseLibrary();
 }
 function renderConsultHomeLinks(){
   const el=document.getElementById('chLinks_list');if(!el)return;
   window._chl=window._chl||[];
-  el.innerHTML=window._chl.map((l,i)=>`<div style="display:flex;gap:6px;margin-bottom:6px"><input style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${(l.name||'').replace(/"/g,"&quot;")}" placeholder="Exercise name" oninput="window._chl[${i}].name=this.value"><input style="flex:2;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${(l.link||'').replace(/"/g,"&quot;")}" placeholder="YouTube or website link" oninput="window._chl[${i}].link=this.value"><button type="button" class="btn sm sec" onclick="window._chl.splice(${i},1);renderConsultHomeLinks()">✕</button></div>`).join('');
+  el.innerHTML=hlLibPickerHTML('chl')
+    +window._chl.map((l,i)=>hlRowHTML('chl',i,l)).join('')
+    +'<div style="text-align:right;margin-top:4px"><button type="button" class="btn sm sec" onclick="manageExerciseLibrary()">📚 Manage saved library</button></div>';
 }
 function addConsultHomeLink(){window._chl=window._chl||[];window._chl.push({name:'',link:''});renderConsultHomeLinks();}
 function savePlanTemp(){/* preserve textarea values across planForm re-open */}
@@ -1376,26 +1438,26 @@ views.appointments=()=>{
    const apptsByDay={};monthAppts.forEach(a=>{const day=+a.date.slice(8,10);(apptsByDay[day]=apptsByDay[day]||[]).push(a);});
    // Build the grid cells
    const cells=[];
-   for(let i=0;i<startOffset;i++)cells.push('<div style="min-height:80px;background:#fafafa;border-radius:6px"></div>');
+   for(let i=0;i<startOffset;i++)cells.push('<div style="min-height:80px;min-width:0;background:#fafafa;border-radius:6px"></div>');
    for(let d=1;d<=daysInMonth;d++){
      const dayISO=year+"-"+String(month+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
      const isToday=dayISO===todayISO;
      const list=apptsByDay[d]||[];
      const count=list.length;
-     const preview=list.slice(0,2).map(a=>{const p=pById(a.pid);return `<div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:${therColor(a.therapist)}">●</span> ${a.time} ${p?p.name:'?'}</div>`;}).join('');
+     const preview=list.slice(0,2).map(a=>{const p=pById(a.pid);return `<div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0"><span style="color:${therColor(a.therapist)}">●</span> ${a.time} ${p?p.name:'?'}</div>`;}).join('');
      const more=count>2?`<div style="font-size:10px;color:var(--accent);font-weight:600">+${count-2} more</div>`:'';
-     cells.push(`<div onclick="calDate='${dayISO}';setCalView('day')" style="min-height:80px;background:${isToday?'#eff6ff':'#fff'};border:1px solid ${isToday?'var(--accent)':'var(--line)'};border-radius:6px;padding:5px 6px;cursor:pointer;display:flex;flex-direction:column;gap:2px">
+     cells.push(`<div onclick="calDate='${dayISO}';setCalView('day')" style="min-height:80px;min-width:0;background:${isToday?'#eff6ff':'#fff'};border:1px solid ${isToday?'var(--accent)':'var(--line)'};border-radius:6px;padding:5px 6px;cursor:pointer;display:flex;flex-direction:column;gap:2px;overflow:hidden">
        <div style="display:flex;justify-content:space-between;align-items:center">
          <b style="font-size:13px;color:${isToday?'var(--accent)':'var(--ink)'}">${d}</b>
-         ${count>0?`<span style="font-size:10px;background:${isToday?'var(--accent)':'var(--muted)'};color:#fff;padding:1px 5px;border-radius:8px;font-weight:600">${count}</span>`:''}
+         ${count>0?`<span style="font-size:10px;background:${isToday?'var(--accent)':'var(--muted)'};color:#fff;padding:1px 5px;border-radius:8px;font-weight:600;flex-shrink:0">${count}</span>`:''}
        </div>
        ${preview}${more}
      </div>`);
    }
-   const dayHeaders=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;padding:6px 0">${d}</div>`).join('');
-   return `<div class="panel">${toolbar}<div class="panel-b">
-     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px">${dayHeaders}</div>
-     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">${cells.join('')}</div>
+   const dayHeaders=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;padding:6px 0;min-width:0">${d}</div>`).join('');
+   return `<div class="panel">${toolbar}<div class="panel-b" style="overflow-x:auto">
+     <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin-bottom:6px;min-width:280px">${dayHeaders}</div>
+     <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;min-width:280px">${cells.join('')}</div>
      <div class="muted" style="font-size:11.5px;margin-top:10px">Tap any day to see its full schedule. Number badge = total appointments for that day.</div>
    </div></div>`;
  }
@@ -1956,6 +2018,7 @@ function planForm(id,forcedPid){
  const regOpts=REGIONS.map(r=>`<option>${r}</option>`).join("");
  const picker=(rid,eid,taid)=>`<div style="display:flex;gap:6px;margin:6px 0"><select id="${rid}" onchange="fillEx('${rid}','${eid}')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${regOpts}</select><select id="${eid}" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('${eid}','${taid}')">+ Add</button></div>`;
  window._hl=JSON.parse(JSON.stringify(t.homeLinks||[]));
+ window._planFormId=id||'';
  openModal(`<div class="modal-h"><h3>${id?"Edit":"New"} Treatment Plan</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="field"><label>Patient</label><div style="display:flex;gap:6px"><select id="t_pid" style="flex:1" ${id?'':`onchange="planForm('',this.value)"`}>${DB.patients.map(p=>`<option value="${p.id}" ${t.pid===p.id?'selected':''}>${p.name}</option>`).join("")}</select><button type="button" class="btn sm sec" style="white-space:nowrap" onclick="pullFromAssessment()">📋 Pull from assessment</button></div></div>
@@ -1968,8 +2031,9 @@ function planForm(id,forcedPid){
   <div class="field"><label>🏠 Home programme — add exercises for the patient to do at home</label>${picker('h_region','h_exsel','t_home')}<textarea id="t_home" rows="3" placeholder="One exercise per line">${thome.join("\n")}</textarea></div>
   <div class="field"><label>Home programme frequency</label><input id="t_homefreq" value="${t.homeFreq||''}" placeholder="e.g. 2× daily, 7 days a week"></div>
   <div class="field"><label>📎 Exercise video links <span class="muted" style="font-weight:400;font-size:12px">(optional — sent with WhatsApp message)</span></label>
-   <div id="homeLinks_list">${(window._hl).map((l,i)=>`<div style="display:flex;gap:6px;margin-bottom:6px"><input style="flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${l.name}" placeholder="Exercise name" oninput="window._hl[${i}].name=this.value"><input style="flex:2;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px" value="${l.link}" placeholder="YouTube or website link" oninput="window._hl[${i}].link=this.value"><button type="button" class="btn sm sec" onclick="window._hl.splice(${i},1);savePlanTemp();planForm('${id||''}',document.getElementById('t_pid').value)">✕</button></div>`).join("")}</div>
-   <button type="button" class="btn sm sec" style="margin-top:4px" onclick="addHomeLink()">+ Add video link</button>
+   ${hlLibPickerHTML('hl')}
+   <div id="homeLinks_list">${window._hl.map((l,i)=>hlRowHTML('hl',i,l)).join("")}</div>
+   <div style="display:flex;gap:8px;margin-top:4px"><button type="button" class="btn sm sec" onclick="addHomeLink()">+ Add video link</button><button type="button" class="btn sm sec" style="margin-left:auto" onclick="manageExerciseLibrary()">📚 Manage saved library</button></div>
   </div>
   <div class="field"><label>Clinical notes</label><textarea id="t_notes" rows="2">${t.notes}</textarea></div>
   ${id?'<hr style="margin:12px 0;border:none;border-top:1px solid var(--line)"><div style="background:var(--bg2);border-radius:10px;padding:12px;margin-top:4px"><div style="font-weight:600;margin-bottom:8px;color:var(--accent)">&#x1F4CB; Today\'s Visit Note</div><div class="field"><label>Pain score today (0 = no pain, 10 = worst)</label><div style="display:flex;align-items:center;gap:12px"><input type="range" id="t_pain" min="0" max="10" value="5" style="flex:1" oninput="document.getElementById(\'t_pain_val\').textContent=this.value"><span id="t_pain_val" style="font-size:1.3rem;font-weight:700;min-width:24px;text-align:center">5</span></div></div><div class="field"><label>Progress note</label><textarea id="t_progress" rows="3" placeholder="Patient\'s response to treatment, improvements, concerns…"></textarea></div></div>':''}
