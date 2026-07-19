@@ -564,6 +564,8 @@ function nowTime(){const d=new Date();return String(d.getHours()).padStart(2,"0"
 const todayISO=localISO(new Date());
 function uid(p){return p+Math.random().toString(36).slice(2,8)}
 const seed={
+ exercisePresets:[],
+ customModalities:[],
  exerciseLinks:[
   {id:"el1",name:"Chin tucks",link:"https://youtube.com/watch?v=example1"},
   {id:"el2",name:"Cat-camel mobilisation",link:"https://youtube.com/watch?v=example2"},
@@ -725,6 +727,8 @@ async function sbLoadData(){
   else{const haveIds=new Set(DB.msgTemplates.map(t=>t.id));seed.msgTemplates.forEach(t=>{if(!haveIds.has(t.id))DB.msgTemplates.push(JSON.parse(JSON.stringify(t)));});}
   if(!DB.attendance)DB.attendance=[];
   if(!DB.exerciseLinks)DB.exerciseLinks=[];
+  if(!DB.exercisePresets)DB.exercisePresets=[];
+  if(!DB.customModalities)DB.customModalities=[];
   (DB.patientPkgs||[]).forEach(k=>{if(k.status==="Active"&&k.expires&&k.expires<todayISO)k.status="Expired";});
   if(DB.plans&&seed.plans){DB.plans.forEach(function(p){var sp=seed.plans.find(function(x){return x.id===p.id;});if(sp){if(!p.modalities||!p.modalities.length)p.modalities=sp.modalities||[];if(!p.exercises||!p.exercises.length)p.exercises=sp.exercises||[];if(!p.home||!p.home.length)p.home=sp.home||[];if(!p.homeFreq)p.homeFreq=sp.homeFreq||"";}if(!p.homeLinks)p.homeLinks=[];});}
   // One-time self-heal: sessions logged with inline billing (before this fix) never had
@@ -914,7 +918,23 @@ const EXLIB={
 };
 const REGIONS=Object.keys(EXLIB);
 const EXCOUNT=Object.values(EXLIB).reduce((s,a)=>s+a.length,0);
-function modOpts(){return MODALITIES.map(function(m){return m.startsWith("──")?'<option disabled style="color:var(--muted);font-size:11px;background:var(--bg2)">'+m+'</option>':'<option>'+m+'</option>';}).join("");}
+function modOpts(){
+  const mine=(DB.customModalities||[]).slice().sort((a,b)=>a.localeCompare(b));
+  const mineHTML=mine.length?'<option disabled style="color:var(--muted);font-size:11px;background:var(--bg2)">── My saved ──</option>'+mine.map(m=>'<option>'+m+'</option>').join(""):'';
+  return mineHTML+MODALITIES.map(function(m){return m.startsWith("──")?'<option disabled style="color:var(--muted);font-size:11px;background:var(--bg2)">'+m+'</option>':'<option>'+m+'</option>';}).join("");
+}
+function promptNewModality(selId,taId){
+  const name=prompt("New modality name to save for reuse with every future patient:");
+  if(!name||!name.trim())return;
+  const val=name.trim();
+  DB.customModalities=DB.customModalities||[];
+  if(!DB.customModalities.some(m=>m.toLowerCase()===val.toLowerCase())){DB.customModalities.push(val);save();}
+  const sel=document.getElementById(selId);if(sel)sel.innerHTML=modOpts();
+  const ta=document.getElementById(taId);
+  const has=ta.value.split("\n").map(x=>x.trim()).includes(val);
+  if(!has)ta.value=(ta.value.trim()?ta.value.replace(/\s+$/,'')+"\n":"")+val;
+  toast("💾 Saved \""+val+"\" — it'll show up in the Modalities list for every future patient.",3000);
+}
 
 const pById=id=>DB.patients.find(p=>p.id===id)||{name:"—"};
 function patientCode(p){const base=(p.dob||"").split("-").reverse().join("");if(!base)return(p.id||"").toUpperCase();const same=DB.patients.filter(x=>x.dob===p.dob);if(same.length>1){const idx=same.findIndex(x=>x.id===p.id);return base+"-"+(idx+1);}return base;}
@@ -1344,6 +1364,27 @@ function manageExerciseLibrary(){
 function deleteExerciseLibEntry(id){
   if(!confirm("Remove this exercise from your saved library? Existing patients' home programmes that already used it won't be affected."))return;
   DB.exerciseLinks=(DB.exerciseLinks||[]).filter(e=>e.id!==id);save();manageExerciseLibrary();
+}
+function managePresets(){
+  const ex=(DB.exercisePresets||[]).slice().sort((a,b)=>(a.region||'').localeCompare(b.region||'')||a.name.localeCompare(b.name));
+  const mods=(DB.customModalities||[]).slice().sort((a,b)=>a.localeCompare(b));
+  const byRegion={};ex.forEach(e=>{(byRegion[e.region||'Other']=byRegion[e.region||'Other']||[]).push(e);});
+  const exHTML=ex.length?Object.keys(byRegion).map(r=>`<div style="margin-bottom:6px"><div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;margin:10px 0 4px">${r}</div>${byRegion[r].map(e=>`<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b style="font-size:13.5px">${e.name}</b>${e.dose?` <span class="muted" style="font-size:12px">— ${e.dose}</span>`:''}</div><button class="btn sm sec" style="color:var(--danger);border-color:var(--danger)" onclick="deleteExercisePreset('${e.id}')">🗑</button></div>`).join("")}</div>`).join(""):'<div class="empty" style="padding:16px 0">No saved exercises yet — when adding an exercise to any patient\'s plan, you\'ll be asked if you want to save it with its sets/reps for reuse.</div>';
+  const modHTML=mods.length?mods.map(m=>`<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b style="font-size:13.5px">${m}</b></div><button class="btn sm sec" style="color:var(--danger);border-color:var(--danger)" onclick="deleteCustomModality('${m.replace(/'/g,"\\'")}')">🗑</button></div>`).join(""):'<div class="empty" style="padding:16px 0">No custom modalities saved yet — use the 💾 New button next to any Modalities picker to add one.</div>';
+  openModal(`<div class="modal-h"><h3>🗂 Saved exercises &amp; modalities</h3><button class="x" onclick="closeModal()">×</button></div>
+   <div class="modal-b">
+    <div class="muted" style="font-size:12.5px;margin-bottom:6px">These show up as picks — grouped by region for exercises — whenever you build a treatment plan or assessment for any patient. Removing one here doesn't affect patients who already have it in their plan.</div>
+    <b style="font-size:13px">Exercises (by region)</b>
+    <div>${exHTML}</div>
+    <b style="font-size:13px;display:block;margin-top:14px">Custom modalities</b>
+    <div>${modHTML}</div>
+   </div>`);
+}
+function deleteExercisePreset(id){
+  DB.exercisePresets=(DB.exercisePresets||[]).filter(e=>e.id!==id);save();managePresets();
+}
+function deleteCustomModality(name){
+  DB.customModalities=(DB.customModalities||[]).filter(m=>m!==name);save();managePresets();
 }
 function renderConsultHomeLinks(){
   const el=document.getElementById('chLinks_list');if(!el)return;
@@ -1995,8 +2036,49 @@ function saveSession(planId,sid,n){const v=k=>{const el=document.getElementById(
  const _pn=(pById(t.pid)||{}).name||'';
  logAudit("Treatment session",(sid?"Edited":"Logged")+" session #"+n+" ("+t.diagnosis+")",_pn);
  save();closeModal();render();}
-function fillEx(regId,exId){const reg=document.getElementById(regId).value;document.getElementById(exId).innerHTML=(EXLIB[reg]||[]).map(e=>`<option>${e}</option>`).join("");}
-function addExTo(exId,taId){const val=document.getElementById(exId).value;if(!val)return;const ta=document.getElementById(taId);ta.value=(ta.value.trim()?ta.value.replace(/\s+$/,'')+"\n":"")+val+" — 3×10";}
+function fillEx(regId,exId){
+  const reg=document.getElementById(regId).value;
+  const mine=(DB.exercisePresets||[]).filter(p=>p.region===reg).sort((a,b)=>a.name.localeCompare(b.name));
+  const mineHTML=mine.length?'<optgroup label="⭐ My saved">'+mine.map(p=>`<option value="${p.name}" data-dose="${(p.dose||'').replace(/"/g,'&quot;')}">${p.name}${p.dose?' — '+p.dose:''}</option>`).join("")+'</optgroup>':'';
+  const builtHTML=(EXLIB[reg]||[]).map(e=>`<option value="${e}">${e}</option>`).join("");
+  document.getElementById(exId).innerHTML=mineHTML+builtHTML;
+}
+function addExTo(exId,taId){
+  const sel=document.getElementById(exId);const val=sel.value;if(!val)return;
+  const opt=sel.selectedOptions&&sel.selectedOptions[0];
+  const savedDose=opt&&opt.dataset?opt.dataset.dose:'';
+  const dose=prompt("Sets × reps / frequency for \""+val+"\":",savedDose||"3×10");
+  if(dose===null)return; // cancelled
+  const ta=document.getElementById(taId);
+  const line=val+(dose.trim()?" — "+dose.trim():"");
+  ta.value=(ta.value.trim()?ta.value.replace(/\s+$/,'')+"\n":"")+line;
+  // Offer to remember this exercise + dose for every future patient, unless it's already
+  // saved with this exact dose (picking an unchanged saved preset shouldn't re-prompt).
+  if(dose.trim()&&dose.trim()!==savedDose){
+    if(confirm('Save "'+val+'" ('+dose.trim()+') to your exercise list for future patients?')){
+      DB.exercisePresets=DB.exercisePresets||[];
+      const regionVal=findRegionForPicker(exId);
+      const existing=DB.exercisePresets.find(p=>p.region===regionVal&&p.name.toLowerCase()===val.toLowerCase());
+      if(existing)existing.dose=dose.trim();else DB.exercisePresets.push({id:uid("ep"),region:regionVal,name:val,dose:dose.trim()});
+      save();
+      const rid=findRegionSelectId(exId);if(rid)fillEx(rid,exId);
+      toast("💾 Saved \""+val+"\" to your exercise list.",3000);
+    }
+  }
+}
+// The region <select> that feeds a given exercise <select> always sits immediately before it
+// in the same picker row — this walks the DOM to find it rather than needing every call site
+// to pass the region id explicitly.
+function findRegionSelectId(exId){
+  const exEl=document.getElementById(exId);
+  const prev=exEl&&exEl.previousElementSibling;
+  return prev&&prev.tagName==="SELECT"?prev.id:null;
+}
+function findRegionForPicker(exId){
+  const rid=findRegionSelectId(exId);
+  const rEl=rid&&document.getElementById(rid);
+  return rEl?rEl.value:"";
+}
 function addLine(selId,taId){const val=document.getElementById(selId).value;if(!val)return;const ta=document.getElementById(taId);const has=ta.value.split("\n").map(x=>x.trim()).includes(val);if(has)return;ta.value=(ta.value.trim()?ta.value.replace(/\s+$/,'')+"\n":"")+val;}
 function planForm(id,forcedPid){
  const t=id?DB.plans.find(x=>x.id===id):(function(){
@@ -2026,7 +2108,7 @@ function planForm(id,forcedPid){
   <div class="field"><label>Diagnosis</label><input id="t_dx" list="dxlist2" value="${t.diagnosis}" placeholder="Pick from list or type your own"><datalist id="dxlist2">${DXLIST.map(d=>`<option value="${d}">`).join("")}</datalist></div>
   <div class="field"><label>Goal</label><input id="t_goal" value="${t.goal}"></div>
   <div class="grid2"><div class="field"><label>Total sessions</label><input id="t_sess" type="number" value="${t.sessions}"></div><div class="field"><label>Completed</label><input id="t_done" type="number" value="${t.done}"></div></div>
-  <div class="field"><label>Modalities / electrotherapy — pick & add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="mod_sel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">${modOpts()}</select><button type="button" class="btn sm" onclick="addLine('mod_sel','t_mod')">+ Add</button></div><textarea id="t_mod" rows="3" placeholder="One modality per line">${tmod.join("\n")}</textarea></div>
+  <div class="field"><label>Modalities / electrotherapy — pick & add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="mod_sel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">${modOpts()}</select><button type="button" class="btn sm" onclick="addLine('mod_sel','t_mod')">+ Add</button><button type="button" class="btn sm sec" title="Type a new modality and save it for reuse with every future patient" onclick="promptNewModality('mod_sel','t_mod')">💾 New</button></div><textarea id="t_mod" rows="3" placeholder="One modality per line">${tmod.join("\n")}</textarea></div>
   <div class="field"><label>Clinic exercises — ${EXCOUNT}+ in library, pick region &amp; add (or type below)</label>${picker('p_region','p_exsel','t_ex')}<textarea id="t_ex" rows="4" placeholder="One exercise per line">${tex.join("\n")}</textarea></div>
   <div class="field"><label>🏠 Home programme — add exercises for the patient to do at home</label>${picker('h_region','h_exsel','t_home')}<textarea id="t_home" rows="3" placeholder="One exercise per line">${thome.join("\n")}</textarea></div>
   <div class="field"><label>Home programme frequency</label><input id="t_homefreq" value="${t.homeFreq||''}" placeholder="e.g. 2× daily, 7 days a week"></div>
@@ -3046,6 +3128,12 @@ views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel
   <div class="field"><label>Clinic name</label><input value="${DB.settings.clinic}" onchange="DB.settings.clinic=this.value;save()"></div>
   <div class="field"><label>GSTIN</label><input value="${DB.settings.gstin}" onchange="DB.settings.gstin=this.value;save()"></div>
   <hr class="sep">
+  <b>🏋️ Saved exercises &amp; modalities</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">Whenever you add a modality or exercise (with its sets/reps/frequency) while building a patient's plan or assessment, you get the option to save it here — after that it just shows up as a pick, per body region, for every future patient. No retyping the same dose over and over.</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+   <button class="btn sm sec" onclick="managePresets()">🗂 Manage saved exercises &amp; modalities</button>
+   <button class="btn sm sec" onclick="manageExerciseLibrary()">📚 Manage saved video links</button>
+  </div>
+  <hr class="sep">
   <b>Data &amp; Backup</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">Your data lives in Supabase (cloud) — the same data shows up on every device you sign into. Download a backup here as an independent copy that doesn't depend on Supabase being reachable.</div>
   <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px">
    <button class="btn sm" onclick="exportFullBackup()">📦 Download full backup (.zip — includes documents)</button>
@@ -3403,7 +3491,7 @@ function assessForm(_,pid){
   <div class="soap-h p" style="margin-top:10px">P · Plan</div>
   <div class="grid2"><div class="field"><label>Short-term goals (2–4 wks)</label><input id="ca_stg" oninput="window._aForm.stg=this.value"></div><div class="field"><label>Long-term goals (discharge)</label><input id="ca_ltg" oninput="window._aForm.ltg=this.value"></div></div>
   <div class="grid2"><div class="field"><label>Total sessions</label><input id="ca_sessions" type="number" min="1" value="12" oninput="window._aForm.sessions=+this.value"></div><div class="field"><label>Sessions / frequency</label><input id="ca_freq" placeholder="e.g. 3×/week × 4 weeks" oninput="window._aForm.freq=this.value"></div></div>
-  <div class="field"><label>Modalities / electrotherapy — pick &amp; add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_modsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">${modOpts()}</select><button type="button" class="btn sm" onclick="addLine('ca_modsel','ca_mods')">+ Add</button></div><textarea id="ca_mods" rows="2" placeholder="One modality per line"></textarea></div>
+  <div class="field"><label>Modalities / electrotherapy — pick &amp; add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_modsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">${modOpts()}</select><button type="button" class="btn sm" onclick="addLine('ca_modsel','ca_mods')">+ Add</button><button type="button" class="btn sm sec" title="Type a new modality and save it for reuse with every future patient" onclick="promptNewModality('ca_modsel','ca_mods')">💾 New</button></div><textarea id="ca_mods" rows="2" placeholder="One modality per line"></textarea></div>
   <div class="field"><label>Clinic exercises — ${EXCOUNT}+ in library, pick region &amp; add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_exreg" onchange="fillEx('ca_exreg','ca_exsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select><select id="ca_exsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('ca_exsel','ca_ex')">+ Add</button></div><textarea id="ca_ex" rows="3" placeholder="One exercise per line"></textarea></div>
   <div class="field"><label>🏠 Home programme — exercises for patient to do at home</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_hreg" onchange="fillEx('ca_hreg','ca_hsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select><select id="ca_hsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('ca_hsel','ca_home')">+ Add</button></div><textarea id="ca_home" rows="2" placeholder="One exercise per line"></textarea></div>
   <div class="field"><label>📎 Exercise video links <span class="muted" style="font-weight:400;font-size:12px">(optional — shown in Treatment &amp; sent via WhatsApp)</span></label>
@@ -4207,7 +4295,7 @@ function assessEdit(id){
   <div class="soap-h p" style="margin-top:10px">P · Plan</div>
   <div class="grid2"><div class="field"><label>Short-term goals (2–4 wks)</label><input id="ca_stg" value="${existing.stg||''}" oninput="window._aForm.stg=this.value"></div><div class="field"><label>Long-term goals (discharge)</label><input id="ca_ltg" value="${existing.ltg||''}" oninput="window._aForm.ltg=this.value"></div></div>
   <div class="grid2"><div class="field"><label>Total sessions</label><input id="ca_sessions" type="number" min="1" value="${existing.sessions||12}" oninput="window._aForm.sessions=+this.value"></div><div class="field"><label>Sessions / frequency</label><input id="ca_freq" value="${existing.freq||''}" placeholder="e.g. 3×/week × 4 weeks" oninput="window._aForm.freq=this.value"></div></div>
-  <div class="field"><label>Modalities / electrotherapy — pick &amp; add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_modsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">${modOpts()}</select><button type="button" class="btn sm" onclick="addLine('ca_modsel','ca_mods')">+ Add</button></div><textarea id="ca_mods" rows="2" placeholder="One modality per line">${(existing.modalities||[]).join("\n")}</textarea></div>
+  <div class="field"><label>Modalities / electrotherapy — pick &amp; add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_modsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">${modOpts()}</select><button type="button" class="btn sm" onclick="addLine('ca_modsel','ca_mods')">+ Add</button><button type="button" class="btn sm sec" title="Type a new modality and save it for reuse with every future patient" onclick="promptNewModality('ca_modsel','ca_mods')">💾 New</button></div><textarea id="ca_mods" rows="2" placeholder="One modality per line">${(existing.modalities||[]).join("\n")}</textarea></div>
   <div class="field"><label>Clinic exercises — ${EXCOUNT}+ in library, pick region &amp; add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_exreg" onchange="fillEx('ca_exreg','ca_exsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select><select id="ca_exsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('ca_exsel','ca_ex')">+ Add</button></div><textarea id="ca_ex" rows="3" placeholder="One exercise per line">${(existing.exercises||[]).join("\n")}</textarea></div>
   <div class="field"><label>🏠 Home programme — exercises for patient to do at home</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_hreg" onchange="fillEx('ca_hreg','ca_hsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select><select id="ca_hsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('ca_hsel','ca_home')">+ Add</button></div><textarea id="ca_home" rows="2" placeholder="One exercise per line">${(existing.home||[]).join("\n")}</textarea></div>
   <div class="field"><label>📎 Exercise video links <span class="muted" style="font-weight:400;font-size:12px">(optional — shown in Treatment &amp; sent via WhatsApp)</span></label>
