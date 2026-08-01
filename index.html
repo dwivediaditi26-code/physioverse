@@ -1628,9 +1628,10 @@ function apptForm(date,time,ther){const pts=DB.patients.filter(p=>!MYTHER||p.the
   <div class="field"><label>Patient</label>
    <input id="a_pt_search" placeholder="Type name or phone..." oninput="filterApptPatients()" autocomplete="off"
     style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;margin-bottom:4px">
-   <select id="a_pid" size="4" style="width:100%;border:1px solid var(--line);border-radius:8px;font-size:13px;padding:4px">
-    ${pts.map(p=>`<option value="${p.id}">${p.name} — ${p.phone||''} · ${p.condition}</option>`).join("")}
-   </select>
+   <input type="hidden" id="a_pid">
+   <div id="a_pid_list" style="width:100%;max-height:150px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;font-size:13px">
+    ${pts.map(p=>`<div class="pt-pick-row" data-pid="${p.id}" data-txt="${(p.name+' '+(p.phone||'')+' '+(p.condition||'')).toLowerCase().replace(/"/g,'&quot;')}" onclick="selectApptPatient('${p.id}')" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--line)">${p.name} — ${p.phone||''} · ${p.condition||''}</div>`).join("")}
+   </div>
    <button type="button" class="btn ghost sm" style="margin-top:6px" onclick="toggleQuickAddPatient()">+ New patient (name only)</button>
    <div id="qap_box" style="display:none;margin-top:8px;padding:8px;border:1px dashed var(--line);border-radius:8px">
     <div class="grid2">
@@ -1656,7 +1657,11 @@ function apptForm(date,time,ther){const pts=DB.patients.filter(p=>!MYTHER||p.the
   </div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveAppt()">Book</button></div>`);}
-function filterApptPatients(){const q=(document.getElementById("a_pt_search").value||"").toLowerCase();const sel=document.getElementById("a_pid");Array.from(sel.options).forEach(o=>{o.style.display=q&&!o.text.toLowerCase().includes(q)?"none":"";});}
+function filterApptPatients(){const q=(document.getElementById("a_pt_search").value||"").toLowerCase();document.querySelectorAll("#a_pid_list .pt-pick-row").forEach(r=>{r.style.display=q&&!r.dataset.txt.includes(q)?"none":"";});}
+function selectApptPatient(pid){
+ document.getElementById("a_pid").value=pid;
+ document.querySelectorAll("#a_pid_list .pt-pick-row").forEach(r=>{r.style.background=r.dataset.pid===pid?"var(--brand-soft,#dbeafe)":"";});
+}
 function toggleQuickAddPatient(){const b=document.getElementById("qap_box");const show=b.style.display==="none";b.style.display=show?"block":"none";if(show)document.getElementById("qap_name").focus();}
 function quickAddPatient(){
  const name=(document.getElementById("qap_name").value||"").trim();
@@ -1669,12 +1674,15 @@ function quickAddPatient(){
  DB.patients.push(_np);
  logAudit("Patient Added","Quick-added while booking (name only, profile pending)",_np.name);
  save();
- const sel=document.getElementById("a_pid");
- const opt=document.createElement("option");
- opt.value=_np.id;opt.text=_np.name+(phone?" — "+phone:"")+" · (profile pending)";
- sel.add(opt,sel.options[0]||null);
- opt.selected=true;
- sel.value=_np.id;
+ const list=document.getElementById("a_pid_list");
+ const row=document.createElement("div");
+ row.className="pt-pick-row";row.dataset.pid=_np.id;
+ row.dataset.txt=(_np.name+" "+(phone||"")+" (profile pending)").toLowerCase();
+ row.onclick=()=>selectApptPatient(_np.id);
+ row.style.cssText="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--line)";
+ row.textContent=_np.name+(phone?" — "+phone:"")+" · (profile pending)";
+ list.prepend(row);
+ selectApptPatient(_np.id);
  document.getElementById("qap_name").value="";document.getElementById("qap_phone").value="";
  document.getElementById("qap_box").style.display="none";
 }
