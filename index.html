@@ -2635,8 +2635,15 @@ function genStatement(id){
  dates.forEach(d=>{
   linesHTML+=`<div class="stmt-date-h" style="font-weight:700;font-size:12.5px;margin:8px 0 2px">${fmtDate(d)}</div>`;
   byDate[d].forEach(i=>{
-   (i.items||[]).forEach(it=>{
-    const amt=(it.qty||1)*(it.rate||0);
+   const items=i.items||[];
+   const t=invTotals(i);
+   let allocated=0;
+   items.forEach((it,idx)=>{
+    const raw=(it.qty||1)*(it.rate||0);
+    // Give every item its proportional share of the real invoice total (post discount+GST);
+    // the last item absorbs any rounding remainder so the sum always matches exactly.
+    const amt=(idx===items.length-1)?Math.round((t.total-allocated)*100)/100:Math.round((t.sub?raw/t.sub*t.total:0)*100)/100;
+    allocated+=amt;
     const desc=(it.d||"")+(it.qty>1?` (₹${it.rate} × ${it.qty})`:"")+` — ${i.id}, ${i.status}`;
     linesHTML+=`<div class="stmt-line" style="display:flex;gap:6px;align-items:center;padding:4px 0">
      <input type="text" class="sl-desc" value="${desc.replace(/"/g,"&quot;")}" style="flex:1;border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-size:12px">
