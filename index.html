@@ -3410,7 +3410,7 @@ async function ownerSetPassword(init,label){
  if(!token){msg.style.color='var(--danger)';msg.textContent='Session expired — please sign in again.';return;}
  msg.style.color='var(--muted)';msg.textContent='Saving…';
  try{
-  const res=await fetch(SUPABASE_URL+'/functions/v1/admin-set-password',{
+  const res=await fetch(SUPABASE_URL+'/functions/v1/swift-handler',{
    method:'POST',
    headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
    body:JSON.stringify({targetEmail:email,newPassword:pass})
