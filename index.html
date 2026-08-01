@@ -686,7 +686,7 @@ const seed={
 let DB;
 let CURROLE="owner", MYTHER=null, CURNAME=null;
 const ROLES={
- owner:{name:"Dr. Neha Verma",title:"Owner / Senior Physiotherapist",init:"NV",color:"#2563eb",home:"dashboard",scope:null,
+ owner:{name:"Dr. Madhulika Sethiya",title:"Owner / Senior Physiotherapist",init:"MS",color:"#2563eb",home:"dashboard",scope:null,
    views:["dashboard","reports","patients","appointments","assessment","treatment","packages","billing","expenses","reminders","staff","branches","logins","settings","audit","help"]},
  therapist:{name:"Therapist",title:"Therapist",init:"TH",color:"#0d9488",home:"appointments",scope:null,
    views:["dashboard","patients","appointments","assessment","treatment","packages","reminders","help"]},
@@ -4020,7 +4020,7 @@ function assessDocHTML(id){
         <button class="btn sec" onclick="assessEdit('${id}')">✏ Edit</button>
         <button class="btn sec" onclick="assessPrint('${id}')">🖨 Print</button>
         <button class="btn sec" onclick="assessSavePDF('${id}')">⬇ Save PDF</button>
-        ${(c.home&&c.home.length)?`<button class="btn sec" style="background:#25D366;color:#fff" onclick="sendAssessHomeWA('${id}')">📲 Send Home Plan</button>`:""}
+        ${((c.home&&c.home.length)||(c.homeLinks&&c.homeLinks.some(l=>l.name||l.link)))?`<button class="btn sec" style="background:#25D366;color:#fff" onclick="sendAssessHomeWA('${id}')">📲 Send Home Plan</button>`:""}
         <button class="btn" style="background:#16a34a" onclick="startSessionFromAssess('${id}')">▶ Start Session</button>
         ${CURROLE==='owner'?`<button class="btn danger sec" onclick="delAssess('${id}')">🗑 Delete</button>`:''}
       </div>
