@@ -3891,7 +3891,20 @@ function assessDocHTML(id){
 
   // ── O: Objective — per region ──
   let regionBlocks="";
-  (c.regions||[]).forEach(r=>{
+  const stripSide=k=>k.replace(/::[LR]$/,"");
+  const allDocRegions=[...new Set([
+    ...(c.regions||[]),
+    ...(c.romRegions||[]),
+    ...(c.mmtRegions||[]),
+    ...(c.testRegions||[]),
+    ...Object.keys(c.obs||{}),
+    ...Object.keys(c.palp||{}),
+    ...Object.keys(c.neuro||{}),
+    ...Object.keys(c.rom||{}).map(stripSide),
+    ...Object.keys(c.mmt||{}).map(stripSide),
+    ...Object.keys(c.tests||{}).map(stripSide)
+  ])];
+  allDocRegions.forEach(r=>{
     const rk=r.replace("/","_");
     const side=c.regionSides&&c.regionSides[r];
     const sideTag=side?` <span style="font-size:10px;padding:1px 7px;background:#1d4ed8;color:#fff;border-radius:20px;vertical-align:middle">${side==="B"?"Bilateral":side==="L"?"Left":"Right"}</span>`:"";
