@@ -1636,9 +1636,9 @@ views.appointments=()=>{
  }
  const dayAppts=DB.appointments.filter(inBranch).filter(a=>a.date===calDate).filter(a=>!MYTHER||a.therapist===MYTHER);
  const hours=[];for(let h=0;h<=23;h++)hours.push(h);
- const block=a=>{const p=pById(a.pid);const late=isApptLate(a);return `<div onclick="event.stopPropagation();apptView('${a.id}')" style="border-left:3px solid ${late?'#dc2626':therColor(a.therapist)};background:${late?'#fef2f2':'#f3f7fc'};border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer"><div style="font-weight:600;font-size:12px">${a.time} · ${p.name}</div><div style="font-size:11px;color:var(--muted)">${a.type}</div><span class="tag ${apptStatusCls(a)}" style="font-size:10px;margin-top:2px">${apptStatusLabel(a)}</span></div>`;};
- const grid=`<table style="min-width:${120+thers.length*150}px"><thead><tr><th style="width:64px">Time</th>${thers.map(t=>`<th><span class="dot" style="background:${therColor(t)}"></span>${t.replace('Dr. ','')}</th>`).join("")}</tr></thead><tbody>
-   ${hours.map(h=>`<tr><td style="font-weight:600;color:var(--muted);vertical-align:top">${pad2(h)}:00</td>${thers.map(t=>{const cell=dayAppts.filter(a=>a.therapist===t&&+a.time.split(":")[0]===h);return `<td style="vertical-align:top;cursor:pointer;min-width:140px" onclick="apptForm('${calDate}','${pad2(h)}:00','${t}')">${cell.map(block).join("")||'<span style="color:#cdd5e0;font-size:12px">+</span>'}</td>`;}).join("")}</tr>`).join("")}
+ const block=a=>{const p=pById(a.pid);const late=isApptLate(a);return `<div onclick="event.stopPropagation();apptView('${a.id}')" style="border-left:3px solid ${late?'#dc2626':therColor(a.therapist)};background:${late?'#fef2f2':'#f3f7fc'};border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer"><div style="font-weight:600;font-size:12px">${a.time} · ${p.name}</div><div style="font-size:11px;color:var(--muted)">${a.type}</div><div style="font-size:10.5px;color:${therColor(a.therapist)};margin-top:1px">${a.therapist||'(no therapist)'}</div><span class="tag ${apptStatusCls(a)}" style="font-size:10px;margin-top:2px">${apptStatusLabel(a)}</span></div>`;};
+ const grid=`<table style="min-width:280px;width:100%"><tbody>
+   ${hours.map(h=>{const cell=dayAppts.filter(a=>+a.time.split(":")[0]===h);return `<tr><td style="font-weight:600;color:var(--muted);vertical-align:top;width:64px">${pad2(h)}:00</td><td style="vertical-align:top;cursor:pointer" onclick="apptForm('${calDate}','${pad2(h)}:00','')">${cell.map(block).join("")||'<span style="color:#cdd5e0;font-size:12px">+</span>'}</td></tr>`;}).join("")}
  </tbody></table>`;
  return `<div class="panel">${toolbar}<div class="panel-b flush" style="overflow-x:auto">${dayAppts.length?'':'<div style="padding:10px 17px" class="muted">No appointments this day — tap any slot to book.</div>'}${grid}</div></div>`;
 };
@@ -3225,7 +3225,7 @@ function saveStaff(id){const v=k=>document.getElementById(k).value;if(!v("m_name
   logAudit("Staff added",_srole+" — "+_sname,"");
  }
  save();closeModal();render();}
-function delStaff(id){
+async function delStaff(id){
  if(CURROLE!=='owner'){alert("Only the owner can remove staff members.");return;}
  const s=DB.staff.find(x=>x.id===id);if(!s)return;
  const assignedPatients=DB.patients.filter(p=>p.therapist===s.name).length;
@@ -3233,8 +3233,16 @@ function delStaff(id){
   ?"Remove "+s.name+"? "+assignedPatients+" patient(s) are currently assigned to them — you'll need to reassign those patients to another therapist afterward. This cannot be undone."
   :"Remove "+s.name+" from the clinic? This cannot be undone.";
  if(!confirm(msg))return;
- DB.staff=DB.staff.filter(x=>x.id!==id);
- save();render();
+ // Re-sync with Supabase right before deleting. The whole clinic record is saved as one
+ // JSON blob, so if this browser tab has been open a while and another tab/session saved
+ // in the meantime, our in-memory DB.staff could be stale — deleting from a stale copy and
+ // saving would silently resurrect anything the other session had added or changed.
+ await sbLoadData();
+ const stillThere=DB.staff.find(x=>x.id===id||x.name===s.name);
+ if(!stillThere){toast(s.name+" was already removed.",3000);render();return;}
+ DB.staff=DB.staff.filter(x=>x.id!==stillThere.id);
+ await sbSaveData();
+ render();
  logAudit("Staff removed",s.role+" — "+s.name,"");
 }
 
