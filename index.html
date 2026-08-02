@@ -228,8 +228,8 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 }
 @media print{
   body > *:not(#print-only-sheet){display:none!important}
-  #print-only-sheet{position:fixed!important;inset:0!important;display:block!important;z-index:99999!important}
-  @page{margin:0;size:A4 portrait}
+  #print-only-sheet{position:static!important;display:block!important}
+  @page{margin:12mm;size:A4 portrait}
 }
 
 /* ── Assessment module ── */
@@ -1421,8 +1421,24 @@ function manageExerciseLibrary(){
   openModal(`<div class="modal-h"><h3>📚 Saved exercise library</h3><button class="x" onclick="closeModal()">×</button></div>
    <div class="modal-b">
     <div class="muted" style="font-size:12.5px;margin-bottom:12px">These are the exercise + video link pairs you've saved. Pick them from the dropdown when building any patient's home programme instead of retyping the link.</div>
-    <div id="exLibList">${list.length?list.map(e=>`<div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b style="font-size:13.5px">${e.name}</b><div class="muted" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.link}</div></div><button class="btn sm sec" style="color:var(--danger);border-color:var(--danger)" onclick="deleteExerciseLibEntry('${e.id}')">🗑</button></div>`).join(""):'<div class="empty" style="padding:24px 0">No saved exercises yet — save one from any patient\'s home programme with the 💾 button.</div>'}</div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+     <input id="mel_name" placeholder="Exercise name" style="flex:1;min-width:120px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onkeydown="if(event.key==='Enter')document.getElementById('mel_link').focus()">
+     <input id="mel_link" placeholder="YouTube or website link" style="flex:2;min-width:160px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onkeydown="if(event.key==='Enter')addExerciseLinkFromManage()">
+     <button type="button" class="btn sm" onclick="addExerciseLinkFromManage()">+ Add</button>
+    </div>
+    <div id="exLibList">${list.length?list.map(e=>`<div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b style="font-size:13.5px">${e.name}</b><div class="muted" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.link}</div></div><button class="btn sm sec" style="color:var(--danger);border-color:var(--danger)" onclick="deleteExerciseLibEntry('${e.id}')">🗑</button></div>`).join(""):'<div class="empty" style="padding:24px 0">No saved exercises yet — add one above, or save one from any patient\'s home programme with the 💾 button.</div>'}</div>
    </div>`);
+}
+function addExerciseLinkFromManage(){
+  const nameEl=document.getElementById("mel_name"),linkEl=document.getElementById("mel_link");
+  const name=(nameEl.value||"").trim(),link=(linkEl.value||"").trim();
+  if(!name||!link){alert("Enter both an exercise name and a link.");return;}
+  DB.exerciseLinks=DB.exerciseLinks||[];
+  const existing=DB.exerciseLinks.find(e=>e.name.trim().toLowerCase()===name.toLowerCase());
+  if(existing){existing.link=link;}else{DB.exerciseLinks.push({id:uid("el"),name,link});}
+  save();
+  toast("💾 Saved \""+name+"\" to your exercise library.",2500);
+  manageExerciseLibrary();
 }
 function deleteExerciseLibEntry(id){
   if(!confirm("Remove this exercise from your saved library? Existing patients' home programmes that already used it won't be affected."))return;
@@ -1432,16 +1448,46 @@ function managePresets(){
   const ex=(DB.exercisePresets||[]).slice().sort((a,b)=>(a.region||'').localeCompare(b.region||'')||a.name.localeCompare(b.name));
   const mods=(DB.customModalities||[]).slice().sort((a,b)=>a.localeCompare(b));
   const byRegion={};ex.forEach(e=>{(byRegion[e.region||'Other']=byRegion[e.region||'Other']||[]).push(e);});
-  const exHTML=ex.length?Object.keys(byRegion).map(r=>`<div style="margin-bottom:6px"><div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;margin:10px 0 4px">${r}</div>${byRegion[r].map(e=>`<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b style="font-size:13.5px">${e.name}</b>${e.dose?` <span class="muted" style="font-size:12px">— ${e.dose}</span>`:''}</div><button class="btn sm sec" style="color:var(--danger);border-color:var(--danger)" onclick="deleteExercisePreset('${e.id}')">🗑</button></div>`).join("")}</div>`).join(""):'<div class="empty" style="padding:16px 0">No saved exercises yet — when adding an exercise to any patient\'s plan, you\'ll be asked if you want to save it with its sets/reps for reuse.</div>';
-  const modHTML=mods.length?mods.map(m=>`<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b style="font-size:13.5px">${m}</b></div><button class="btn sm sec" style="color:var(--danger);border-color:var(--danger)" onclick="deleteCustomModality('${m.replace(/'/g,"\\'")}')">🗑</button></div>`).join(""):'<div class="empty" style="padding:16px 0">No custom modalities saved yet — use the 💾 New button next to any Modalities picker to add one.</div>';
+  const exHTML=ex.length?Object.keys(byRegion).map(r=>`<div style="margin-bottom:6px"><div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;margin:10px 0 4px">${r}</div>${byRegion[r].map(e=>`<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b style="font-size:13.5px">${e.name}</b>${e.dose?` <span class="muted" style="font-size:12px">— ${e.dose}</span>`:''}</div><button class="btn sm sec" style="color:var(--danger);border-color:var(--danger)" onclick="deleteExercisePreset('${e.id}')">🗑</button></div>`).join("")}</div>`).join(""):'<div class="empty" style="padding:16px 0">No saved exercises yet — add one below.</div>';
+  const modHTML=mods.length?mods.map(m=>`<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b style="font-size:13.5px">${m}</b></div><button class="btn sm sec" style="color:var(--danger);border-color:var(--danger)" onclick="deleteCustomModality('${m.replace(/'/g,"\\'")}')">🗑</button></div>`).join(""):'<div class="empty" style="padding:16px 0">No custom modalities saved yet — add one below.</div>';
   openModal(`<div class="modal-h"><h3>🗂 Saved exercises &amp; modalities</h3><button class="x" onclick="closeModal()">×</button></div>
    <div class="modal-b">
     <div class="muted" style="font-size:12.5px;margin-bottom:6px">These show up as picks — grouped by region for exercises — whenever you build a treatment plan or assessment for any patient. Removing one here doesn't affect patients who already have it in their plan.</div>
     <b style="font-size:13px">Exercises (by region)</b>
+    <div style="display:flex;gap:6px;margin:8px 0 4px;flex-wrap:wrap">
+     <select id="mp_reg" style="flex:0 0 130px;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:13px">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select>
+     <input id="mp_name" placeholder="Exercise name" style="flex:1;min-width:120px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onkeydown="if(event.key==='Enter')document.getElementById('mp_dose').focus()">
+     <input id="mp_dose" placeholder="3×10 (optional)" style="width:110px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onkeydown="if(event.key==='Enter')addPresetFromManage()">
+     <button type="button" class="btn sm" onclick="addPresetFromManage()">+ Add</button>
+    </div>
     <div>${exHTML}</div>
     <b style="font-size:13px;display:block;margin-top:14px">Custom modalities</b>
+    <div style="display:flex;gap:6px;margin:8px 0 4px">
+     <input id="mp_modname" placeholder="Modality name" style="flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onkeydown="if(event.key==='Enter')addModalityFromManage()">
+     <button type="button" class="btn sm" onclick="addModalityFromManage()">+ Add</button>
+    </div>
     <div>${modHTML}</div>
    </div>`);
+}
+function addPresetFromManage(){
+  const region=document.getElementById("mp_reg").value;
+  const name=(document.getElementById("mp_name").value||"").trim();
+  if(!name){alert("Enter an exercise name.");return;}
+  const dose=(document.getElementById("mp_dose").value||"").trim();
+  DB.exercisePresets=DB.exercisePresets||[];
+  const existing=DB.exercisePresets.find(p=>p.region===region&&p.name.toLowerCase()===name.toLowerCase());
+  if(existing){existing.dose=dose;}else{DB.exercisePresets.push({id:uid("ep"),region,name,dose});}
+  save();
+  toast("💾 Saved \""+name+"\" under "+region+".",2500);
+  managePresets();
+}
+function addModalityFromManage(){
+  const name=(document.getElementById("mp_modname").value||"").trim();
+  if(!name){alert("Enter a modality name.");return;}
+  DB.customModalities=DB.customModalities||[];
+  if(!DB.customModalities.some(m=>m.toLowerCase()===name.toLowerCase())){DB.customModalities.push(name);save();}
+  toast("💾 Saved \""+name+"\".",2500);
+  managePresets();
 }
 function deleteExercisePreset(id){
   DB.exercisePresets=(DB.exercisePresets||[]).filter(e=>e.id!==id);save();managePresets();
@@ -1629,8 +1675,8 @@ function apptForm(date,time,ther){const pts=DB.patients.filter(p=>!MYTHER||p.the
    <input id="a_pt_search" placeholder="Type name or phone..." oninput="filterApptPatients()" autocomplete="off"
     style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;margin-bottom:4px">
    <input type="hidden" id="a_pid">
-   <div id="a_pid_list" style="width:100%;max-height:150px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;font-size:13px">
-    ${pts.map(p=>`<div class="pt-pick-row" data-pid="${p.id}" data-txt="${(p.name+' '+(p.phone||'')+' '+(p.condition||'')).toLowerCase().replace(/"/g,'&quot;')}" onclick="selectApptPatient('${p.id}')" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--line)">${p.name} — ${p.phone||''} · ${p.condition||''}</div>`).join("")}
+   <div id="a_pid_list" style="width:100%;max-height:150px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:8px;font-size:13px">
+    ${pts.map(p=>`<button type="button" class="pt-pick-row" data-pid="${p.id}" data-txt="${(p.name+' '+(p.phone||'')+' '+(p.condition||'')).toLowerCase().replace(/"/g,'&quot;')}" onclick="selectApptPatient('${p.id}')" style="display:block;width:100%;text-align:left;background:#fff;border:none;padding:8px 10px;cursor:pointer;touch-action:manipulation;border-bottom:1px solid var(--line);font:inherit;color:inherit;-webkit-appearance:none;appearance:none;border-radius:0">${p.name} — ${p.phone||''} · ${p.condition||''}</button>`).join("")}
    </div>
    <button type="button" class="btn ghost sm" style="margin-top:6px" onclick="toggleQuickAddPatient()">+ New patient (name only)</button>
    <div id="qap_box" style="display:none;margin-top:8px;padding:8px;border:1px dashed var(--line);border-radius:8px">
@@ -1675,11 +1721,12 @@ function quickAddPatient(){
  logAudit("Patient Added","Quick-added while booking (name only, profile pending)",_np.name);
  save();
  const list=document.getElementById("a_pid_list");
- const row=document.createElement("div");
+ const row=document.createElement("button");
+ row.type="button";
  row.className="pt-pick-row";row.dataset.pid=_np.id;
  row.dataset.txt=(_np.name+" "+(phone||"")+" (profile pending)").toLowerCase();
  row.onclick=()=>selectApptPatient(_np.id);
- row.style.cssText="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--line)";
+ row.style.cssText="display:block;width:100%;text-align:left;background:#fff;border:none;padding:8px 10px;cursor:pointer;touch-action:manipulation;border-bottom:1px solid var(--line);font:inherit;color:inherit;-webkit-appearance:none;appearance:none;border-radius:0";
  row.textContent=_np.name+(phone?" — "+phone:"")+" · (profile pending)";
  list.prepend(row);
  selectApptPatient(_np.id);
@@ -2426,8 +2473,8 @@ views.billing=()=>{const inv=DB.invoices.filter(inBranch).slice().sort((a,b)=>b.
  <div class="panel"><div class="panel-h" style="flex-wrap:wrap;gap:8px"><h3>Invoices</h3>
   <div style="display:flex;gap:6px;flex:1;min-width:0;flex-wrap:wrap">
    <input id="inv_search" placeholder="🔍 Search patient or invoice #" value="${_invSearch}" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" oninput="_invSearch=this.value;_invPage=0;render()">
-   <select style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onchange="_invMonth=this.value;_invDate='';_invPage=0;render()"><option value="">All months</option>${[...new Set((DB.invoices||[]).map(i=>i.date?i.date.slice(0,7):'').filter(Boolean))].sort().reverse().map(m=>`<option value="${m}" ${_invMonth===m?'selected':''}>${['January','February','March','April','May','June','July','August','September','October','November','December'][+m.slice(5,7)-1]} ${m.slice(0,4)}</option>`).join('')}</select>
-   <input id="inv_date" type="date" value="${_invDate}" onchange="_invDate=this.value;_invMonth='';_invPage=0;render()" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+   <select id="inv_month" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onchange="_invMonth=this.value;_invDate='';_invPage=0;setTimeout(render,0)"><option value="">All months</option>${[...new Set((DB.invoices||[]).map(i=>i.date?i.date.slice(0,7):'').filter(Boolean))].sort().reverse().map(m=>`<option value="${m}" ${_invMonth===m?'selected':''}>${['January','February','March','April','May','June','July','August','September','October','November','December'][+m.slice(5,7)-1]} ${m.slice(0,4)}</option>`).join('')}</select>
+   <input id="inv_date" type="date" value="${_invDate}" onchange="_invDate=this.value;_invMonth='';_invPage=0;setTimeout(render,0)" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
    ${(_invSearch||_invDate||_invMonth)?`<button class="btn sm sec" onclick="_invSearch='';_invDate='';_invMonth='';_invPage=0;render()">✕ Clear</button>`:''}
   </div>
   <div class="tools"><button class="btn sm sec" onclick="walletForm()">💳 Wallet top-up</button><button class="btn sm sec" onclick="consultInvForm()">🩺 Consult invoice</button><button class="btn sm" onclick="invForm()">+ Session invoice</button></div>
@@ -2599,15 +2646,15 @@ async function downloadReceiptPDF(id){const i=DB.invoices.find(x=>x.id===id);con
  rule();
  // Table header
  doc.setFont("helvetica","bold");doc.setFontSize(9);
- doc.text("Description",M,y);doc.text("Qty",100,y);doc.text("Rate",115,y);doc.text("Amount",W-M,y,{align:"right"});y+=5;
+ doc.text("Description",M,y);doc.text("Qty",86,y);doc.text("Rate",112,y,{align:"right"});doc.text("Amount",W-M,y,{align:"right"});y+=5;
  rule();
  doc.setFont("helvetica","normal");doc.setFontSize(9);
- i.items.forEach(it=>{doc.text(String(it.d||""),M,y,{maxWidth:82});doc.text(String(it.qty||1),100,y);doc.text(pdfInr(it.rate||0),115,y);doc.text(pdfInr((it.qty||1)*(it.rate||0)),W-M,y,{align:"right"});y+=5.5;});
+ i.items.forEach(it=>{doc.text(String(it.d||""),M,y,{maxWidth:68});doc.text(String(it.qty||1),86,y);doc.text(pdfInr(it.rate||0),112,y,{align:"right"});doc.text(pdfInr((it.qty||1)*(it.rate||0)),W-M,y,{align:"right"});y+=5.5;});
  rule();
  // Totals
- if(t.discount>0){doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("Subtotal",100,y);doc.text(pdfInr(t.sub),W-M,y,{align:"right"});y+=5;
-  doc.text("Discount"+(i.discount&&i.discount.type==="pct"?" ("+i.discount.value+"%)":""),100,y);doc.text("−"+pdfInr(t.discount),W-M,y,{align:"right"});y+=5.5;}
- doc.setFontSize(12);doc.setFont("helvetica","bold");doc.text("TOTAL",100,y);doc.text(pdfInr(t.total),W-M,y,{align:"right"});y+=7;
+ if(t.discount>0){doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("Subtotal",90,y);doc.text(pdfInr(t.sub),W-M,y,{align:"right"});y+=5;
+  doc.text("Discount"+(i.discount&&i.discount.type==="pct"?" ("+i.discount.value+"%)":""),90,y);doc.text("−"+pdfInr(t.discount),W-M,y,{align:"right"});y+=5.5;}
+ doc.setFontSize(12);doc.setFont("helvetica","bold");doc.text("TOTAL",90,y);doc.text(pdfInr(t.total),W-M,y,{align:"right"});y+=7;
  doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(100);
  doc.text("Thank you for choosing "+DB.settings.clinic+". Computer-generated invoice.",M,y,{maxWidth:W-2*M});
  doc.save("Receipt_"+i.id+"_"+p.name.replace(/ /g,"_")+".pdf");}
@@ -3095,7 +3142,7 @@ views.staff=()=>{const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===c
  const daysSoFar=new Date(todayISO).getDate();
  return `<div class="panel"><div class="panel-h"><h3>Clinic Members</h3><div style="display:flex;gap:8px"><button class="btn sm sec" onclick="attendanceForm()">📅 Mark today's attendance</button><button class="btn" onclick="staffForm()">+ Add Member</button></div></div>
  <div class="panel-b flush"><table><thead><tr><th>Member</th><th>Role</th><th>Phone</th><th>Branch</th><th>Attendance</th><th>Leaves</th><th style="text-align:right">Salary</th>${CURROLE==='owner'?'<th style="text-align:right">Actions</th>':''}</tr></thead><tbody>
- ${list.map(s=>{const ma=monthAttendance(s.id,ym);const present=ma.marked?ma.present:s.present;const lv=ma.marked?ma.leave:s.leave;return `<tr><td><div class="pcell"><div class="avatar t">${initials(s.name)}</div><div class="nm">${s.name}</div></div></td><td><span class="tag ${s.role.includes('Senior')?'purple':s.role.includes('Physio')?'blue':'gray'}">${s.role}</span></td><td>${s.phone}</td><td>${bName(s.branch).replace('PhysioMind — ','')}</td><td><b style="color:var(--ok)">${present}</b> days</td><td>${lv}</td><td style="text-align:right"><b>${inr(s.salary)}</b></td>${CURROLE==='owner'?`<td style="text-align:right"><button class="btn sm danger sec" onclick="delStaff('${s.id}')">🗑 Remove</button></td>`:''}</tr>`;}).join("")}
+ ${list.map(s=>{const ma=monthAttendance(s.id,ym);const present=ma.marked?ma.present:s.present;const lv=ma.marked?ma.leave:s.leave;return `<tr><td><div class="pcell"><div class="avatar t">${initials(s.name)}</div><div class="nm">${s.name}</div></div></td><td><span class="tag ${s.role.includes('Senior')?'purple':s.role.includes('Physio')?'blue':'gray'}">${s.role}</span></td><td>${s.phone}</td><td>${bName(s.branch).replace('PhysioMind — ','')}</td><td><b style="color:var(--ok)">${present}</b> days</td><td>${lv}</td><td style="text-align:right"><b>${inr(s.salary)}</b></td>${CURROLE==='owner'?`<td style="text-align:right"><button class="btn sm sec" title="Edit" onclick="staffForm('${s.id}')">✏️ Edit</button> <button class="btn sm danger sec" onclick="delStaff('${s.id}')">🗑 Remove</button></td>`:''}</tr>`;}).join("")}
  </tbody></table></div></div>
  <div class="panel" style="margin-top:14px"><div class="panel-h" style="flex-wrap:wrap;gap:8px"><h3>Attendance</h3>
    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -3118,17 +3165,35 @@ views.staff=()=>{const list=DB.staff.filter(s=>curBranch()==="all"||s.branch===c
      <div class="muted" style="font-size:11.5px;margin-top:8px">Each cell shows one month. Colour: green = ≥80% attendance, amber = 50-79%, red = &lt;50%. Grey = no attendance marked yet for that month.</div>
    `}
  </div></div>`;};
-function staffForm(){openModal(`<div class="modal-h"><h3>Add Member</h3><button class="x" onclick="closeModal()">×</button></div>
+function staffForm(id){
+ const s=id?DB.staff.find(x=>x.id===id):null;
+ openModal(`<div class="modal-h"><h3>${s?"Edit":"Add"} Member</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
-  <div class="field"><label>Name</label><input id="m_name"></div>
-  <div class="grid2"><div class="field"><label>Role</label><select id="m_role"><option>Senior Physiotherapist</option><option>Physiotherapist</option><option>Receptionist</option><option>Assistant</option></select></div>
-   <div class="field"><label>Phone</label><input id="m_phone"></div></div>
-  <div class="grid2"><div class="field"><label>Branch</label><select id="m_branch">${DB.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join("")}</select></div>
-   <div class="field"><label>Monthly salary (₹)</label><input id="m_sal" type="number"></div></div>
+  <div class="field"><label>Name</label><input id="m_name" value="${s?(s.name||'').replace(/"/g,'&quot;'):''}"></div>
+  <div class="grid2"><div class="field"><label>Role</label><select id="m_role">${["Senior Physiotherapist","Physiotherapist","Receptionist","Assistant"].map(r=>`<option ${s&&s.role===r?'selected':''}>${r}</option>`).join("")}</select></div>
+   <div class="field"><label>Phone</label><input id="m_phone" value="${s?(s.phone||'').replace(/"/g,'&quot;'):''}"></div></div>
+  <div class="grid2"><div class="field"><label>Branch</label><select id="m_branch">${DB.branches.map(b=>`<option value="${b.id}" ${s&&s.branch===b.id?'selected':''}>${b.name}</option>`).join("")}</select></div>
+   <div class="field"><label>Monthly salary (₹)</label><input id="m_sal" type="number" value="${s?(s.salary||0):''}"></div></div>
   <div class="field"><label>Role-based access</label><select><option>Full access (Admin)</option><option>Therapist (patients + notes)</option><option>Reception (appointments + billing)</option></select></div>
  </div>
- <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveStaff()">Save</button></div>`);}
-function saveStaff(){const v=k=>document.getElementById(k).value;if(!v("m_name")){alert("Name required");return;}var _sname=v("m_name"),_srole=v("m_role");DB.staff.push({id:uid("s"),name:_sname,role:_srole,phone:v("m_phone"),branch:v("m_branch"),salary:+v("m_sal")||0,present:0,leave:0});logAudit("Staff added",_srole+" — "+_sname,"");save();closeModal();render();}
+ <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveStaff('${id||''}')">Save</button></div>`);}
+function saveStaff(id){const v=k=>document.getElementById(k).value;if(!v("m_name")){alert("Name required");return;}
+ var _sname=v("m_name"),_srole=v("m_role");
+ if(id){
+  const s=DB.staff.find(x=>x.id===id);if(!s)return;
+  const oldName=s.name;
+  Object.assign(s,{name:_sname,role:_srole,phone:v("m_phone"),branch:v("m_branch"),salary:+v("m_sal")||0});
+  if(oldName!==_sname){
+   // Keep existing patient/appointment records pointing at this person after a rename
+   DB.patients.forEach(p=>{if(p.therapist===oldName)p.therapist=_sname;});
+   DB.appointments.forEach(a=>{if(a.therapist===oldName)a.therapist=_sname;});
+  }
+  logAudit("Staff edited",_srole+" — "+_sname,"");
+ }else{
+  DB.staff.push({id:uid("s"),name:_sname,role:_srole,phone:v("m_phone"),branch:v("m_branch"),salary:+v("m_sal")||0,present:0,leave:0});
+  logAudit("Staff added",_srole+" — "+_sname,"");
+ }
+ save();closeModal();render();}
 function delStaff(id){
  if(CURROLE!=='owner'){alert("Only the owner can remove staff members.");return;}
  const s=DB.staff.find(x=>x.id===id);if(!s)return;
