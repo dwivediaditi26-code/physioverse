@@ -565,6 +565,7 @@ function localISO(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(
 function nowTime(){const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}
 const todayISO=localISO(new Date());
 function uid(p){return p+Math.random().toString(36).slice(2,8)}
+function isPhysio(s){return !!(s&&s.role&&/physio/i.test(s.role));}
 const seed={
  exercisePresets:[],
  customModalities:[],
@@ -1550,7 +1551,7 @@ function patientForm(id){const p=id?pById(id):{name:"",dob:"",gender:"M",phone:"
   <div class="grid2"><div class="field"><label>Emergency contact — name</label><input id="f_emname" value="${p.emName||''}"></div>
    <div class="field"><label>Emergency contact — phone</label><input id="f_emphone" value="${p.emPhone||''}"></div></div>
   <div class="field"><label>Referred by (doctor)</label><input id="f_refdr" value="${p.refDr||''}"></div>
-  <div class="grid2"><div class="field"><label>Therapist</label><select id="f_ther">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${p.therapist===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
+  <div class="grid2"><div class="field"><label>Therapist</label><select id="f_ther">${DB.staff.filter(s=>isPhysio(s)).map(s=>`<option ${p.therapist===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
    <div class="field"><label>Branch</label><select id="f_branch">${DB.branches.map(b=>`<option value="${b.id}" ${p.branch===b.id?'selected':''}>${b.name}</option>`).join("")}</select></div></div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="savePatient('${id||''}')">Save</button></div>`);}
@@ -1571,7 +1572,7 @@ function calShift(n){calDate=shiftDate(calDate,n);render();}
 function calToday(){calDate=todayISO;render();}
 function setCalView(v){calView=v;render();}
 views.appointments=()=>{
- const thers=MYTHER?[MYTHER]:[...new Set(DB.staff.filter(s=>s.role.includes("Physio")).map(s=>s.name))];
+ const thers=MYTHER?[MYTHER]:[...new Set(DB.staff.filter(s=>isPhysio(s)).map(s=>s.name))];
  const monthTitle=(()=>{const d=new Date(calDate);return d.toLocaleString("en-IN",{month:"long",year:"numeric"});})();
  const dateTitle=calView==='month'?monthTitle:(dayName(calDate)+', '+fmtDate(calDate));
  const shiftLabel=calView==='month'?'month':'day';
@@ -1676,7 +1677,7 @@ function editApptForm(id){const a=DB.appointments.find(x=>x.id===id);
  <div class="modal-b">
   <div class="grid2"><div class="field"><label>Date</label><input id="ea_date" type="date" value="${a.date}"></div><div class="field"><label>Time</label><input id="ea_time" type="time" value="${a.time}"></div></div>
   <div class="grid2"><div class="field"><label>Type</label><select id="ea_type">${["Therapy session","Follow-up","Assessment","Consultation"].map(t=>`<option ${a.type===t?'selected':''}>` + `${t}</option>`).join("")}</select></div>
-   <div class="field"><label>Therapist</label><select id="ea_ther">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${a.therapist===s.name?'selected':''}>` + `${s.name}</option>`).join("")}</select></div></div>
+   <div class="field"><label>Therapist</label><select id="ea_ther">${DB.staff.filter(s=>isPhysio(s)).map(s=>`<option ${a.therapist===s.name?'selected':''}>` + `${s.name}</option>`).join("")}</select></div></div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="apptView('${id}')">Cancel</button><button class="btn" onclick="saveEditAppt('${id}')">Save</button></div>`);}
 function saveEditAppt(id){const v=k=>document.getElementById(k).value;const a=DB.appointments.find(x=>x.id===id);a.date=v("ea_date");a.time=v("ea_time");a.type=v("ea_type");a.therapist=v("ea_ther");calDate=a.date;logAudit("Appointment","Rescheduled to "+a.date+" "+a.time,pById(a.pid).name);save();closeModal();render();}
@@ -1703,7 +1704,7 @@ function apptForm(date,time,ther){const pts=DB.patients.filter(p=>!MYTHER||p.the
   </div>
   <div class="grid2"><div class="field"><label>Date</label><input id="a_date" type="date" value="${date||calDate}"></div><div class="field"><label>Time</label><input id="a_time" type="time" value="${time||'10:00'}"></div></div>
   <div class="grid2"><div class="field"><label>Type</label><select id="a_type"><option>Therapy session</option><option>Follow-up</option><option>Assessment</option><option>Consultation</option></select></div>
-   <div class="field"><label>Therapist</label><select id="a_ther">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${ther===s.name||MYTHER===s.name?'selected':''}>` + `${s.name}</option>`).join("")}</select></div></div>
+   <div class="field"><label>Therapist</label><select id="a_ther">${DB.staff.filter(s=>isPhysio(s)).map(s=>`<option ${ther===s.name||MYTHER===s.name?'selected':''}>` + `${s.name}</option>`).join("")}</select></div></div>
   <hr class="sep">
   <div style="font-size:12.5px;font-weight:600;margin-bottom:6px">🔁 Repeat (optional)</div>
   <div class="grid2">
@@ -1735,7 +1736,7 @@ function quickAddPatient(){
  const phone=(document.getElementById("qap_phone").value||"").trim();
  const therEl=document.getElementById("a_ther");
  const _np={id:uid("p"),since:todayISO,sinceTime:nowTime(),wallet:0,docs:[],name,phone,dob:"",age:"",gender:"",condition:"",
-  therapist:(therEl&&therEl.value)||(DB.staff.find(s=>s.role.includes("Physio"))||{}).name||"",
+  therapist:(therEl&&therEl.value)||(DB.staff.find(s=>isPhysio(s))||{}).name||"",
   branch:curBranch()==="all"?DB.branches[0].id:curBranch()};
  DB.patients.push(_np);
  logAudit("Patient Added","Quick-added while booking (name only, profile pending)",_np.name);
@@ -2025,7 +2026,7 @@ function nextSessionForm(planId){
  openModal('<div class="modal-h"><h3>Session #'+nextN+' — '+p.name+'</h3><button class="x" onclick="closeModal()">×</button></div>'
   +'<div class="modal-b">'
   +'<div class="grid2"><div class="field"><label>Date</label><div style="display:flex;gap:6px;align-items:center"><input id="s_date" type="date" value="'+todayISO+'" style="flex:1"><button type="button" class="btn sm sec" onclick="document.getElementById(\'s_date\').value=todayISO">Today</button></div></div>'
-  +'<div class="field"><label>Therapist</label><select id="s_ther">'+DB.staff.filter(function(x){return x.role.includes("Physio");}).map(function(x){return '<option>'+(x.name)+'</option>';}).join("")+'</select></div></div>'
+  +'<div class="field"><label>Therapist</label><select id="s_ther">'+DB.staff.filter(function(x){return isPhysio(x);}).map(function(x){return '<option>'+(x.name)+'</option>';}).join("")+'</select></div></div>'
   +'<div class="field"><label>Treatments / modalities — remove or add</label><div style="display:flex;gap:6px;margin:6px 0"><select id="s_modsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">'+modOpts()+'</select><button type="button" class="btn sm" onclick="addLine(\'s_modsel\',\'s_mod\')">+ Add</button></div><textarea id="s_mod" rows="3" placeholder="One per line">'+mods.join("\n")+'</textarea></div>'
   +'<div class="field"><label>Exercises done today — remove or add</label><div style="display:flex;gap:6px;margin:6px 0"><select id="s_region" onchange="fillEx(\'s_region\',\'s_exsel\')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">'+regOpts+'</select><select id="s_exsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo(\'s_exsel\',\'s_ex\')">+ Add</button></div><textarea id="s_ex" rows="4" placeholder="One per line">'+exs.join("\n")+'</textarea></div>'
   +'<div class="grid2"><div class="field"><label>Pain today (0–10)</label><input id="s_pain" type="number" min="0" max="10" value=""></div></div>'
@@ -2138,7 +2139,7 @@ function sessionForm(planId,sid,forcedN){const t=DB.plans.find(x=>x.id===planId)
  openModal(`<div class="modal-h"><h3>Session #${nextN} — ${p.name}</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="grid2"><div class="field"><label>Date</label><div style="display:flex;gap:6px;align-items:center"><input id="s_date" type="date" value="${s?s.date:todayISO}" style="flex:1"><button type="button" class="btn sm sec" onclick="document.getElementById('s_date').value=todayISO">Today</button></div></div>
-   <div class="field"><label>Therapist (logged by)</label><select id="s_ther">${DB.staff.filter(x=>x.role.includes("Physio")).map(x=>`<option ${ (s?s.therapist:(MYTHER||t.diagnosis&&p.therapist))===x.name?'selected':''}>${x.name}</option>`).join("")}</select></div></div>
+   <div class="field"><label>Therapist (logged by)</label><select id="s_ther">${DB.staff.filter(x=>isPhysio(x)).map(x=>`<option ${ (s?s.therapist:(MYTHER||t.diagnosis&&p.therapist))===x.name?'selected':''}>${x.name}</option>`).join("")}</select></div></div>
   <div class="field"><label>Treatments / modalities given today — remove or add</label><div style="display:flex;gap:6px;margin:6px 0"><select id="s_modsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">${modOpts()}</select><button type="button" class="btn sm" onclick="addLine('s_modsel','s_mod')">+ Add</button></div><textarea id="s_mod" rows="3" placeholder="One per line">${mods.join("\n")}</textarea></div>
   <div class="field"><label>Exercises done today — remove or add (${EXCOUNT}+ library)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="s_region" onchange="fillEx('s_region','s_exsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${regOpts}</select><select id="s_exsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('s_exsel','s_ex')">+ Add</button></div><textarea id="s_ex" rows="4" placeholder="One per line">${exs.join("\n")}</textarea></div>
   <div class="grid2"><div class="field"><label>Pain today (0–10)</label><input id="s_pain" type="number" min="0" max="10" value="${s?s.pain:''}"></div></div>
@@ -2395,7 +2396,7 @@ function assignPkg(pid){openModal(`<div class="modal-h"><h3>Assign Package</h3><
   <div class="field"><label style="display:flex;gap:7px;align-items:center;font-weight:400"><input type="checkbox" id="k_autobook" checked> Auto-schedule all appointments</label></div>
   <div class="grid2"><div class="field"><label>Session time</label><input id="k_time" type="time" value="10:00"></div>
    <div class="field"><label>Sessions / week</label><select id="k_perwk"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></div></div>
-  <div class="field"><label>Therapist</label><select id="k_ther">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${MYTHER===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
+  <div class="field"><label>Therapist</label><select id="k_ther">${DB.staff.filter(s=>isPhysio(s)).map(s=>`<option ${MYTHER===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
   <div class="muted" style="font-size:12.5px">Sessions are available immediately even if partial payment. Balance tracked in patient ledger.</div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="savePkg()">Assign</button></div>`);
@@ -2572,7 +2573,7 @@ function consultInvForm(pid){openModal(`<div class="modal-h"><h3>Consultation In
   <div class="field"><label>Description</label><input id="ci_desc" value="Initial assessment & consultation"></div>
   <div class="grid2">
    <div class="field"><label>Payment mode</label><select id="ci_mode"><option>UPI</option><option>Cash</option><option>Card</option><option>Wallet (advance)</option><option>Bill later</option></select></div>
-   <div class="field"><label>Therapist</label><select id="ci_ther">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${MYTHER===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
+   <div class="field"><label>Therapist</label><select id="ci_ther">${DB.staff.filter(s=>isPhysio(s)).map(s=>`<option ${MYTHER===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
   </div>
   ${discField("ci")}
   <div class="muted" style="font-size:12.5px">This is a standalone consultation fee not linked to a session.</div>
@@ -3631,7 +3632,7 @@ let _assessOpenMonths={};
 function toggleAssessMonth(m){_assessOpenMonths[m]=!(_assessOpenMonths[m]!==undefined?_assessOpenMonths[m]:(m===todayISO.slice(0,7)));render();}
 views.assessment=()=>{
   if(!DB.assessments) DB.assessments=[];
-  const therOpts=DB.staff.filter(st=>st.role.includes("Physio")).map(st=>`<option value="${st.name}">${st.name}</option>`).join("");
+  const therOpts=DB.staff.filter(st=>isPhysio(st)).map(st=>`<option value="${st.name}">${st.name}</option>`).join("");
   const all=(DB.assessments||[]).filter(c=>{const p=pById(c.pid);return p&&inBranch(p);}).filter(c=>!MYTHER||c.therapist===MYTHER).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const filtered=all.filter(c=>{const p=pById(c.pid);if(!p)return false;const txt=((p.name||"")+" "+(c.dx||"")+" "+(c.therapist||"")).toLowerCase();return (!_assessQ||txt.includes(_assessQ))&&(!_assessTher||c.therapist===_assessTher);});
   const isFiltering=!!(_assessQ||_assessTher);
@@ -3836,7 +3837,7 @@ function aSetPain(i){const a=window._aForm;if(!a)return;a.painScore=i;aUpdatePai
 
 // ── assessForm: open the full assessment modal (new or edit) ──
 function assessForm(_,pid){
-  const freshA={id:uid("ca"),pid:pid||"",date:todayISO,therapist:MYTHER||(DB.staff.find(s=>s.role.includes("Physio"))||{name:""}).name,
+  const freshA={id:uid("ca"),pid:pid||"",date:todayISO,therapist:MYTHER||(DB.staff.find(s=>isPhysio(s))||{name:""}).name,
     mode:"template",complaint:"",onset:"",painsite:"",pain:null,aggr:"",reliev:"",history:"",
     regions:[],regionSides:{},obs:{},palp:{},neuro:{},rom:{},mmt:{},tests:{},func:[],funcOther:"",
     romRegions:[],mmtRegions:[],testRegions:[],
@@ -3845,7 +3846,7 @@ function assessForm(_,pid){
   openModal(`<div class="modal-h"><h3>New Assessment</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="field"><label>Patient</label><select id="ca_pid" onchange="window._aForm.pid=this.value">${DB.patients.map(p=>`<option value="${p.id}" ${pid===p.id?'selected':''}>${p.name}</option>`).join("")}</select></div>
-  <div class="field"><label>Therapist</label><select id="ca_ther" onchange="window._aForm.therapist=this.value">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${(MYTHER||"")===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
+  <div class="field"><label>Therapist</label><select id="ca_ther" onchange="window._aForm.therapist=this.value">${DB.staff.filter(s=>isPhysio(s)).map(s=>`<option ${(MYTHER||"")===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
   <label style="font-weight:600;font-size:12.5px;color:#3a4456">Assessment method</label>
   <div class="tabs" id="catabs" style="margin:6px 0 14px">
     <button class="active" data-m="template" onclick="caMode('template')">📝 Digital template</button>
@@ -4670,7 +4671,7 @@ function assessEdit(id){
   openModal(`<div class="modal-h"><h3>Edit Assessment</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="field"><label>Patient</label><select id="ca_pid" onchange="window._aForm.pid=this.value">${DB.patients.map(p=>`<option value="${p.id}" ${pid===p.id?'selected':''}>${p.name}</option>`).join("")}</select></div>
-  <div class="field"><label>Therapist</label><select id="ca_ther" onchange="window._aForm.therapist=this.value">${DB.staff.filter(s=>s.role.includes("Physio")).map(s=>`<option ${existing.therapist===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
+  <div class="field"><label>Therapist</label><select id="ca_ther" onchange="window._aForm.therapist=this.value">${DB.staff.filter(s=>isPhysio(s)).map(s=>`<option ${existing.therapist===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
   <label style="font-weight:600;font-size:12.5px;color:#3a4456">Assessment method</label>
   <div class="tabs" id="catabs" style="margin:6px 0 14px">
     <button class="${existing.mode==='template'?'active':''}" data-m="template" onclick="caMode('template')">📝 Digital template</button>
