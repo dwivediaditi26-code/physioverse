@@ -228,7 +228,8 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 }
 @media print{
   body > *:not(#print-only-sheet){display:none!important}
-  #print-only-sheet{position:static!important;display:block!important}
+  #print-only-sheet{position:static!important;display:block!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
+  #print-only-sheet *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
   @page{margin:12mm;size:A4 portrait}
 }
 
@@ -993,9 +994,20 @@ function printHTML(html){
  div.innerHTML=html;
  document.body.appendChild(div);
  document.body.querySelectorAll(':scope > *:not(#print-only-sheet)').forEach(el=>el.style.display='none');
+ let cleaned=false;
+ const cleanup=()=>{
+  if(cleaned)return;cleaned=true;
+  document.body.querySelectorAll(':scope > *:not(#print-only-sheet)').forEach(el=>el.style.display='');
+  div.remove();
+  window.removeEventListener('afterprint',cleanup);
+ };
+ // iOS Safari doesn't block on window.print() — it shows the native sheet and lets script
+ // keep running, so cleaning up immediately here deletes the content before it's captured.
+ // 'afterprint' fires once the dialog actually closes; the timeout is a fallback for browsers
+ // that don't fire it reliably (e.g. some in-app / WKWebView contexts).
+ window.addEventListener('afterprint',cleanup);
  window.print();
- document.body.querySelectorAll(':scope > *:not(#print-only-sheet)').forEach(el=>el.style.display='');
- div.remove();
+ setTimeout(cleanup,60000);
 }
 const MM=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MNAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -1675,8 +1687,9 @@ function apptForm(date,time,ther){const pts=DB.patients.filter(p=>!MYTHER||p.the
    <input id="a_pt_search" placeholder="Type name or phone..." oninput="filterApptPatients()" autocomplete="off"
     style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;margin-bottom:4px">
    <input type="hidden" id="a_pid">
+   <div id="a_pid_selected" style="font-size:12.5px;font-weight:600;color:var(--brand,#2563eb);margin:2px 0 6px;min-height:16px"></div>
    <div id="a_pid_list" style="width:100%;max-height:150px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:8px;font-size:13px">
-    ${pts.map(p=>`<button type="button" class="pt-pick-row" data-pid="${p.id}" data-txt="${(p.name+' '+(p.phone||'')+' '+(p.condition||'')).toLowerCase().replace(/"/g,'&quot;')}" onclick="selectApptPatient('${p.id}')" style="display:block;width:100%;text-align:left;background:#fff;border:none;padding:8px 10px;cursor:pointer;touch-action:manipulation;border-bottom:1px solid var(--line);font:inherit;color:inherit;-webkit-appearance:none;appearance:none;border-radius:0">${p.name} — ${p.phone||''} · ${p.condition||''}</button>`).join("")}
+    ${pts.map(p=>`<button type="button" class="pt-pick-row" data-pid="${p.id}" data-name="${p.name.replace(/"/g,'&quot;')}" data-txt="${(p.name+' '+(p.phone||'')+' '+(p.condition||'')).toLowerCase().replace(/"/g,'&quot;')}" onpointerup="selectApptPatient('${p.id}')" style="display:block;width:100%;text-align:left;background:#fff;border:none;padding:8px 10px;cursor:pointer;touch-action:manipulation;border-bottom:1px solid var(--line);font:inherit;color:inherit;-webkit-appearance:none;appearance:none;border-radius:0">${p.name} — ${p.phone||''} · ${p.condition||''}</button>`).join("")}
    </div>
    <button type="button" class="btn ghost sm" style="margin-top:6px" onclick="toggleQuickAddPatient()">+ New patient (name only)</button>
    <div id="qap_box" style="display:none;margin-top:8px;padding:8px;border:1px dashed var(--line);border-radius:8px">
@@ -1706,7 +1719,14 @@ function apptForm(date,time,ther){const pts=DB.patients.filter(p=>!MYTHER||p.the
 function filterApptPatients(){const q=(document.getElementById("a_pt_search").value||"").toLowerCase();document.querySelectorAll("#a_pid_list .pt-pick-row").forEach(r=>{r.style.display=q&&!r.dataset.txt.includes(q)?"none":"";});}
 function selectApptPatient(pid){
  document.getElementById("a_pid").value=pid;
- document.querySelectorAll("#a_pid_list .pt-pick-row").forEach(r=>{r.style.background=r.dataset.pid===pid?"var(--brand-soft,#dbeafe)":"";});
+ let name="";
+ document.querySelectorAll("#a_pid_list .pt-pick-row").forEach(r=>{
+  const match=r.dataset.pid===pid;
+  r.style.background=match?"var(--brand-soft,#dbeafe)":"";
+  if(match)name=r.dataset.name||"";
+ });
+ const sel=document.getElementById("a_pid_selected");
+ if(sel)sel.textContent=name?"✓ Selected: "+name:"";
 }
 function toggleQuickAddPatient(){const b=document.getElementById("qap_box");const show=b.style.display==="none";b.style.display=show?"block":"none";if(show)document.getElementById("qap_name").focus();}
 function quickAddPatient(){
@@ -1723,9 +1743,9 @@ function quickAddPatient(){
  const list=document.getElementById("a_pid_list");
  const row=document.createElement("button");
  row.type="button";
- row.className="pt-pick-row";row.dataset.pid=_np.id;
+ row.className="pt-pick-row";row.dataset.pid=_np.id;row.dataset.name=_np.name;
  row.dataset.txt=(_np.name+" "+(phone||"")+" (profile pending)").toLowerCase();
- row.onclick=()=>selectApptPatient(_np.id);
+ row.onpointerup=()=>selectApptPatient(_np.id);
  row.style.cssText="display:block;width:100%;text-align:left;background:#fff;border:none;padding:8px 10px;cursor:pointer;touch-action:manipulation;border-bottom:1px solid var(--line);font:inherit;color:inherit;-webkit-appearance:none;appearance:none;border-radius:0";
  row.textContent=_np.name+(phone?" — "+phone:"")+" · (profile pending)";
  list.prepend(row);
@@ -3174,15 +3194,15 @@ function staffForm(id){
    <div class="field"><label>Phone</label><input id="m_phone" value="${s?(s.phone||'').replace(/"/g,'&quot;'):''}"></div></div>
   <div class="grid2"><div class="field"><label>Branch</label><select id="m_branch">${DB.branches.map(b=>`<option value="${b.id}" ${s&&s.branch===b.id?'selected':''}>${b.name}</option>`).join("")}</select></div>
    <div class="field"><label>Monthly salary (₹)</label><input id="m_sal" type="number" value="${s?(s.salary||0):''}"></div></div>
-  <div class="field"><label>Role-based access</label><select><option>Full access (Admin)</option><option>Therapist (patients + notes)</option><option>Reception (appointments + billing)</option></select></div>
+  <div class="field"><label>Role-based access</label><select id="m_access">${[["admin","Full access (Admin)"],["therapist","Therapist (patients + notes)"],["reception","Reception (appointments + billing)"]].map(([val,label])=>`<option value="${val}" ${(s&&s.access?s.access===val:val==="admin")?'selected':''}>${label}</option>`).join("")}</select></div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveStaff('${id||''}')">Save</button></div>`);}
 function saveStaff(id){const v=k=>document.getElementById(k).value;if(!v("m_name")){alert("Name required");return;}
- var _sname=v("m_name"),_srole=v("m_role");
+ var _sname=v("m_name"),_srole=v("m_role"),_sacc=v("m_access");
  if(id){
   const s=DB.staff.find(x=>x.id===id);if(!s)return;
   const oldName=s.name;
-  Object.assign(s,{name:_sname,role:_srole,phone:v("m_phone"),branch:v("m_branch"),salary:+v("m_sal")||0});
+  Object.assign(s,{name:_sname,role:_srole,phone:v("m_phone"),branch:v("m_branch"),salary:+v("m_sal")||0,access:_sacc});
   if(oldName!==_sname){
    // Keep existing patient/appointment records pointing at this person after a rename
    DB.patients.forEach(p=>{if(p.therapist===oldName)p.therapist=_sname;});
@@ -3190,7 +3210,7 @@ function saveStaff(id){const v=k=>document.getElementById(k).value;if(!v("m_name
   }
   logAudit("Staff edited",_srole+" — "+_sname,"");
  }else{
-  DB.staff.push({id:uid("s"),name:_sname,role:_srole,phone:v("m_phone"),branch:v("m_branch"),salary:+v("m_sal")||0,present:0,leave:0});
+  DB.staff.push({id:uid("s"),name:_sname,role:_srole,phone:v("m_phone"),branch:v("m_branch"),salary:+v("m_sal")||0,access:_sacc,present:0,leave:0});
   logAudit("Staff added",_srole+" — "+_sname,"");
  }
  save();closeModal();render();}
@@ -4298,9 +4318,17 @@ function assessPrint(id){
   document.body.appendChild(div);
   // hide everything else
   document.body.querySelectorAll(':scope > *:not(#print-only-sheet)').forEach(el=>el.style.display='none');
+  let cleaned=false;
+  const cleanup=()=>{
+   if(cleaned)return;cleaned=true;
+   document.body.querySelectorAll(':scope > *:not(#print-only-sheet)').forEach(el=>el.style.display='');
+   div.remove();
+   window.removeEventListener('afterprint',cleanup);
+  };
+  // See printHTML() above for why cleanup can't happen right after window.print() on iOS.
+  window.addEventListener('afterprint',cleanup);
   window.print();
-  document.body.querySelectorAll(':scope > *:not(#print-only-sheet)').forEach(el=>el.style.display='');
-  div.remove();
+  setTimeout(cleanup,60000);
 }
 
 // ── PDF: build the assessment report doc (does not save/persist anything) ──
