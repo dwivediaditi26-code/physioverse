@@ -1589,6 +1589,7 @@ views.appointments=()=>{
      <button class="btn sm ${calView==='day'?'':'sec'}" onclick="setCalView('day')">Day grid</button>
      <button class="btn sm ${calView==='agenda'?'':'sec'}" onclick="setCalView('agenda')">Agenda</button>
      <button class="btn sm" onclick="apptForm('${calDate}')">+ Book</button>
+     <button class="btn sm sec" onclick="debugStaffList()" title="Shows exactly what staff data is actually saved right now">🔍 Staff data</button>
    </div></div>`;
  if(calView==='month'){
    // Build month grid: 7 columns (Sun-Sat), rows as needed
@@ -1662,7 +1663,7 @@ function apptView(id){const a=DB.appointments.find(x=>x.id===id);const p=pById(a
  <div class="modal-b">
   <div class="pcell" style="margin-bottom:12px"><div class="avatar">${initials(p.name)}</div><div><div class="nm">${p.name}</div><div class="mt muted">${p.phone}</div></div></div>
   <div class="grid2"><div><b class="muted">Date</b><div>${fmtDate(a.date)}</div></div><div><b class="muted">Time</b><div>${a.time}</div></div></div>
-  <div class="grid2" style="margin-top:8px"><div><b class="muted">Type</b><div>${a.type}</div></div><div><b class="muted">Therapist</b><div>${a.therapist}</div></div></div>
+  <div class="grid2" style="margin-top:8px"><div><b class="muted">Type</b><div>${a.type}</div></div><div><div style="font-weight:600;color:${therColor(a.therapist)}">${a.therapist}</div></div></div>
   <div class="field" style="margin-top:12px"><label>Status</label><select onchange="setApptStatus('${a.id}',this.value)">${["Pending","Confirmed","Checked-in","Completed","Cancelled"].map(s=>`<option ${a.status===s?'selected':''}>` + `${s}</option>`).join("")}</select>${isApptLate(a)?'<div style="margin-top:6px"><span class="tag red">⏰ Late — patient has not arrived</span></div>':''}</div>
  </div>
  <div class="modal-f" style="flex-wrap:wrap;gap:6px">
@@ -3199,6 +3200,14 @@ function staffForm(id){
   <div class="field"><label>Role-based access</label><select id="m_access">${[["admin","Full access (Admin)"],["therapist","Therapist (patients + notes)"],["reception","Reception (appointments + billing)"]].map(([val,label])=>`<option value="${val}" ${(s&&s.access?s.access===val:val==="admin")?'selected':''}>${label}</option>`).join("")}</select></div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveStaff('${id||''}')">Save</button></div>`);}
+function debugStaffList(){
+ const rows=(DB.staff||[]).map((s,i)=>(i+1)+". \""+s.name+"\"  —  role: \""+(s.role||'(empty)')+"\"  —  branch: "+(s.branch||'(none)'));
+ const names=[...new Set((DB.staff||[]).map(s=>s.name))];
+ alert("LIVE staff data right now (this is exactly what's saved, straight from the database):\n\n"+
+  (rows.length?rows.join("\n"):"(no staff records at all)")+
+  "\n\n— — —\nTherapist columns the calendar WILL show ("+names.length+"):\n"+names.join(", ")+
+  "\n\nIf a name is missing from the list above entirely, it was never saved to the database — re-add them from Staff → Add Member and press Save again, then check here immediately.");
+}
 function saveStaff(id){const v=k=>document.getElementById(k).value;if(!v("m_name")){alert("Name required");return;}
  var _sname=v("m_name"),_srole=v("m_role"),_sacc=v("m_access");
  if(id){
