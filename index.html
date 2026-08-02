@@ -384,7 +384,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 .adoc-av{width:50px;height:50px;border-radius:50%;background:#bfdbfe;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:#1e40af;flex-shrink:0}
 .adoc-name{font-size:17px;font-weight:700;color:var(--ink)}
 .adoc-sub{font-size:12.5px;color:var(--muted);margin-top:2px}
-.adoc-btns{display:flex;gap:8px;flex-shrink:0}
+.adoc-btns{display:flex;gap:8px;flex-wrap:wrap}
 .adoc-meta{display:flex;gap:20px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap}
 .adoc-mi{font-size:12px;color:var(--muted)}
 .adoc-mi b{display:block;color:var(--ink);font-weight:600;font-size:12.5px;margin-bottom:1px}
@@ -2935,7 +2935,7 @@ views.expenses=()=>{const ex=DB.expenses.filter(inBranch);const total=ex.reduce(
  const curMonth=todayISO.slice(0,7);
  const byMonth={};ex.forEach(e=>{const m=(e.date||'').slice(0,7)||'unknown';(byMonth[m]=byMonth[m]||[]).push(e);});
  const months=Object.keys(byMonth).sort().reverse();
- const rowHTML=e=>`<tr><td>${fmtDate(e.date)}${e.time?`<div class="muted" style="font-size:10.5px">${e.time}</div>`:''}</td><td><span class="tag purple">${e.cat}</span>${e.bill?` <span class="tag gray">📎 ${e.bill}</span>${e.billPath?` <button class="btn ghost" onclick="viewExpBill('${e.id}')">👁 View</button>`:''}`:''}</td><td>${e.note||''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td></tr>`;
+ const rowHTML=e=>{const billShort=e.bill&&e.bill.length>18?e.bill.slice(0,15)+'…':e.bill;return `<tr><td>${fmtDate(e.date)}${e.time?`<div class="muted" style="font-size:10.5px">${e.time}</div>`:''}</td><td><span class="tag purple">${e.cat}</span>${e.bill?` <span class="tag gray" title="${e.bill.replace(/"/g,'&quot;')}" style="display:inline-block;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle">📎 ${billShort}</span>${e.billPath?` <button class="btn ghost" onclick="viewExpBill('${e.id}')">👁 View</button>`:''}`:''}</td><td>${e.note||''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td></tr>`;};
  const monthBlocks=months.map(m=>{
    const list=byMonth[m].slice().sort((a,b)=>b.date.localeCompare(a.date));
    const monthTotal=list.reduce((s,e)=>s+e.amount,0);
@@ -3085,7 +3085,7 @@ views.reports=()=>{
   <div class="panel" style="margin:0">
     <div class="panel-h"><h3>Income by mode</h3></div>
     <div class="panel-b">
-      ${Object.keys(byMode).length?Object.entries(byMode).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`<div class="list-row"><div style="display:flex;justify-content:space-between"><b>${m}</b><span>${inr(v)}</span></div><div style="background:var(--line);border-radius:4px;height:6px;margin-top:4px"><div style="width:${Math.round(v/rev*100)}%;background:var(--brand);height:6px;border-radius:4px"></div></div></div>`).join(''):'<p class="muted" style="padding:12px">No paid invoices this month</p>'}
+      ${Object.keys(byMode).length?Object.entries(byMode).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`<div class="list-row"><div style="display:flex;justify-content:space-between"><b>${m==='Package'&&v===0?'Package (sessions used, already paid)':m}</b><span>${inr(v)}</span></div><div style="background:var(--line);border-radius:4px;height:6px;margin-top:4px"><div style="width:${Math.round(v/rev*100)}%;background:var(--brand);height:6px;border-radius:4px"></div></div></div>`).join(''):'<p class="muted" style="padding:12px">No paid invoices this month</p>'}
       ${pend.length?`<div class="list-row" style="opacity:.6"><div style="display:flex;justify-content:space-between"><span class="muted">Pending</span><span>${inr(pend.reduce((s,i)=>s+invTotals(i).total,0))}</span></div></div>`:''}
     </div>
   </div>
