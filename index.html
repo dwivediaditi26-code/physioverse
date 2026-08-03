@@ -2510,7 +2510,7 @@ function walletListHTML(){
 }
 function assignPkg(pid){openModal(`<div class="modal-h"><h3>Assign Package</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
-  <div class="field"><label>Patient</label><select id="k_pid" onchange="updatePkgPrice()">${DB.patients.map(p=>`<option value="${p.id}" ${pid===p.id?'selected':''}>${p.name}</option>`).join("")}</select></div>
+  <div class="field"><label>Patient</label>${patientPickerHTML("k",DB.patients,pid)}</div>
   <div class="field"><label>Package</label><select id="k_pkg" onchange="updatePkgPrice()">${DB.pkgTemplates.map(t=>`<option value="${t.id}">${t.name} — ${inr(t.price)}</option>`).join("")}</select></div>
   <hr class="sep" style="margin:10px 0">
   <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px">Payment at time of assignment</div>
@@ -2704,9 +2704,32 @@ function filterPatients(q){
   _patPage=0;setPatPage(0);
 }
 function setInvPage(n){_invPage=n;render();}
+function patientPickerHTML(prefix,patients,selectedId,extraLabelFn){
+ const selP=selectedId?patients.find(p=>p.id===selectedId):null;
+ return `<input id="${prefix}_search" placeholder="Type name or phone..." oninput="filterPatientPicker('${prefix}')" autocomplete="off"
+    style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;margin-bottom:4px">
+   <input type="hidden" id="${prefix}_pid" value="${selectedId||''}">
+   <div id="${prefix}_pid_selected" style="font-size:12.5px;font-weight:600;color:var(--brand,#2563eb);margin:2px 0 6px;min-height:16px">${selP?'✓ Selected: '+selP.name:''}</div>
+   <div id="${prefix}_pid_list" style="width:100%;max-height:150px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:8px;font-size:13px">
+    ${patients.map(p=>`<button type="button" class="pt-pick-row" data-pid="${p.id}" data-name="${p.name.replace(/"/g,'&quot;')}" data-txt="${(p.name+' '+(p.phone||'')+' '+(p.condition||'')).toLowerCase().replace(/"/g,'&quot;')}" onpointerup="selectPatientPicker('${prefix}','${p.id}')" style="display:block;width:100%;text-align:left;background:${p.id===selectedId?'var(--brand-soft,#dbeafe)':'#fff'};border:none;padding:8px 10px;cursor:pointer;touch-action:manipulation;border-bottom:1px solid var(--line);font:inherit;color:inherit;-webkit-appearance:none;appearance:none;border-radius:0">${p.name} — ${p.phone||''}${extraLabelFn?' · '+extraLabelFn(p):''}</button>`).join("")}
+   </div>`;
+}
+function filterPatientPicker(prefix){const el=document.getElementById(prefix+"_search");if(!el)return;const q=(el.value||"").toLowerCase();document.querySelectorAll("#"+prefix+"_pid_list .pt-pick-row").forEach(r=>{r.style.display=q&&!r.dataset.txt.includes(q)?"none":"";});}
+function selectPatientPicker(prefix,pid,cb){
+ const hid=document.getElementById(prefix+"_pid");if(hid)hid.value=pid;
+ let name="";
+ document.querySelectorAll("#"+prefix+"_pid_list .pt-pick-row").forEach(r=>{
+  const match=r.dataset.pid===pid;
+  r.style.background=match?"var(--brand-soft,#dbeafe)":"";
+  if(match)name=r.dataset.name||"";
+ });
+ const sel=document.getElementById(prefix+"_pid_selected");
+ if(sel)sel.textContent=name?"✓ Selected: "+name:"";
+ if(cb)cb(pid);
+}
 function walletForm(pid){openModal(`<div class="modal-h"><h3>Wallet Top-up (advance)</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
-  <div class="field"><label>Patient</label><select id="w_pid">${DB.patients.map(p=>`<option value="${p.id}" ${pid===p.id?'selected':''}>${p.name} — balance ${inr(p.wallet||0)}</option>`).join("")}</select></div>
+  <div class="field"><label>Patient</label>${patientPickerHTML("w",DB.patients,pid,p=>"balance "+inr(p.wallet||0))}</div>
   <div class="grid2"><div class="field"><label>Amount (₹)</label><input id="w_amt" type="number" value="2000"></div><div class="field"><label>Mode</label><select id="w_mode"><option>UPI</option><option>Cash</option><option>Card</option></select></div></div>
   <div class="muted" style="font-size:12.5px">Advance balance can be used to pay for future sessions.</div>
  </div>
