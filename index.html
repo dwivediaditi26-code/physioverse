@@ -2611,6 +2611,17 @@ function payRemind(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pi
 function viewInvoice(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);const t=invTotals(i);
  openModal(`<div class="modal-h"><h3>Invoice — ${i.id}</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b"><div class="inv" id="invPrintArea">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;border-bottom:2px solid #1d4ed8;margin-bottom:10px">
+   <div style="display:flex;align-items:center;gap:10px">
+    <img src="${CLINIC_LOGO_ICON_DATAURI}" style="width:38px;height:38px;object-fit:contain;flex-shrink:0" />
+    <div style="font-size:14px;font-weight:800;color:#1d4ed8;line-height:1.2">PHYSIOVERSE<br/>THERAPY CENTRE</div>
+   </div>
+   <div style="text-align:right">
+    <div style="font-size:11px;font-weight:700;color:#0f172a">Dr. Madhulika Sethiya (PT)</div>
+    <div style="font-size:9px;color:#64748b;margin-top:2px">+91 88711 33711 &nbsp;·&nbsp; +91 7898333338</div>
+    <div style="font-size:8px;color:#64748b;margin-top:2px;max-width:280px">Gemini, 4th Floor, 5A, Shreenagar Annex, Opposite Dewas Kothi, Old Palasia, Indore - 452018 (M.P.)</div>
+   </div>
+  </div>
   <div class="inv-h"><div><h2>${DB.settings.clinic}</h2><div class="muted">${bName(i.branch)}</div></div><div style="text-align:right"><b>${i.id}</b><div class="muted">${fmtDate(i.date)}${i.time?' · '+i.time:''}</div><span class="tag ${statusTag(i.status)}">${i.status}</span></div></div>
   <div style="margin:6px 0"><b>Bill to:</b> ${p.name} · ${p.phone}${p.addr?`<br><span class="muted">${p.addr}</span>`:""}</div>
   <div style="overflow-x:auto"><table style="min-width:420px"><thead><tr><th>Description</th><th style="white-space:nowrap">Qty</th><th class="tot" style="white-space:nowrap">Rate</th><th class="tot" style="white-space:nowrap">Amount</th></tr></thead><tbody>
@@ -2652,13 +2663,19 @@ async function downloadReceiptPDF(id){const i=DB.invoices.find(x=>x.id===id);con
  const W=148,M=14;
  function ln(txt,size,bold,align){doc.setFontSize(size||11);doc.setFont("helvetica",bold?"bold":"normal");const x=align==="right"?W-M:(align==="center"?W/2:M);doc.text(txt,x,y,{align:align||"left"});y+=size?(size*0.45):5;}
  function rule(){doc.setDrawColor(200);doc.line(M,y,W-M,y);y+=4;}
- // Header
- doc.setFillColor(11,27,61);doc.rect(0,0,W,22,'F');
- doc.setTextColor(255,255,255);doc.setFontSize(15);doc.setFont("helvetica","bold");
- doc.text(DB.settings.clinic||"PhysioVerse Therapy Centre",M,13);
- doc.setFontSize(8);doc.setFont("helvetica","normal");
- doc.text("INVOICE",W-M,13,{align:"right"});doc.text(i.id,W-M,19,{align:"right"});
- doc.setTextColor(0,0,0);y=28;
+ // Header — logo + clinic name (left), doctor & contact (right), same as assessment PDF
+ doc.addImage(CLINIC_LOGO_ICON_DATAURI,"JPEG",M,5,11,11);
+ doc.setTextColor(29,78,216);doc.setFontSize(11);doc.setFont("helvetica","bold");
+ doc.text("PHYSIOVERSE",M+14,10);doc.text("THERAPY CENTRE",M+14,14);
+ doc.setTextColor(15,23,42);doc.setFontSize(8);doc.setFont("helvetica","bold");
+ doc.text("Dr. Madhulika Sethiya (PT)",W-M,8,{align:"right"});
+ doc.setFontSize(6.3);doc.setFont("helvetica","normal");doc.setTextColor(100);
+ doc.text("+91 88711 33711 · +91 7898333338",W-M,12,{align:"right"});
+ doc.text("Gemini, 4th Fl, 5A, Shreenagar Annex, Opp. Dewas Kothi,",W-M,15.3,{align:"right"});
+ doc.text("Old Palasia, Indore - 452018 (M.P.)",W-M,18.3,{align:"right"});
+ doc.setDrawColor(29,78,216);doc.setLineWidth(0.6);doc.line(0,21,W,21);doc.setLineWidth(0.2);
+ doc.setTextColor(0,0,0);y=27;
+ doc.setFontSize(11);doc.setFont("helvetica","bold");doc.text("INVOICE",M,y);doc.text(i.id,W-M,y,{align:"right"});y+=6;
  // Patient info
  doc.setFontSize(10);doc.setFont("helvetica","bold");doc.text("Bill To:",M,y);y+=5;
  doc.setFont("helvetica","normal");doc.setFontSize(10);
@@ -2784,11 +2801,19 @@ function buildStatementDoc(pid,from,to){
  const doc=new jsPDFLib({unit:"mm",format:"a4"});const W=210,M=16;let y=18;
  function rule(){doc.setDrawColor(200);doc.line(M,y,W-M,y);y+=4;}
  function ensureRoom(){if(y>270){doc.addPage();y=20;}}
- doc.setFillColor(11,27,61);doc.rect(0,0,W,24,'F');
- doc.setTextColor(255,255,255);doc.setFontSize(16);doc.setFont("helvetica","bold");doc.text(DB.settings.clinic||"PhysioVerse Therapy Centre",M,14);
- doc.setFontSize(9);doc.setFont("helvetica","normal");doc.text("STATEMENT OF ACCOUNT",W-M,14,{align:"right"});
- doc.text(fmtDate(from)+" to "+fmtDate(to),W-M,20,{align:"right"});
- doc.setTextColor(0,0,0);y=32;
+ doc.addImage(CLINIC_LOGO_ICON_DATAURI,"JPEG",M,4,13,13);
+ doc.setTextColor(29,78,216);doc.setFontSize(13);doc.setFont("helvetica","bold");
+ doc.text("PHYSIOVERSE",M+17,11);doc.text("THERAPY CENTRE",M+17,16);
+ doc.setTextColor(15,23,42);doc.setFontSize(9);doc.setFont("helvetica","bold");
+ doc.text("Dr. Madhulika Sethiya (PT)",W-M,7,{align:"right"});
+ doc.setFontSize(7);doc.setFont("helvetica","normal");doc.setTextColor(100);
+ doc.text("+91 88711 33711 · +91 7898333338",W-M,11.5,{align:"right"});
+ doc.text("Gemini, 4th Floor, 5A, Shreenagar Annex, Opposite Dewas Kothi,",W-M,15.5,{align:"right"});
+ doc.text("Old Palasia, Indore - 452018 (M.P.)",W-M,19,{align:"right"});
+ doc.setDrawColor(29,78,216);doc.setLineWidth(0.6);doc.line(0,20,W,20);doc.setLineWidth(0.2);
+ doc.setTextColor(0,0,0);y=27;
+ doc.setFontSize(11);doc.setFont("helvetica","bold");doc.text("STATEMENT OF ACCOUNT",M,y);
+ doc.setFontSize(9);doc.setFont("helvetica","normal");doc.text(fmtDate(from)+" to "+fmtDate(to),W-M,y,{align:"right"});y+=7;
  doc.setFontSize(11);doc.setFont("helvetica","bold");doc.text("Bill to: "+p.name+(p.phone?" · "+p.phone:""),M,y);y+=8;
  rule();
  groups.forEach(g=>{
@@ -2836,8 +2861,19 @@ function printStatementNow(id,from,to){
   ${g.lines.map(l=>`<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:2px 0"><span>${l.desc}</span><span>${inr(l.amt)}</span></div>`).join("")}
  </div>`).join("");
  const html=`<div style="max-width:800px;margin:0 auto;font-family:inherit">
-  <div style="background:#0b1b3d;color:#fff;padding:16px 20px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:flex-start">
-   <h2 style="margin:0;font-size:20px">${DB.settings.clinic}</h2>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:2px solid #1d4ed8;background:#fff">
+   <div style="display:flex;align-items:center;gap:10px">
+    <img src="${CLINIC_LOGO_ICON_DATAURI}" style="width:38px;height:38px;object-fit:contain;flex-shrink:0" />
+    <div style="font-size:14px;font-weight:800;color:#1d4ed8;line-height:1.2">PHYSIOVERSE<br/>THERAPY CENTRE</div>
+   </div>
+   <div style="text-align:right">
+    <div style="font-size:11px;font-weight:700;color:#0f172a">Dr. Madhulika Sethiya (PT)</div>
+    <div style="font-size:9px;color:#64748b;margin-top:2px">+91 88711 33711 &nbsp;·&nbsp; +91 7898333338</div>
+    <div style="font-size:8px;color:#64748b;margin-top:2px;max-width:280px">Gemini, 4th Floor, 5A, Shreenagar Annex, Opposite Dewas Kothi, Old Palasia, Indore - 452018 (M.P.)</div>
+   </div>
+  </div>
+  <div style="background:#0b1b3d;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:flex-start">
+   <h2 style="margin:0;font-size:16px">${DB.settings.clinic}</h2>
    <div style="text-align:right;font-size:12px"><div>STATEMENT OF ACCOUNT</div><div>${fmtDate(from)} to ${fmtDate(to)}</div></div>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:16px 20px;border-radius:0 0 8px 8px">
