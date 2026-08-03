@@ -4992,132 +4992,170 @@ function filterAssessTable(){_assessQ=(document.getElementById("assessSearch")?.
 function logAudit(a,d,p){DB.auditLog=DB.auditLog||[];var _role=CURROLE||"owner";var _roleLabel=_role.charAt(0).toUpperCase()+_role.slice(1);var _who=(CURNAME?CURNAME+" (":"")+_roleLabel+(CURNAME?")":"");DB.auditLog.unshift({id:uid("al"),ts:new Date().toISOString(),action:a,detail:d,user:_who,patient:p||""});if(DB.auditLog.length>2000)DB.auditLog=DB.auditLog.slice(0,2000);save();}
 let _auditOpenMonths={};
 function toggleAuditMonth(m){_auditOpenMonths[m]=!(_auditOpenMonths[m]!==undefined?_auditOpenMonths[m]:(m===todayISO.slice(0,7)));render();}
-views.help=function(){return `<div class="panel" style="max-width:900px">
+views.help=function(){
+ const R=(ROLES[CURROLE]&&ROLES[CURROLE].views)||[];
+ const has=v=>R.includes(v);
+ const sec=(title,body,show)=>({title,body,show:show!==false});
+ const sections=[
+  sec("📊 Dashboard — what drives each number",
+   `<ul style="margin:10px 0 0 22px">
+    <li><b>Active Patients:</b> patients whose status is "Active" (not deactivated from the Patients list). "3 new this week" counts patients whose registration date falls in the last 7 days.</li>
+    <li><b>Today's Appointments:</b> total appointments booked for today across the whole clinic (or just your own, if you're a therapist). "checked-in" counts only those marked Checked-in.</li>
+    ${CURROLE==='owner'?`<li><b>Revenue (Paid) — This month:</b> sum of every invoice with status "Paid" dated in the current calendar month. Pending and cancelled invoices are excluded. Only visible to the owner login.</li>`:``}
+    <li><b>Outstanding:</b> sum of every invoice still marked "Pending", regardless of date, plus a count of how many.</li>
+    <li><b>Today's Schedule:</b> just today's appointments, sorted by time, with quick status tags.</li>
+    <li><b>Active now bar:</b> patients currently in an active session (tap ✕ to end one, or "End all"). Ending a session opens the log/bill flow for that patient's plan.</li>
+   </ul>`),
+
+  sec("➕ Adding &amp; managing a patient",
+   `<ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Patients</b> → <b>+ New Patient</b></li>
+    <li>Fill in name, phone, date of birth, gender, condition, and assign a therapist</li>
+    <li>Optional fields (email, address, emergency contact, referring doctor, occupation) can be added now or later from the patient's profile</li>
+    <li>Save — the patient appears at the top of the list, newest first</li>
+   </ol>
+   <p style="margin-top:8px">Opening any patient shows tabs for <b>Assessment</b>, <b>Treatment given</b>, and <b>Billing</b> — which tabs you see depends on your login (see "What your login can see" below).</p>
+   <p style="margin-top:6px">Use <b>Mark Inactive</b> from a patient's row to archive someone no longer being treated, without deleting their history.</p>`),
+
+  sec("📅 Booking &amp; managing appointments",
+   `<ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Calendar</b> → <b>+ Book</b> (or tap an empty slot in Day grid)</li>
+    <li>Search the patient by name or phone in the picker, or add a new patient inline (name only — fill the rest later)</li>
+    <li>Set date, time, type, and therapist</li>
+    <li><b>Repeat (optional):</b> tick days of the week and a number of weeks to auto-book a recurring series in one go</li>
+    <li>Save — it shows on the Month/Day grid/Agenda views and on the dashboard's Today's Schedule</li>
+   </ol>
+   <p style="margin-top:8px">Tap any day's number badge to see the full list for that day. Appointment status (Confirmed / Checked-in / Completed / Cancelled) can be updated from the day view.</p>`),
+
+  sec("📝 Doing an assessment",
+   `<ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Assessment</b> → <b>+ New Assessment</b></li>
+    <li>Pick the patient and therapist</li>
+    <li>Choose <b>Digital template</b> (structured form) or <b>Upload paper copy</b> (photo of a physical form)</li>
+    <li>For digital: select body region(s), then fill Subjective (complaint, onset, aggravating/relieving factors), Objective (ROM, MMT, special tests, palpation, neuro screen), and your working diagnosis</li>
+    <li>Save — a formatted assessment report is generated automatically and stored under the patient's Documents; use <b>🖨 Rx</b> to print a prescription-style summary</li>
+    <li>From a saved assessment, <b>▶ Start Session</b> auto-builds a treatment plan using the modalities/exercises you just entered — saves re-typing them for session #1</li>
+   </ol>`,has("assessment")),
+
+  sec("🏃 Running a treatment session — log, then bill separately",
+   `<ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Treatments</b> → find the patient's plan → <b>+ Log #N</b> (or start from the dashboard's Active-now bar)</li>
+    <li>Fill in modalities/treatments given, exercises done, today's pain score (0–10), and a quick note</li>
+    <li><b>Save session</b> — this only records the clinical details. It does <i>not</i> charge anything yet, and the session shows as unpaid</li>
+    <li>To bill it, find that same session and tap <b>💳 End &amp; Pay</b> — set the fee, optionally add a consultation fee or discount, and choose how it's paid</li>
+    <li>Payment options: a single mode (UPI/Cash/Card/Wallet/Package/Corporate/Bill later/No charge), a <b>partial</b> amount now with the rest as balance due, or tick <b>Split payment</b> to divide the bill across more than one mode at once (e.g. ₹500 cash + ₹300 UPI) — the amounts must add up exactly to the bill</li>
+   </ol>
+   <p class="muted" style="margin-top:8px;font-size:12.5px">Logging and billing are deliberately two separate steps so the same session can never accidentally get billed twice.</p>`,has("treatment")),
+
+  sec("💳 Collecting payment for a session",
+   `<p>Your login shows a simplified version of a patient's <b>Treatment given</b> tab — just each session's number, date, and payment status. Clinical details (what treatment was given, exercises, notes) are only visible to therapists and the owner.</p>
+   <ol style="margin:10px 0 0 22px">
+    <li>Open the patient from <b>Patients</b></li>
+    <li>Under <b>Treatment given</b>, any session already logged by a therapist but not yet paid shows a <b>💳 End &amp; Pay</b> button</li>
+    <li>Tap it, set the fee/mode (or tick <b>Split payment</b> to divide across more than one mode), and confirm</li>
+    <li>The session flips to <b>✓ Paid</b> — this updates live for the therapist and owner too, no refresh needed</li>
+   </ol>`,CURROLE==='receptionist'),
+
+  sec("💰 Billing &amp; invoices",
+   `<ol style="margin:10px 0 0 22px">
+    <li>Every billed session, package payment, or wallet top-up automatically becomes an invoice under <b>Billing</b></li>
+    <li>Invoices are grouped by month — the current month is expanded by default; tap an older month to open it</li>
+    <li>Search by patient name or invoice number (e.g. "057") using the search box at the top</li>
+    <li>Tap any invoice to see full details, print it, or download/share as PDF</li>
+    <li>Pending invoices can be marked paid directly from the list — including as a split payment across modes</li>
+   </ol>`,has("billing")),
+
+  sec("🎁 Selling &amp; tracking a package",
+   `<ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Packages</b> → <b>+ Assign</b></li>
+    <li>Search and pick the patient, choose a package template, and set the amount paid today — full or partial (tick <b>Split payment</b> to divide today's amount across more than one mode)</li>
+    <li>Optionally auto-schedule every session in the package as recurring appointments, choosing sessions/week and a start date</li>
+    <li>The package then tracks sessions used vs total, expiry date, and any outstanding balance on the patient's Billing tab</li>
+    <li>When billing an individual session for this patient, choose <b>Package session</b> as the payment mode — it deducts one prepaid session automatically and bills it at ₹0 (no double-charging)</li>
+    <li>Packages auto-expire past their expiry date and can no longer be used for billing once expired</li>
+   </ol>`,has("packages")),
+
+  sec("💵 Wallet top-ups (advance balance)",
+   `<ol style="margin:10px 0 0 22px">
+    <li>From <b>Billing</b> → <b>💳 Wallet top-up</b>, search and pick the patient</li>
+    <li>Enter the amount and payment mode — save</li>
+    <li>That balance can then be used as a payment mode ("Wallet (advance)") when billing future sessions, deducting automatically</li>
+   </ol>`,has("billing")),
+
+  sec("📱 WhatsApp &amp; SMS reminders",
+   `<ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Reminders</b></li>
+    <li>Switch between categories: Appointments, Payments, Reschedule, Packages, Templates, Sent</li>
+    <li>Pick or edit a message template under <b>Templates</b> — placeholders like patient name and amount fill in automatically</li>
+    <li>Tap any patient's row to open WhatsApp with the message pre-filled, ready to send</li>
+   </ol>`),
+
+  sec("👥 Staff &amp; attendance",
+   `<ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Staff</b> → <b>📅 Mark today's attendance</b></li>
+    <li>Set Present / Half-day / Leave for each member and save</li>
+    <li>Change the date at the top of that modal to back-fill a previous day</li>
+    <li>Attendance and leave counts on each staff card update automatically</li>
+    <li>Add, edit, or remove staff members and their salary from this screen</li>
+   </ol>`,has("staff")),
+
+  sec("💸 Recording an expense",
+   `<ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Expenses</b> → <b>+ Add Expense</b></li>
+    <li>Pick date, category (or type your own), amount, an optional note, and an optional bill photo</li>
+    <li>Expenses are grouped by month, same as Billing</li>
+    <li>These feed directly into the Profit figure on Reports</li>
+   </ol>`,has("expenses")),
+
+  sec("📈 Reports &amp; Analytics",
+   `<ol style="margin:10px 0 0 22px">
+    <li>Go to <b>Reports &amp; Analytics</b></li>
+    <li>Use the month dropdown to switch periods, or pick <b>All time</b> for a cumulative view</li>
+    <li>See revenue, expenses, profit, income broken down by payment mode, expenses by category, and per-therapist workload/session counts</li>
+    <li>Any change made by any login — a session billed, a payment split across modes, a package sold — reflects here live</li>
+   </ol>`,has("reports")),
+
+  sec("🏢 Branches, logins &amp; settings",
+   `<ol style="margin:10px 0 0 22px">
+    <li><b>Branches:</b> manage multiple clinic locations; switch the active branch from the top bar to filter everything to that location</li>
+    <li><b>Logins:</b> owner-only — reset the password for any receptionist/therapist login</li>
+    <li><b>Settings:</b> clinic name/address, your saved price list for quick-add billing items, and full data backup/export</li>
+   </ol>`,has("logins")||has("branches")||has("settings")),
+
+  sec("🔒 Backup, data safety &amp; live sync",
+   `<ol style="margin:10px 0 0 22px">
+    <li>Your data lives in the cloud — sign in on any device or browser and you'll see the same data</li>
+    <li>Changes sync <b>live</b> between every login — owner, therapist, and receptionist screens all update automatically within seconds of each other, no refresh needed</li>
+    <li>Go to <b>Settings</b> → <b>📦 Download full backup (.zip)</b> for everything including documents, or <b>📥 Download data only (.json)</b> for a quick records-only copy</li>
+    <li>Restoring a backup replaces the live data <b>for everyone signed in</b> — only use it to undo a serious mistake</li>
+    <li>The <b>Audit Log</b> (owner only) records important actions clinic-wide and who performed them</li>
+   </ol>`,has("audit")||has("settings")),
+
+  sec("🔑 What your login can see",
+   `<p>Access is scoped by role so sensitive clinical or financial data only reaches the people who need it:</p>
+    <ul style="margin:10px 0 0 22px">
+     <li><b>Owner:</b> sees everything — all patients, clinical records, billing, packages, staff, reports, and settings.</li>
+     <li><b>Therapist:</b> full clinical access (assessments, treatment sessions, patients, appointments) across the whole clinic. No Packages section, no Billing/invoice history, no Staff, Reports, or Settings.</li>
+     <li><b>Receptionist:</b> Patients, Appointments, Packages, Billing, and Reminders. No Assessment section and no clinical detail inside a patient's Treatment tab — just session numbers, dates, and a Pay button for anything unpaid. No Revenue figure on the dashboard, no Staff, Reports, or Settings.</li>
+    </ul>
+    <p style="margin-top:8px" class="muted" style="font-size:12.5px">This is enforced by the role set on each login (in Supabase) — not by which device or browser someone uses.</p>`),
+
+  sec("🚨 Something looks wrong — what to do",
+   `<div style="margin:10px 0 0 22px">
+    <p><b>A change on one login isn't showing on another?</b> It should appear within a few seconds automatically. If not, sign out and back in to force a fresh sync from the cloud.</p>
+    <p><b>Sync failed / offline warning?</b> Check your internet connection — the app keeps retrying automatically. Avoid refreshing mid-save.</p>
+    <p><b>Screen stuck on "Restoring your session…"?</b> Wait a few seconds — it will fall back to the login screen on its own if it can't resume. Just sign in again.</p>
+    <p><b>Two invoices for the same session?</b> Shouldn't happen, but if you see it, delete the wrong one from Billing.</p>
+    <p><b>Split payment won't save?</b> The amounts entered must add up exactly to the bill total — check the running total shown under the split rows.</p>
+    <p><b>Anything else broken?</b> Screenshot the exact screen and message the developer.</p>
+   </div>`)
+ ];
+ const html=sections.filter(s=>s.show).map(s=>`<details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">${s.title}</summary>${s.body}</details>`).join("");
+ return `<div class="panel" style="max-width:900px">
  <div class="panel-h"><h3>❓ How to use PhysioVerse Clinic OS</h3></div>
  <div class="panel-b" style="line-height:1.6;font-size:14px">
-  <p class="muted" style="margin-bottom:16px">A guide to daily tasks. Tap a section to expand it.</p>
-
-  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">📅 Booking an appointment</summary>
-   <ol style="margin:10px 0 0 22px">
-    <li>Go to <b>Calendar</b> tab</li>
-    <li>Click <b>+ Book</b> button</li>
-    <li>Choose the patient (or add a new one), the therapist, date and time</li>
-    <li>Save — the appointment appears on the calendar and in Today's Schedule on the dashboard</li>
-   </ol>
-  </details>
-
-  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">➕ Adding a new patient</summary>
-   <ol style="margin:10px 0 0 22px">
-    <li>Go to <b>Patients</b> tab → click <b>+ New Patient</b></li>
-    <li>Fill in name, phone, date of birth, and other details</li>
-    <li>Save — the patient appears at the top of the list (newest first)</li>
-   </ol>
-  </details>
-
-  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">📝 Doing an assessment</summary>
-   <ol style="margin:10px 0 0 22px">
-    <li>Go to <b>Assessment</b> tab → click <b>+ New Assessment</b></li>
-    <li>Pick the patient and therapist</li>
-    <li>Choose <b>Digital template</b> (fill in the form) OR <b>Upload paper copy</b> (photo of a paper form)</li>
-    <li>For digital: pick body regions, then fill ROM, MMT, special tests, notes</li>
-    <li>Save — an assessment PDF is auto-generated and stored under the patient's Documents</li>
-    <li>Click <b>▶ Start Session</b> from the assessment to automatically build a treatment plan from what you entered</li>
-   </ol>
-  </details>
-
-  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">🏃 Running a session (Start → End → Bill)</summary>
-   <ol style="margin:10px 0 0 22px">
-    <li>Go to <b>Treatments</b> tab → find the patient's plan → click <b>▶ Ongoing Treatment</b> to start the timer (they appear in "Active now")</li>
-    <li>When the session ends, click <b>🟢 End Session</b> — this opens the log form</li>
-    <li>Fill in what treatment was given, exercises done, pain level today</li>
-    <li>Click <b>Save session</b> — the session is now logged (unpaid)</li>
-    <li>To bill it: find that session in the Treatments list, click <b>💳 End &amp; Pay</b> — choose payment mode, save</li>
-   </ol>
-   <p class="muted" style="margin-top:8px;font-size:12.5px">Logging and billing are deliberately two separate steps to prevent accidentally billing the same session twice.</p>
-  </details>
-
-  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">💰 Billing &amp; invoices</summary>
-   <ol style="margin:10px 0 0 22px">
-    <li>Every billed session automatically becomes an invoice, viewable under <b>Billing</b> tab</li>
-    <li>Invoices are grouped by month (current month expanded by default; tap older months to open)</li>
-    <li>Pending payments show up on the dashboard's "Outstanding" card</li>
-    <li>Click any invoice to see full details, print, or download as PDF</li>
-   </ol>
-  </details>
-
-  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">🎁 Selling a package</summary>
-   <ol style="margin:10px 0 0 22px">
-    <li>Go to <b>Packages</b> tab → click <b>+ Assign</b></li>
-    <li>Pick patient, choose a package template, take partial or full payment</li>
-    <li>The package tracks used vs remaining sessions, expiry date, and outstanding balance</li>
-    <li>When billing a session, pick <b>Package session</b> as payment mode — it deducts one prepaid session automatically (invoice shows ₹0)</li>
-    <li>Packages auto-expire when the expiry date passes; expired packages can no longer be used for billing</li>
-   </ol>
-  </details>
-
-  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">📱 WhatsApp reminders</summary>
-   <ol style="margin:10px 0 0 22px">
-    <li>Go to <b>Reminders</b> tab</li>
-    <li>Choose category (Appointment / Payment / Package etc.)</li>
-    <li>Pick a message template (edit or add your own under Templates tab)</li>
-    <li>Tap on any patient's row — WhatsApp opens with the message pre-filled</li>
-   </ol>
-  </details>
-
-  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">👥 Staff attendance</summary>
-   <ol style="margin:10px 0 0 22px">
-    <li>Go to <b>Staff</b> tab → click <b>📅 Mark today's attendance</b></li>
-    <li>Pick Present / Half-day / Leave for each staff member — save</li>
-    <li>You can also back-fill previous days by changing the date at the top of the modal</li>
-    <li>Attendance figures update automatically</li>
-   </ol>
-  </details>
-
-  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">💵 Recording an expense</summary>
-   <ol style="margin:10px 0 0 22px">
-    <li>Go to <b>Expenses</b> tab → click <b>+ Add Expense</b></li>
-    <li>Pick date, category (or type your own), amount, optional note, optional bill photo</li>
-    <li>Expenses are grouped by month, same as invoices</li>
-   </ol>
-  </details>
-
-  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">📊 Reports</summary>
-   <ol style="margin:10px 0 0 22px">
-    <li>Go to <b>Reports &amp; Analytics</b> tab</li>
-    <li>Use the month dropdown to switch view, or pick <b>All time</b> for cumulative</li>
-    <li>You'll see revenue, expenses, profit, income by payment mode, expenses by category, and therapist workload</li>
-   </ol>
-  </details>
-
-  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">🔒 Backup &amp; data safety</summary>
-   <ol style="margin:10px 0 0 22px">
-    <li>Your data lives in the cloud — sign in on any device, see the same data</li>
-    <li>Go to <b>Settings</b> → click <b>📦 Download full backup (.zip)</b> for everything including documents, or <b>📥 Download data only (.json)</b> for a quick records-only copy — anytime, to keep an independent copy</li>
-    <li>Restoring a backup replaces your live data <b>for everyone signed in</b> — only use it to undo a serious mistake</li>
-    <li>The <b>Audit Log</b> tab (owner only) shows a record of important actions and who did them</li>
-   </ol>
-  </details>
-
-  <details style="border-bottom:1px solid var(--line);padding:10px 0"><summary style="font-weight:600;cursor:pointer">📊 Dashboard — what drives each number</summary>
-   <ul style="margin:10px 0 0 22px">
-    <li><b>Active Patients:</b> patients with status "Active" (not deactivated). "2 new this week" counts patients added in the last 7 days.</li>
-    <li><b>Today's Appointments:</b> total appointments booked for today. "checked-in" = appointments marked as Checked-in status.</li>
-    <li><b>Revenue (Paid) — This month:</b> sum of all invoices with status "Paid" in the current calendar month. Excludes pending and cancelled.</li>
-    <li><b>Outstanding:</b> sum of all invoices with status "Pending" (any date). Also shows the count.</li>
-    <li><b>Today's Schedule:</b> just today's appointments, sorted by time.</li>
-    <li><b>Pending Payments:</b> up to a few of the most recent pending invoices, for quick follow-up.</li>
-    <li><b>Messaging:</b> Sent = reminders you clicked to send today. Payment dues = same as Outstanding count.</li>
-   </ul>
-  </details>
-
-  <details style="padding:10px 0"><summary style="font-weight:600;cursor:pointer">🚨 Something looks wrong — what to do</summary>
-   <div style="margin:10px 0 0 22px">
-    <p><b>Data missing on this device but not another?</b> Sign out and back in — this forces a fresh sync from the cloud.</p>
-    <p><b>Sync failed warning?</b> Check your internet — the app will keep retrying automatically. Don't refresh mid-save.</p>
-    <p><b>Two invoices for the same session?</b> This shouldn't happen anymore, but if you see it, delete the wrong one from Billing.</p>
-    <p><b>Anything else broken?</b> Screenshot the exact screen and message the developer.</p>
-   </div>
-  </details>
+  <p class="muted" style="margin-bottom:16px">A guide to daily tasks — tailored to what your login can do. Tap a section to expand it.</p>
+  ${html}
  </div>
 </div>`;};
 views.audit=function(){
