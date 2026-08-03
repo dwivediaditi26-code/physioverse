@@ -701,7 +701,7 @@ const ROLES={
  therapist:{name:"Therapist",title:"Therapist",init:"TH",color:"#0d9488",home:"appointments",scope:null,
    views:["dashboard","patients","appointments","assessment","treatment","packages","reminders","help"]},
  receptionist:{name:"Priya Nair",title:"Receptionist",init:"PN",color:"#d97706",home:"appointments",scope:null,
-   views:["dashboard","patients","appointments","billing","reminders","help"]}
+   views:["dashboard","patients","appointments","packages","billing","reminders","help"]}
 };
 function canDo(cap){return true;}
 // Real login: email + password via Supabase Auth. The role comes from the signed-in
@@ -1012,6 +1012,7 @@ const bName=id=>(DB.branches.find(b=>b.id===id)||{name:"—"}).name;
 const initials=n=>n.split(" ").filter(w=>!/^(dr\.?|mr\.?|ms\.?)$/i.test(w)).map(w=>w[0]).slice(0,2).join("").toUpperCase();
 const inr=n=>"₹"+(+n).toLocaleString("en-IN");
 const pdfInr=n=>"Rs. "+(+n).toLocaleString("en-IN"); // jsPDF's built-in fonts can't render ₹, so PDFs use "Rs." instead
+function printModalDoc(){const el=document.querySelector('#modal .inv');if(el)printHTML(el.outerHTML);}
 function printHTML(html){
  const div=document.createElement('div');
  div.id='print-only-sheet';
@@ -1098,12 +1099,13 @@ function render(){
 function activePids(){return (DB.active||[]).map(x=>typeof x==='string'?x:x.pid).filter(pid=>DB.patients.some(p=>p.id===pid)).filter(pid=>!MYTHER||pById(pid).therapist===MYTHER);}
 function renderActiveBar(){const el=document.getElementById("activeBar");if(!el)return;const pids=activePids();
  if(!pids.length){el.style.display="none";el.innerHTML="";return;}el.style.display="block";
- el.innerHTML=`<div class="abar-inner"><span class="abar-title">🟢 Active now <span class="tag blue">${pids.length} in session</span></span><div class="abar-chips">${pids.map(pid=>{const p=pById(pid);const nm=p.name.split(" ");return `<div class="achip" onclick="openConsole('${pid}')"><span class="achip-av">${initials(p.name)}</span>${nm[0]}${nm[1]?" "+nm[1][0]+".":""}<span class="achip-x" title="End session" onclick="event.stopPropagation();endSession('${pid}')">✕</span></div>`;}).join("")}</div><button class="btn sec sm" onclick="endAllSessions()" style="margin-left:auto;white-space:nowrap">End all</button></div>`;}
+ el.innerHTML=`<div class="abar-inner"><span class="abar-title">🟢 Active now <span class="tag blue">${pids.length} in session</span></span><div class="abar-chips">${pids.map(pid=>{const p=pById(pid);const nm=p.name.split(" ");return `<div class="achip" onclick="${CURROLE==='receptionist'?`patientView('${pid}','treat')`:`openConsole('${pid}')`}"><span class="achip-av">${initials(p.name)}</span>${nm[0]}${nm[1]?" "+nm[1][0]+".":""}<span class="achip-x" title="End session" onclick="event.stopPropagation();endSession('${pid}')">✕</span></div>`;}).join("")}</div><button class="btn sec sm" onclick="endAllSessions()" style="margin-left:auto;white-space:nowrap">End all</button></div>`;}
 function startSession(pid){DB.active=DB.active||[];if(!DB.active.includes(pid))DB.active.push(pid);save();renderActiveBar();}
 function completeTodayAppt(pid){const a=DB.appointments.find(x=>x.pid===pid&&x.date===todayISO&&(x.status==="Checked-in"||x.status==="Confirmed"));if(a)a.status="Completed";}
 function endSession(pid){
  DB.active=(DB.active||[]).filter(x=>(typeof x==='string'?x:x.pid)!==pid);
  completeTodayAppt(pid);save();render();
+ if(CURROLE==='receptionist')return;
  // End & Pay now goes straight into the patient's treatment plan session log (same form as
  // "+Log #N"), instead of a separate generic invoice — that separate path used to let a
  // session get billed twice (once here, once when logged in Treatment) with no link between them.
@@ -1144,7 +1146,7 @@ views.dashboard=()=>{
  return `<div class="cards">
   <div class="stat"><div class="lbl"><span class="ico" style="background:var(--brand-soft);color:var(--brand-dark)">👤</span>Active Patients</div><div class="val">${pt.length}</div><div class="delta">${newThisWeek>0?'▲ '+newThisWeek+' new this week':'No new patients this week'}</div></div>
   <div class="stat"><div class="lbl"><span class="ico" style="background:#dbeafe;color:#1d4ed8">📅</span>Today's Appointments</div><div class="val">${todayAppts.length}</div><div class="delta" style="color:var(--muted)">${todayAppts.filter(a=>a.status==='Checked-in').length} checked-in</div></div>
-  <div class="stat"><div class="lbl"><span class="ico" style="background:#dcfce7;color:#15803d">💰</span>Revenue (Paid)</div><div class="val">${inr(monthRev)}</div><div class="delta">This month</div></div>
+  ${CURROLE==='owner'?`<div class="stat"><div class="lbl"><span class="ico" style="background:#dcfce7;color:#15803d">💰</span>Revenue (Paid)</div><div class="val">${inr(monthRev)}</div><div class="delta">This month</div></div>`:''}
   <div class="stat"><div class="lbl"><span class="ico" style="background:#fef3c7;color:#b45309">🧾</span>Outstanding</div><div class="val">${inr(outstanding)}</div><div class="delta" style="color:var(--warn)">${pendingInv.length} unpaid</div></div>
  </div>
  <div class="two-col">
@@ -1265,7 +1267,7 @@ function togglePatientStatus(id){
  logAudit("Patient",(p.status==="Active"?"Marked Active":"Marked Inactive"),p.name||"");
  save();render();
 }
-function patientView(id,tab){const p=pById(id);const T=tab||"assess";
+function patientView(id,tab){const p=pById(id);const T=(CURROLE==='receptionist'&&(!tab||tab==='assess'))?'treat':(tab||"assess");
  logAudit("Viewed","Opened patient record",p.name);
  const invs=DB.invoices.filter(i=>i.pid===id),asmts=(DB.assessments||[]).filter(c=>c.pid===id).sort((a,b)=>b.date.localeCompare(a.date)),pkgs=DB.patientPkgs.filter(x=>x.pid===id),plans=DB.plans.filter(t=>t.pid===id);
  const homePlans=plans.filter(t=>t.home&&Array.isArray(t.home)&&t.home.length);
@@ -1274,11 +1276,11 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
  openModal(`<div class="modal-h"><h3><div class="pcell"><div class="avatar">${initials(p.name)}</div><div><div>${p.name}</div><div class="mt muted">ID ${patientCode(p)} · ${p.age}y · ${p.gender==='M'?'Male':'Female'} · <a href="tel:${(p.phone||'').replace(/\D/g,'')}" style="color:var(--accent);text-decoration:none">📞 ${p.phone}</a> · ${p.therapist}</div><div class="mt muted">Registered ${fmtDate(p.since)}${p.sinceTime?' at '+p.sinceTime:''}</div></div></div></h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="tabs" id="pvtabs">
-   <button class="${T==='assess'?'active':''}" onclick="pvtab(this,'assess')">📋 Assessment</button>
+   ${CURROLE==='receptionist'?'':`<button class="${T==='assess'?'active':''}" onclick="pvtab(this,'assess')">📋 Assessment</button>`}
    <button class="${T==='treat'?'active':''}" onclick="pvtab(this,'treat')">🩺 Treatment given</button>
    <button class="${T==='bill'?'active':''}" onclick="pvtab(this,'bill')">🧾 Billing</button>
   </div>
-  <div id="pv-assess" style="display:${show('assess')}">
+  <div id="pv-assess" style="display:${CURROLE==='receptionist'?'none':show('assess')}">
    ${(p.email||p.addr||p.emName||p.refDr||p.occ)?`<div class="list-row" style="border:0.5px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:12px"><b class="muted" style="font-size:12px">Patient details</b><div style="font-size:13px;margin-top:4px;line-height:1.7">${p.occ?'<div>💼 '+p.occ+'</div>':''}${p.email?'<div>✉️ '+p.email+'</div>':''}${p.addr?'<div>📍 '+p.addr+'</div>':''}${p.emName||p.emPhone?'<div>🆘 '+(p.emName||'')+(p.emPhone?' · '+p.emPhone:'')+'</div>':''}${p.refDr?'<div>👨‍⚕️ Referred by '+p.refDr+'</div>':''}</div></div>`:''}
    <button class="btn sm" onclick="assessForm('','${id}')">+ New assessment</button>
    <hr class="sep"><b class="muted">Assessments</b>
@@ -1287,6 +1289,11 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
    <button class="btn sm sec" style="margin-top:10px" onclick="uploadDoc('${id}')">⬆ Upload document</button>
   </div>
   <div id="pv-treat" style="display:${show('treat')}">
+   ${CURROLE==='receptionist'?`
+   ${plans.length?`<div class="muted" style="font-size:12px;padding:6px 0 2px">${plans.reduce((s,t)=>s+(t.done||0),0)} of ${plans.reduce((s,t)=>s+(t.sessions||0),0)} sessions completed</div>`:'<div class=muted style="padding:6px 0">No treatment plan yet.</div>'}
+   <hr class="sep"><b class="muted">Sessions</b>
+   ${visits.length?visits.map(s=>`<div class="list-row" style="display:flex;justify-content:space-between;align-items:center"><span>Session #${s.n} · ${fmtDate(s.date)}</span>${s.paid?'<span class="tag green">✓ Paid</span>':`<button class="btn sm" style="background:var(--accent)" onclick="paySession('${s.planId}','${s.id}')">💳 End &amp; Pay</button>`}</div>`).join(""):'<div class=muted style="padding:6px 0">No sessions logged yet.</div>'}
+   `:`
    ${plans.length?plans.map(t=>`<div class="list-row"><div style="display:flex;justify-content:space-between"><b>${t.diagnosis}</b><span class="tag teal">${t.done}/${t.sessions} sessions</span></div><div class="mt muted">${t.goal}</div></div>`).join(""):'<div class=muted style="padding:6px 0">No treatment plan yet.</div>'}
    ${visits.length?'<hr class="sep">'+painTrendSVG(visits):''}
    <hr class="sep"><b class="muted">Sessions given — date-wise</b>
@@ -1294,6 +1301,7 @@ function patientView(id,tab){const p=pById(id);const T=tab||"assess";
    ${(()=>{const totalSess=plans.reduce((s,t)=>s+(t.sessions||0),0),doneSess=plans.reduce((s,t)=>s+(t.done||0),0),rem=Math.max(0,totalSess-doneSess);return rem>0?'<div class="muted" style="font-size:12px;padding:6px 10px;background:var(--bg2);border-radius:8px;margin:6px 0">📅 '+doneSess+' of '+totalSess+' sessions completed · <b>'+rem+' session'+(rem===1?'':'s')+' remaining</b> — not yet scheduled/logged.</div>':'';})()}
    <button class="btn sm" style="margin-top:6px" onclick="openConsole('${id}')">+ Log today's session</button>
    ${homePlans.length?'<hr class="sep"><b class="muted">🏠 Home programme</b>'+homePlans.map(t=>`<div class="list-row"><span class="tag blue">${t.homeFreq||'as advised'}</span><div class="pill-row" style="margin-top:5px">${(Array.isArray(t.home)?t.home:[]).map(e=>'<span class="tag gray">'+e+'</span>').join("")}</div></div>`).join("")+`<button class="btn sm sec" style="margin-top:8px" onclick="printHome('${id}')">🖨 Print / WhatsApp home plan</button>`:''}
+   `}
   </div>
   <div id="pv-bill" style="display:${show('bill')}">
    ${(()=>{
@@ -1336,7 +1344,7 @@ function printHome(id){const p=pById(id);const hp=DB.plans.filter(t=>t.pid===id&
   ${hp.map(t=>`<div style="margin-bottom:12px"><b>${t.diagnosis}</b> <span class="muted">— ${t.homeFreq||'as advised'}</span><ul style="margin:6px 0 0 20px">${(Array.isArray(t.home)?t.home:[]).map(e=>`<li style="padding:3px 0">${e}</li>`).join("")}</ul></div>`).join("")}
   <hr class="sep"><div class="muted" style="font-size:12px">Do these at home as advised. Stop and contact us if pain increases. — Team ${DB.settings.clinic}, Indore</div>
  </div></div>
- <div class="modal-f"><button class="btn sec" onclick="window.print()">🖨 Print</button><button class="btn sec" onclick="downloadHomePlanPDF('${id}')">⬇ Save PDF</button><button class="btn" style="background:#25D366" onclick="sendHomeWA('${id}')">📲 Send on WhatsApp</button></div>`,true);}
+ <div class="modal-f"><button class="btn sec" onclick="printModalDoc()">🖨 Print</button><button class="btn sec" onclick="downloadHomePlanPDF('${id}')">⬇ Save PDF</button><button class="btn" style="background:#25D366" onclick="sendHomeWA('${id}')">📲 Send on WhatsApp</button></div>`,true);}
 async function downloadHomePlanPDF(pid){
  const p=pById(pid);const hp=DB.plans.filter(t=>t.pid===pid&&((t.home&&Array.isArray(t.home)&&t.home.length)||(t.homeLinks&&t.homeLinks.length)));
  if(!hp.length){alert("No home protocol saved for this patient yet.");return;}
@@ -1918,7 +1926,7 @@ function printRx(id){const c=DB.consultations.find(x=>x.id===id);const p=pById(c
   <b class="muted">Advice:</b> ${c.advice}
   <hr class="sep"><div style="text-align:right;margin-top:30px"><div style="border-top:1px solid var(--ink);display:inline-block;padding-top:4px">${c.therapist}</div></div>
  </div></div>
- <div class="modal-f"><button class="btn sec" onclick="window.print()">🖨 Print / PDF</button><button class="btn" onclick="closeModal()">Close</button></div>`,true);}
+ <div class="modal-f"><button class="btn sec" onclick="printModalDoc()">🖨 Print / PDF</button><button class="btn" onclick="closeModal()">Close</button></div>`,true);}
 
 /* TREATMENTS */
 let _treatOpen={},_treatTab="active";
@@ -2685,7 +2693,7 @@ function markPaid(id){
  openModal(`<div class="modal-h"><h3>Mark Invoice Paid</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="muted" style="margin-bottom:10px">${i.id} · ${inr(total)}</div>
-  <div class="field"><label><input type="checkbox" id="mp_split" onchange="splitPayToggle('mp')"> Split payment (e.g. part cash, part UPI)</label></div>
+  <div class="field"><label style="display:flex;align-items:center;gap:7px;font-weight:400"><input type="checkbox" id="mp_split" onchange="splitPayToggle('mp')" style="width:auto"> Split payment (e.g. part cash, part UPI)</label></div>
   <div id="mp_mode_wrap"><div class="field"><label>Payment mode</label><select id="mp_mode"><option>UPI</option><option>Cash</option><option>Card</option><option>Wallet (advance)</option><option>Corporate / Insurance</option></select></div></div>
   <div id="mp_split_wrap" data-total="${total}" style="display:none">
    <div id="mp_split_rows"></div>
@@ -3034,7 +3042,7 @@ function invForm(){const svcs=(DB.billingServices||[]).slice().sort((a,b)=>a.d.l
    <div id="i_tot_breakdown" style="text-align:right;font-size:13px;margin-top:6px">Total: <b id="i_tot">₹0</b></div>
   </div>
   ${discField("i","invCalc")}
-  <div class="field"><label><input type="checkbox" id="i_split" onchange="splitPayToggle('i')"> Split payment (e.g. part cash, part UPI)</label></div>
+  <div class="field"><label style="display:flex;align-items:center;gap:7px;font-weight:400"><input type="checkbox" id="i_split" onchange="splitPayToggle('i')" style="width:auto"> Split payment (e.g. part cash, part UPI)</label></div>
   <div id="i_mode_wrap"><div class="field"><label>Payment mode</label><select id="i_mode"><option>UPI</option><option>Card</option><option>Cash</option><option>Wallet</option><option>Package session</option><option>Pending</option></select></div></div>
   <div id="i_split_wrap" data-total="0" style="display:none">
    <div id="i_split_rows"></div>
@@ -4846,7 +4854,7 @@ printRx=function(id,src){
   <b class="muted">Advice:</b> ${c.advice||'—'}
   <hr class="sep"><div style="text-align:right;margin-top:30px"><div style="border-top:1px solid var(--ink);display:inline-block;padding-top:4px">${c.therapist}</div></div>
  </div></div>
- <div class="modal-f"><button class="btn sec" onclick="window.print()">🖨 Print / PDF</button><button class="btn" onclick="closeModal()">Close</button></div>`,true);
+ <div class="modal-f"><button class="btn sec" onclick="printModalDoc()">🖨 Print / PDF</button><button class="btn" onclick="closeModal()">Close</button></div>`,true);
   } else {
     _origPrintRx(id);
   }
