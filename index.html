@@ -720,7 +720,7 @@ async function sbSignIn(){
  const role=(meta.role==='therapist'||meta.role==='receptionist'||meta.role==='owner')?meta.role:'receptionist';
  CURROLE=role;
  CURNAME=meta.name||(ROLES[role]&&ROLES[role].name)||email;
- MYTHER=role==='therapist'?CURNAME:null;
+ MYTHER=null; // therapist logins are no longer scoped to a name match — any therapist sees all clinic data
  await sbLoadData();
  await afterLogin();
 }
@@ -741,7 +741,7 @@ async function sbTryResume(){
   if(!user){hideResumeOverlay();return;}
   const meta=user.user_metadata||{};
   const role=(meta.role==='therapist'||meta.role==='receptionist'||meta.role==='owner')?meta.role:'receptionist';
-  CURROLE=role;CURNAME=meta.name||(ROLES[role]&&ROLES[role].name)||user.email;MYTHER=role==='therapist'?CURNAME:null;
+  CURROLE=role;CURNAME=meta.name||(ROLES[role]&&ROLES[role].name)||user.email;MYTHER=null; // no name-scoping — any therapist sees all clinic data
   await sbLoadData();await afterLogin();
  }catch(e){
   // Network hiccup, expired refresh token, etc. — don't hang the spinner forever;
@@ -764,12 +764,44 @@ async function afterLogin(){
  logAudit("Login","Signed in as "+role);
  go(r.home);
  maybeShowBackupNudge();
+ sbSubscribeRealtime();
+}
+// ── Live sync: pick up changes saved from another device (e.g. therapist logs a session
+// while receptionist has the app open) without needing a manual refresh/re-login. Requires
+// Realtime replication to be turned on for the "clinic_data" table in the Supabase dashboard
+// (Database → Replication) — this subscribe call alone can't turn that on remotely.
+let _rtChannel=null,_pendingDB=null,_lastSyncedAt=null;
+function sbSubscribeRealtime(){
+ if(!sb||_rtChannel)return;
+ _rtChannel=sb.channel('clinic_data_live').on('postgres_changes',{event:'*',schema:'public',table:'clinic_data',filter:'id=eq.main'},(payload)=>{
+  if(!payload.new||!payload.new.data)return;
+  _lastSyncedAt=payload.new.updated_at||_lastSyncedAt;
+  if(_sbSaving){return;} // our own save is about to echo back with the same data — skip, no-op
+  if(ov&&ov.classList.contains('show')){_pendingDB=payload.new.data;return;} // don't yank data out from under an open form
+  DB=payload.new.data;render();renderActiveBar();
+ }).subscribe();
+ // Safety net: realtime sockets can drop silently (device sleep, flaky wifi, a dashboard
+ // publication that isn't configured). Poll every 20s as a backstop so a stale screen never
+ // sits wrong for more than that — cheap since it skips entirely when nothing changed.
+ setInterval(sbPollFallback,20000);
+}
+async function sbPollFallback(){
+ if(!sb||_sbSaving)return;
+ try{
+  const {data,error}=await sb.from('clinic_data').select('data,updated_at').eq('id','main').maybeSingle();
+  if(error||!data)return;
+  if(_lastSyncedAt&&data.updated_at===_lastSyncedAt)return;
+  _lastSyncedAt=data.updated_at;
+  if(ov&&ov.classList.contains('show')){_pendingDB=data.data;return;}
+  DB=data.data;render();renderActiveBar();
+ }catch(e){/* transient network hiccup — next poll will catch up */}
 }
 async function sbLoadData(){
- const {data,error}=await sb.from('clinic_data').select('data').eq('id','main').maybeSingle();
+ const {data,error}=await sb.from('clinic_data').select('data,updated_at').eq('id','main').maybeSingle();
  if(error){alert("Could not load your data from Supabase:\n\n"+error.message+"\n\nCheck your internet connection, then refresh the page.");DB=JSON.parse(JSON.stringify(seed));return;}
  if(data&&data.data){
   DB=data.data;
+  _lastSyncedAt=data.updated_at||null;
   if(!DB.msgTemplates||!DB.msgTemplates.length)DB.msgTemplates=JSON.parse(JSON.stringify(seed.msgTemplates));
   else{const haveIds=new Set(DB.msgTemplates.map(t=>t.id));seed.msgTemplates.forEach(t=>{if(!haveIds.has(t.id))DB.msgTemplates.push(JSON.parse(JSON.stringify(t)));});}
   if(!DB.attendance)DB.attendance=[];
@@ -795,15 +827,17 @@ async function sbSaveData(){
  if(!DB||!sb)return true;
  if(_sbSaving){_sbQueued=true;return true;}
  _sbSaving=true;
- const {error}=await sb.from('clinic_data').upsert({id:'main',data:DB,updated_at:new Date().toISOString()});
+ const ts=new Date().toISOString();
+ const {error}=await sb.from('clinic_data').upsert({id:'main',data:DB,updated_at:ts});
  _sbSaving=false;
  if(error){toast("⚠️ Sync failed — check your connection. Retrying…",4000);setTimeout(sbSaveData,3000);return false;}
+ _lastSyncedAt=ts;
  if(_sbQueued){_sbQueued=false;sbSaveData();}
  return true;
 }
 function save(){sbSaveData();return true;}
 function resetDB(){if(confirm("Reset to sample data? This replaces everything currently in your clinic's Supabase data.")){DB=JSON.parse(JSON.stringify(seed));save();fillBranches();render();}}
-async function sbLogout(){if(sb)await sb.auth.signOut();DB=undefined;CURNAME=null;location.reload();}
+async function sbLogout(){if(_rtChannel){sb.removeChannel(_rtChannel);_rtChannel=null;}if(sb)await sb.auth.signOut();DB=undefined;CURNAME=null;location.reload();}
 function logout(){sbLogout();}
 
 let _toastTimer=null;
@@ -1128,7 +1162,7 @@ function endAllSessions(){
 function openConsole(pid){const t=DB.plans.find(x=>x.pid===pid);if(!t){if(confirm(pById(pid).name+" has no active treatment plan. Create one now?")){closeModal();go("treatment");setTimeout(planForm,40);}return;}sessionForm(t.id);}
 const ov=document.getElementById("overlay"),md=document.getElementById("modal");
 function openModal(html,wide){md.className="modal"+(wide?" wide":"");md.innerHTML=html;ov.classList.add("show");}
-function closeModal(){ov.classList.remove("show");}
+function closeModal(){ov.classList.remove("show");if(_pendingDB){DB=_pendingDB;_pendingDB=null;render();renderActiveBar();}}
 ov.addEventListener("click",e=>{if(e.target===ov)closeModal();});
 
 const views={};
