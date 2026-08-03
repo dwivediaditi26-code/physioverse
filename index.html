@@ -482,6 +482,13 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <meta name="theme-color" content="#0b1b3d"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="PhysioVerse"><link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;PhysioVerse Therapy Centre&quot;,&quot;short_name&quot;:&quot;PhysioVerse&quot;,&quot;start_url&quot;:&quot;/&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230b1b3d&quot;,&quot;theme_color&quot;:&quot;%230b1b3d&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;https://img.icons8.com/fluency/192/heart-with-pulse.png&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/png&quot;}]}"></head>
 <body>
+<div id="gateResuming" style="position:fixed;inset:0;z-index:2001;background:linear-gradient(135deg,#0b1b3d,#2563eb);display:flex;align-items:center;justify-content:center;padding:20px">
+  <div style="text-align:center;color:#fff">
+    <div style="width:34px;height:34px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;margin:0 auto 14px;animation:gateSpin .8s linear infinite"></div>
+    <div style="font-size:14px;opacity:.9">Restoring your session…</div>
+  </div>
+</div>
+<style>@keyframes gateSpin{to{transform:rotate(360deg)}}</style>
 <div id="demoGate" style="position:fixed;inset:0;z-index:2000;background:linear-gradient(135deg,#0b1b3d,#2563eb);display:flex;align-items:center;justify-content:center;padding:20px">
   <div class="login-card" style="max-width:380px;text-align:center">
     <div style="display:flex;justify-content:center;margin-bottom:16px">
@@ -569,6 +576,7 @@ function isPhysio(s){return !!(s&&s.role&&/physio/i.test(s.role));}
 const seed={
  exercisePresets:[],
  customModalities:[],
+ billingServices:[],
  exerciseLinks:[
   {id:"el1",name:"Chin tucks",link:"https://youtube.com/watch?v=example1"},
   {id:"el2",name:"Cat-camel mobilisation",link:"https://youtube.com/watch?v=example2"},
@@ -716,23 +724,38 @@ async function sbSignIn(){
  await sbLoadData();
  await afterLogin();
 }
-// Try to resume an existing Supabase session on page load (so a refresh doesn't log you out).
+function hideResumeOverlay(){const el=document.getElementById('gateResuming');if(el)el.style.display='none';}
+// Try to resume an existing Supabase session on page load (so a refresh — including one
+// the OS triggers on its own, e.g. after a memory-heavy print — doesn't force a manual
+// re-login). The "Restoring your session…" overlay covers the login form while this runs;
+// it only clears to reveal the form if resume genuinely fails or times out, so a brief
+// reload snaps straight back into the app instead of looking like a logout.
 async function sbTryResume(){
- if(!sb)return;
- const {data}=await sb.auth.getSession();
- const user=data&&data.session&&data.session.user;
- if(!user)return;
- const meta=user.user_metadata||{};
- const role=(meta.role==='therapist'||meta.role==='receptionist'||meta.role==='owner')?meta.role:'receptionist';
- CURROLE=role;CURNAME=meta.name||(ROLES[role]&&ROLES[role].name)||user.email;MYTHER=role==='therapist'?CURNAME:null;
- await sbLoadData();await afterLogin();
+ if(!sb){hideResumeOverlay();return;}
+ const timeout=new Promise(res=>setTimeout(()=>res('timeout'),6000));
+ try{
+  const result=await Promise.race([sb.auth.getSession(),timeout]);
+  if(result==='timeout'){hideResumeOverlay();return;}
+  const {data}=result;
+  const user=data&&data.session&&data.session.user;
+  if(!user){hideResumeOverlay();return;}
+  const meta=user.user_metadata||{};
+  const role=(meta.role==='therapist'||meta.role==='receptionist'||meta.role==='owner')?meta.role:'receptionist';
+  CURROLE=role;CURNAME=meta.name||(ROLES[role]&&ROLES[role].name)||user.email;MYTHER=role==='therapist'?CURNAME:null;
+  await sbLoadData();await afterLogin();
+ }catch(e){
+  // Network hiccup, expired refresh token, etc. — don't hang the spinner forever;
+  // fall back to the manual login form.
+  hideResumeOverlay();
+ }
 }
-if(sb)sbTryResume();
+if(sb)sbTryResume();else hideResumeOverlay();
 async function afterLogin(){
  const role=CURROLE;const r=ROLES[role];
  const dispName=CURNAME||r.name;
  const initials=dispName.replace(/[^A-Za-z ]/g,'').split(' ').filter(Boolean).map(function(w){return w[0];}).slice(-2).join('').toUpperCase()||r.init;
  document.getElementById("demoGate").style.display='none';
+ hideResumeOverlay();
  document.querySelectorAll("#nav button").forEach(b=>{b.style.display=r.views.includes(b.dataset.v)?"":"none";});
  const kids=[...document.getElementById("nav").children];
  kids.forEach((el,i)=>{if(el.classList.contains("grp")){let any=false;for(let j=i+1;j<kids.length;j++){const k=kids[j];if(k.classList.contains("grp"))break;if(k.tagName==="BUTTON"&&k.style.display!=="none"){any=true;break;}}el.style.display=any?"":"none";}});
@@ -753,6 +776,7 @@ async function sbLoadData(){
   if(!DB.exerciseLinks)DB.exerciseLinks=[];
   if(!DB.exercisePresets)DB.exercisePresets=[];
   if(!DB.customModalities)DB.customModalities=[];
+ if(!DB.billingServices)DB.billingServices=[];
   (DB.patientPkgs||[]).forEach(k=>{if(k.status==="Active"&&k.expires&&k.expires<todayISO)k.status="Expired";});
   if(DB.plans&&seed.plans){DB.plans.forEach(function(p){var sp=seed.plans.find(function(x){return x.id===p.id;});if(sp){if(!p.modalities||!p.modalities.length)p.modalities=sp.modalities||[];if(!p.exercises||!p.exercises.length)p.exercises=sp.exercises||[];if(!p.home||!p.home.length)p.home=sp.home||[];if(!p.homeFreq)p.homeFreq=sp.homeFreq||"";}if(!p.homeLinks)p.homeLinks=[];});}
   // One-time self-heal: sessions logged with inline billing (before this fix) never had
@@ -1507,6 +1531,38 @@ function deleteExercisePreset(id){
 }
 function deleteCustomModality(name){
   DB.customModalities=(DB.customModalities||[]).filter(m=>m!==name);save();managePresets();
+}
+function manageBillingServices(){
+  const svcs=(DB.billingServices||[]).slice().sort((a,b)=>a.d.localeCompare(b.d));
+  const html=svcs.length?svcs.map((s,idx)=>`<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b style="font-size:13.5px">${s.d}</b> <span class="muted" style="font-size:12px">— ₹${s.r}</span></div><button class="btn sm sec" style="color:var(--danger);border-color:var(--danger)" onclick="deleteBillingService(${idx})">🗑</button></div>`).join(""):'<div class="empty" style="padding:16px 0">No services saved yet — add your price list below.</div>';
+  openModal(`<div class="modal-h"><h3>🧾 Billing services & prices</h3><button class="x" onclick="closeModal()">×</button></div>
+   <div class="modal-b">
+    <div class="muted" style="font-size:12.5px;margin-bottom:6px">This is your own price list — it shows up as quick picks when creating a new invoice. Add each service once here; nothing here is shared with anyone else.</div>
+    <div style="display:flex;gap:6px;margin:8px 0 4px">
+     <input id="bs_name" placeholder="Service name" style="flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" onkeydown="if(event.key==='Enter')document.getElementById('bs_rate').focus()">
+     <input id="bs_rate" type="number" placeholder="₹ Rate" style="width:100px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;text-align:right" onkeydown="if(event.key==='Enter')addBillingServiceFromManage()">
+     <button type="button" class="btn sm" onclick="addBillingServiceFromManage()">+ Add</button>
+    </div>
+    <div>${html}</div>
+   </div>`);
+}
+function addBillingServiceFromManage(){
+  const name=(document.getElementById("bs_name").value||"").trim();
+  const rate=+document.getElementById("bs_rate").value||0;
+  if(!name){alert("Enter a service name.");return;}
+  if(rate<=0){alert("Enter a rate greater than ₹0.");return;}
+  DB.billingServices=DB.billingServices||[];
+  const existing=DB.billingServices.find(s=>s.d.toLowerCase()===name.toLowerCase());
+  if(existing)existing.r=rate;else DB.billingServices.push({d:name,r:rate});
+  save();
+  toast("💾 Saved \""+name+"\".",2500);
+  manageBillingServices();
+}
+function deleteBillingService(idx){
+  const svcs=(DB.billingServices||[]).slice().sort((a,b)=>a.d.localeCompare(b.d));
+  const target=svcs[idx];if(!target)return;
+  DB.billingServices=(DB.billingServices||[]).filter(s=>!(s.d===target.d&&s.r===target.r));
+  save();manageBillingServices();
 }
 function renderConsultHomeLinks(){
   const el=document.getElementById('chLinks_list');if(!el)return;
@@ -2592,20 +2648,73 @@ function saveConsultInv(){const v=k=>document.getElementById(k).value;const pid=
  DB.invoices.push(inv);
  logAudit("Invoice created",inr(fee)+" consultation via "+inv.mode+" ("+inv.id+")",p.name);
  save();closeModal();render();}
+/* SPLIT PAYMENT — shared by Mark Paid and New Invoice. A "prefix" (e.g. "mp", "i") namespaces
+   the DOM ids so the same helpers work in more than one modal at once. */
+const SPLIT_MODES=["Cash","UPI","Card","Wallet (advance)","Corporate / Insurance"];
+function splitPayToggle(prefix){
+ const on=document.getElementById(prefix+"_split").checked;
+ document.getElementById(prefix+"_mode_wrap").style.display=on?"none":"";
+ document.getElementById(prefix+"_split_wrap").style.display=on?"":"none";
+ if(on&&!document.getElementById(prefix+"_split_rows").children.length){splitPayAddRow(prefix);splitPayAddRow(prefix);}
+}
+function splitPayAddRow(prefix){
+ const rows=document.getElementById(prefix+"_split_rows");
+ const row=document.createElement("div");
+ row.className="split-row";
+ row.style.cssText="display:flex;gap:6px;margin-bottom:6px";
+ row.innerHTML=`<select class="sp-mode" style="flex:1;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px">${SPLIT_MODES.map(m=>`<option>${m}</option>`).join("")}</select>
+  <input class="sp-amt" type="number" placeholder="₹ Amount" style="width:110px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:right" oninput="splitPayCalc('${prefix}')">
+  <button type="button" onclick="this.closest('.split-row').remove();splitPayCalc('${prefix}')" style="background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:0 4px">✕</button>`;
+ rows.appendChild(row);
+ splitPayCalc(prefix);}
+function splitPayCalc(prefix){
+ const wrap=document.getElementById(prefix+"_split_wrap");
+ if(!wrap)return;
+ const total=+wrap.dataset.total||0;
+ const rows=[...document.querySelectorAll("#"+prefix+"_split_rows .split-row")];
+ const sum=rows.reduce((s,r)=>s+(+r.querySelector(".sp-amt").value||0),0);
+ const rem=+(total-sum).toFixed(2);
+ const summary=document.getElementById(prefix+"_split_summary");
+ if(summary)summary.innerHTML=`Bill total: ${inr(total)} · Entered: ${inr(sum)} · <b style="color:${rem===0?'var(--ok)':'var(--danger)'}">${rem===0?'Balanced ✓':(rem>0?'Remaining '+inr(rem):'Over by '+inr(-rem))}</b>`;}
+function splitPayCollect(prefix){
+ return [...document.querySelectorAll("#"+prefix+"_split_rows .split-row")]
+  .map(r=>({mode:r.querySelector(".sp-mode").value,amount:+r.querySelector(".sp-amt").value||0}))
+  .filter(r=>r.amount>0);}
 function markPaid(id){
- const i=DB.invoices.find(x=>x.id===id);
+ const i=DB.invoices.find(x=>x.id===id);const total=invTotals(i).total;
  openModal(`<div class="modal-h"><h3>Mark Invoice Paid</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
-  <div class="muted" style="margin-bottom:10px">${i.id} · ${inr(invTotals(i).total)}</div>
-  <div class="field"><label>Payment mode</label><select id="mp_mode"><option>UPI</option><option>Cash</option><option>Card</option><option>Wallet (advance)</option><option>Corporate / Insurance</option></select></div>
+  <div class="muted" style="margin-bottom:10px">${i.id} · ${inr(total)}</div>
+  <div class="field"><label><input type="checkbox" id="mp_split" onchange="splitPayToggle('mp')"> Split payment (e.g. part cash, part UPI)</label></div>
+  <div id="mp_mode_wrap"><div class="field"><label>Payment mode</label><select id="mp_mode"><option>UPI</option><option>Cash</option><option>Card</option><option>Wallet (advance)</option><option>Corporate / Insurance</option></select></div></div>
+  <div id="mp_split_wrap" data-total="${total}" style="display:none">
+   <div id="mp_split_rows"></div>
+   <button type="button" class="btn sm sec" onclick="splitPayAddRow('mp')">+ Add payment mode</button>
+   <div id="mp_split_summary" class="muted" style="font-size:12.5px;margin-top:6px"></div>
+  </div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="doMarkPaid('${id}')">Mark paid</button></div>`);}
-function doMarkPaid(id){const mode=document.getElementById("mp_mode").value;const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);
- if(mode==="Wallet (advance)"){const gross=invTotals(i).total;if((p.wallet||0)<gross){alert("Wallet balance ("+inr(p.wallet||0)+") is insufficient for "+inr(gross)+". Top up first.");return;}p.wallet-=gross;i.mode="Wallet";}
- else if(mode==="Corporate / Insurance")i.mode="Corporate";
- else i.mode=mode;
- i.status="Paid";i.paidAt=todayISO;if(!i.total){i.total=invTotals(i).total;}
- logAudit("Payment received",inr(invTotals(i).total)+" via "+i.mode+" for "+i.id,p?p.name:"");
+function doMarkPaid(id){
+ const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);const total=invTotals(i).total;
+ const isSplit=document.getElementById("mp_split").checked;
+ if(isSplit){
+  const parts=splitPayCollect("mp");
+  if(!parts.length){alert("Add at least one payment.");return;}
+  const sum=parts.reduce((s,r)=>s+r.amount,0);
+  if(sum!==total){alert("Split amounts ("+inr(sum)+") don't add up to the invoice total ("+inr(total)+"). Adjust and try again.");return;}
+  const walletPart=parts.find(r=>r.mode==="Wallet (advance)");
+  if(walletPart){if((p.wallet||0)<walletPart.amount){alert("Wallet balance ("+inr(p.wallet||0)+") is insufficient for the "+inr(walletPart.amount)+" wallet portion. Top up first.");return;}p.wallet-=walletPart.amount;}
+  i.splitPayments=parts.map(r=>({mode:r.mode==="Corporate / Insurance"?"Corporate":r.mode,amount:r.amount}));
+  i.mode=i.splitPayments.map(r=>r.mode+" "+inr(r.amount)).join(" + ");
+ } else {
+  const mode=document.getElementById("mp_mode").value;
+  if(mode==="Wallet (advance)"){if((p.wallet||0)<total){alert("Wallet balance ("+inr(p.wallet||0)+") is insufficient for "+inr(total)+". Top up first.");return;}p.wallet-=total;i.mode="Wallet";}
+  else if(mode==="Corporate / Insurance")i.mode="Corporate";
+  else i.mode=mode;
+  delete i.splitPayments;
+ }
+ i.status="Paid";i.paidAt=todayISO;if(!i.total){i.total=total;}
+ logAudit("Payment received",inr(total)+" via "+i.mode+" for "+i.id,p?p.name:"");
  save();closeModal();render();}
 function payRemind(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);sendWA(i.pid,"Payment",inr(invTotals(i).total)+" due — "+i.id,payMsg(p,inr(invTotals(i).total)+" pending for "+i.id));}
 function viewInvoice(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);const t=invTotals(i);
@@ -2622,7 +2731,7 @@ function viewInvoice(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.
     <div style="font-size:8px;color:#64748b;margin-top:2px;max-width:280px">Gemini, 4th Floor, 5A, Shreenagar Annex, Opposite Dewas Kothi, Old Palasia, Indore - 452018 (M.P.)</div>
    </div>
   </div>
-  <div class="inv-h"><div><h2>${DB.settings.clinic}</h2><div class="muted">${bName(i.branch)}</div></div><div style="text-align:right"><b>${i.id}</b><div class="muted">${fmtDate(i.date)}${i.time?' · '+i.time:''}</div><span class="tag ${statusTag(i.status)}">${i.status}</span></div></div>
+  <div class="inv-h" style="justify-content:flex-end"><div style="text-align:right"><b>${i.id}</b><div class="muted">${fmtDate(i.date)}${i.time?' · '+i.time:''}${bName(i.branch)?' · '+bName(i.branch):''}</div><span class="tag ${statusTag(i.status)}">${i.status}</span></div></div>
   <div style="margin:6px 0"><b>Bill to:</b> ${p.name} · ${p.phone}${p.addr?`<br><span class="muted">${p.addr}</span>`:""}</div>
   <div style="overflow-x:auto"><table style="min-width:420px"><thead><tr><th>Description</th><th style="white-space:nowrap">Qty</th><th class="tot" style="white-space:nowrap">Rate</th><th class="tot" style="white-space:nowrap">Amount</th></tr></thead><tbody>
   ${i.items.map(it=>`<tr><td>${it.d}${it.qty>1?`<div class="muted" style="font-size:11px">${inr(it.rate)} per session</div>`:""}</td><td>${it.qty}</td><td class="tot" style="white-space:nowrap">${inr(it.rate)}</td><td class="tot" style="white-space:nowrap">${inr(it.qty*it.rate)}</td></tr>`).join("")}</tbody></table></div>
@@ -2634,6 +2743,7 @@ function viewInvoice(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.
   <button class="btn danger sec" style="margin-right:auto" onclick="deleteInvoice('${id}')">🗑 Delete</button>
   ${i.status==="Pending"?`<button class="btn sec" onclick="editInvoiceForm('${id}')">✏️ Edit</button>`:""}
   <button class="btn sec" onclick="downloadReceiptPDF('${id}')">📄 Receipt PDF</button>
+  <button class="btn sm" style="background:#25D366" onclick="shareReceiptPDF('${id}')">📲 Send PDF on WhatsApp</button>
   <button class="btn sec" onclick="printHTML(document.getElementById('invPrintArea').outerHTML)">🖨 Print</button>
   <button class="btn" onclick="closeModal()">Close</button>
  </div>`,true);}
@@ -2657,11 +2767,10 @@ function updEInvTotal(){let sub=0;let idx=0;while(document.getElementById("eit_r
 function saveEditInvoice(id,n){const v=k=>document.getElementById(k);const i=DB.invoices.find(x=>x.id===id);for(let idx=0;idx<n;idx++){i.items[idx].rate=+(v("eit_r"+idx).value||0);i.items[idx].qty=+(v("eit_q"+idx).value||1);}
  const discObj=readDisc("ei");if(discObj)i.discount=discObj;else delete i.discount;
  const m=v("ei_mode").value;i.mode=m==="Corporate / Insurance"?"Corporate":m;if(i.mode!=="Bill later")i.status="Pending";logAudit("Invoice","Edited "+id);save();closeModal();viewInvoice(id);}
-async function downloadReceiptPDF(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);const t=invTotals(i);
- const jsPDFLib=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;if(!jsPDFLib){alert("PDF library not loaded. Refresh the page and try again.");return;}
+function buildReceiptDoc(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);const t=invTotals(i);
+ const jsPDFLib=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;if(!jsPDFLib)return null;
  const doc=new jsPDFLib({unit:"mm",format:"a5"});let y=15;
  const W=148,M=14;
- function ln(txt,size,bold,align){doc.setFontSize(size||11);doc.setFont("helvetica",bold?"bold":"normal");const x=align==="right"?W-M:(align==="center"?W/2:M);doc.text(txt,x,y,{align:align||"left"});y+=size?(size*0.45):5;}
  function rule(){doc.setDrawColor(200);doc.line(M,y,W-M,y);y+=4;}
  // Header — logo + clinic name (left), doctor & contact (right), same as assessment PDF
  doc.addImage(CLINIC_LOGO_ICON_DATAURI,"JPEG",M,5,11,11);
@@ -2697,7 +2806,28 @@ async function downloadReceiptPDF(id){const i=DB.invoices.find(x=>x.id===id);con
  doc.setFontSize(12);doc.setFont("helvetica","bold");doc.text("TOTAL",90,y);doc.text(pdfInr(t.total),W-M,y,{align:"right"});y+=7;
  doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(100);
  doc.text("Thank you for choosing "+DB.settings.clinic+". Computer-generated invoice.",M,y,{maxWidth:W-2*M});
- doc.save("Receipt_"+i.id+"_"+p.name.replace(/ /g,"_")+".pdf");}
+ return{doc,p,i,t};}
+function downloadReceiptPDF(id){
+ const built=buildReceiptDoc(id);
+ if(!built){alert("PDF library not loaded. Refresh the page and try again.");return;}
+ built.doc.save("Receipt_"+built.i.id+"_"+built.p.name.replace(/ /g,"_")+".pdf");
+ logAudit("Invoice","PDF downloaded ("+built.i.id+")",built.p.name);}
+async function shareReceiptPDF(id){
+ const built=buildReceiptDoc(id);
+ if(!built){alert("PDF library not loaded. Refresh the page and try again.");return;}
+ const filename="Receipt_"+built.i.id+"_"+built.p.name.replace(/ /g,"_")+".pdf";
+ const blob=built.doc.output("blob");
+ const file=new File([blob],filename,{type:"application/pdf"});
+ if(navigator.canShare&&navigator.canShare({files:[file]})){
+  try{
+   await navigator.share({files:[file],title:"Invoice "+built.i.id+" — "+built.p.name,text:"Invoice "+built.i.id+" from "+(DB.settings.clinic||"")+" — "+inr(built.t.total)});
+   logAudit("Invoice","Shared as PDF ("+built.i.id+")",built.p.name);
+   return;
+  }catch(e){if(e&&e.name==="AbortError")return;}
+ }
+ built.doc.save(filename);
+ alert("This browser can't attach files straight to WhatsApp. The PDF has been downloaded — open WhatsApp and attach it from Downloads/Files.");
+ sendWA(built.i.pid,"Payment","PDF downloaded — opened WhatsApp",`Hi ${built.p.name.split(" ")[0]} 👋\n\nSharing your invoice *${built.i.id}* from *${DB.settings.clinic}* (${inr(built.t.total)}) — please find the attached PDF.`);}
 function statementData(id,from,to){
  const p=pById(id);
  const invs=DB.invoices.filter(i=>i.pid===id&&i.type!=='wallet-topup'&&i.date>=from&&i.date<=to).sort((a,b)=>a.date<b.date?-1:(a.date>b.date?1:0));
@@ -2872,9 +3002,8 @@ function printStatementNow(id,from,to){
     <div style="font-size:8px;color:#64748b;margin-top:2px;max-width:280px">Gemini, 4th Floor, 5A, Shreenagar Annex, Opposite Dewas Kothi, Old Palasia, Indore - 452018 (M.P.)</div>
    </div>
   </div>
-  <div style="background:#0b1b3d;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:flex-start">
-   <h2 style="margin:0;font-size:16px">${DB.settings.clinic}</h2>
-   <div style="text-align:right;font-size:12px"><div>STATEMENT OF ACCOUNT</div><div>${fmtDate(from)} to ${fmtDate(to)}</div></div>
+  <div style="background:#0b1b3d;color:#fff;padding:12px 20px;display:flex;justify-content:flex-end;align-items:flex-start">
+   <div style="text-align:right;font-size:12px"><div style="font-weight:700">STATEMENT OF ACCOUNT</div><div>${fmtDate(from)} to ${fmtDate(to)}</div></div>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:16px 20px;border-radius:0 0 8px 8px">
    <div style="font-weight:700;margin-bottom:8px">Bill to: ${p.name}${p.phone?" · "+p.phone:""}</div>
@@ -2887,30 +3016,31 @@ function printStatementNow(id,from,to){
  </div>`;
  printHTML(html);
  logAudit("Statement","Printed "+from+" to "+to,p.name);}
-const INV_SVCS=[
- {d:"Physiotherapy session",r:800},{d:"Post-op rehab session",r:1000},
- {d:"Initial assessment",r:600},{d:"Follow-up consultation",r:400},
- {d:"IFT / TENS therapy",r:300},{d:"Ultrasound therapy",r:350},
- {d:"Hot pack / MWD",r:150},{d:"Cervical / lumbar traction",r:250},
- {d:"Dry needling",r:500},{d:"Kinesio taping",r:200},
- {d:"Home visit",r:1200},{d:"Report / certificate",r:200}];
-function invForm(){openModal(`<div class="modal-h"><h3>New Invoice</h3><button class="x" onclick="closeModal()">×</button></div>
+function invForm(){const svcs=(DB.billingServices||[]).slice().sort((a,b)=>a.d.localeCompare(b.d));
+ openModal(`<div class="modal-h"><h3>New Invoice</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="field"><label>Patient</label><select id="i_pid">${DB.patients.map(p=>`<option value="${p.id}">${p.name}</option>`).join("")}</select></div>
   <div class="field">
    <label>Services</label>
    <div style="display:flex;gap:6px;margin-bottom:8px">
     <select id="i_svc_pick" style="flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:13px">
-     ${INV_SVCS.map(s=>`<option value="${s.r}">${s.d} — ₹${s.r}</option>`).join("")}
+     ${svcs.map(s=>`<option value="${s.r}">${s.d} — ₹${s.r}</option>`).join("")}
      <option value="0">Custom…</option>
     </select>
     <button type="button" class="btn sm" onclick="invAddLine()">+ Add</button>
    </div>
+   ${!svcs.length?'<div class="muted" style="font-size:12px;margin:-4px 0 8px">No saved services yet — use Custom… below, or <a href="#" onclick="closeModal();go(\'settings\');setTimeout(manageBillingServices,50);return false">add your price list in Settings</a> to save them for next time.</div>':''}
    <div id="i_lines" style="border:1px solid var(--line);border-radius:8px;overflow:hidden"></div>
    <div id="i_tot_breakdown" style="text-align:right;font-size:13px;margin-top:6px">Total: <b id="i_tot">₹0</b></div>
   </div>
   ${discField("i","invCalc")}
-  <div class="field"><label>Payment mode</label><select id="i_mode"><option>UPI</option><option>Card</option><option>Cash</option><option>Wallet</option><option>Package session</option><option>Pending</option></select></div>
+  <div class="field"><label><input type="checkbox" id="i_split" onchange="splitPayToggle('i')"> Split payment (e.g. part cash, part UPI)</label></div>
+  <div id="i_mode_wrap"><div class="field"><label>Payment mode</label><select id="i_mode"><option>UPI</option><option>Card</option><option>Cash</option><option>Wallet</option><option>Package session</option><option>Pending</option></select></div></div>
+  <div id="i_split_wrap" data-total="0" style="display:none">
+   <div id="i_split_rows"></div>
+   <button type="button" class="btn sm sec" onclick="splitPayAddRow('i')">+ Add payment mode</button>
+   <div id="i_split_summary" class="muted" style="font-size:12.5px;margin-top:6px"></div>
+  </div>
   <div class="muted" style="font-size:12.5px"><b>Wallet</b> deducts advance balance; <b>Package session</b> uses a prepaid session (no charge).</div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveInv()">Generate</button></div>`);
@@ -2943,9 +3073,12 @@ function invCalc(){
  const discAmt=discAmtFromInputs(sub,discType,discVal);
  const box=document.getElementById("i_tot_breakdown");
  if(discAmt>0){box.innerHTML=`Subtotal: ${inr(sub)}<br>Discount: −${inr(discAmt)}<br>Total: <b id="i_tot">${inr(sub-discAmt)}</b>`;}
- else{box.innerHTML=`Total: <b id="i_tot">${inr(sub)}</b>`;}}
+ else{box.innerHTML=`Total: <b id="i_tot">${inr(sub)}</b>`;}
+ const splitWrap=document.getElementById("i_split_wrap");
+ if(splitWrap){splitWrap.dataset.total=discAmt>0?(sub-discAmt):sub;splitPayCalc("i");}}
 function saveInv(){
- const mode=document.getElementById("i_mode").value;
+ const isSplit=document.getElementById("i_split").checked;
+ const mode=isSplit?null:document.getElementById("i_mode").value;
  const pid=document.getElementById("i_pid").value;
  const p=pById(pid);
  const rows=[...document.querySelectorAll("#i_lines > div")];
@@ -2956,7 +3089,17 @@ function saveInv(){
  const gross=subtotal-(discObj?discAmtFromInputs(subtotal,discObj.type,discObj.value):0);
  let inv={id:nextInvNo(),pid,date:todayISO,time:nowTime(),items,gst:0,branch:p.branch,total:gross};
  if(discObj)inv.discount=discObj;
- if(mode==="Package session"){const pk=DB.patientPkgs.find(k=>k.pid===pid&&k.status==="Active"&&k.used<k.total&&(!k.expires||k.expires>=todayISO));if(!pk){alert("No active (non-expired) package with sessions left for this patient.");return;}pk.used++;inv.items=items.map(i=>({...i,d:i.d+" (package)",rate:0}));inv.total=0;inv.status="Paid";inv.mode="Package";inv.paidAt=todayISO;}
+ if(isSplit){
+  const parts=splitPayCollect("i");
+  if(!parts.length){alert("Add at least one payment.");return;}
+  const sum=parts.reduce((s,r)=>s+r.amount,0);
+  if(sum!==gross){alert("Split amounts ("+inr(sum)+") don't add up to the invoice total ("+inr(gross)+"). Adjust and try again.");return;}
+  const walletPart=parts.find(r=>r.mode==="Wallet (advance)");
+  if(walletPart){if((p.wallet||0)<walletPart.amount){alert("Insufficient wallet balance ("+inr(p.wallet||0)+") for the "+inr(walletPart.amount)+" wallet portion.");return;}p.wallet-=walletPart.amount;}
+  inv.splitPayments=parts.map(r=>({mode:r.mode==="Corporate / Insurance"?"Corporate":r.mode,amount:r.amount}));
+  inv.status="Paid";inv.mode=inv.splitPayments.map(r=>r.mode+" "+inr(r.amount)).join(" + ");inv.paidAt=todayISO;
+ }
+ else if(mode==="Package session"){const pk=DB.patientPkgs.find(k=>k.pid===pid&&k.status==="Active"&&k.used<k.total&&(!k.expires||k.expires>=todayISO));if(!pk){alert("No active (non-expired) package with sessions left for this patient.");return;}pk.used++;inv.items=items.map(i=>({...i,d:i.d+" (package)",rate:0}));inv.total=0;inv.status="Paid";inv.mode="Package";inv.paidAt=todayISO;}
  else if(mode==="Wallet"){if((p.wallet||0)<gross){alert("Insufficient wallet balance ("+inr(p.wallet||0)+"). Top up first.");return;}p.wallet-=gross;inv.status="Paid";inv.mode="Wallet";inv.paidAt=todayISO;}
  else if(mode==="Pending"){inv.status="Pending";inv.mode="—";}
  else{inv.status="Paid";inv.mode=mode;inv.paidAt=todayISO;}
@@ -3583,6 +3726,11 @@ views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel
   <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
    <button class="btn sm sec" onclick="managePresets()">🗂 Manage saved exercises &amp; modalities</button>
    <button class="btn sm sec" onclick="manageExerciseLibrary()">📚 Manage saved video links</button>
+  </div>
+  <hr class="sep">
+  <b>🧾 Billing services &amp; prices</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">Your own price list for New Invoice's quick-add picks. Add each service once and it's remembered for every future bill.</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+   <button class="btn sm sec" onclick="manageBillingServices()">🧾 Manage billing services</button>
   </div>
   <hr class="sep">
   <b>Data &amp; Backup</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">Your data lives in Supabase (cloud) — the same data shows up on every device you sign into. Download a backup here as an independent copy that doesn't depend on Supabase being reachable.</div>
