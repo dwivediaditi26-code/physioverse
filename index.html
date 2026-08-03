@@ -699,7 +699,7 @@ const ROLES={
  owner:{name:"Dr. Madhulika Sethiya",title:"Owner / Senior Physiotherapist",init:"MS",color:"#2563eb",home:"dashboard",scope:null,
    views:["dashboard","reports","patients","appointments","assessment","treatment","packages","billing","expenses","reminders","staff","branches","logins","settings","audit","help"]},
  therapist:{name:"Therapist",title:"Therapist",init:"TH",color:"#0d9488",home:"appointments",scope:null,
-   views:["dashboard","patients","appointments","assessment","treatment","packages","reminders","help"]},
+   views:["dashboard","patients","appointments","assessment","treatment","reminders","help"]},
  receptionist:{name:"Priya Nair",title:"Receptionist",init:"PN",color:"#d97706",home:"appointments",scope:null,
    views:["dashboard","patients","appointments","packages","billing","reminders","help"]}
 };
@@ -732,9 +732,9 @@ function hideResumeOverlay(){const el=document.getElementById('gateResuming');if
 // reload snaps straight back into the app instead of looking like a logout.
 async function sbTryResume(){
  if(!sb){hideResumeOverlay();return;}
- const timeout=new Promise(res=>setTimeout(()=>res('timeout'),6000));
+ const timeout=(ms)=>new Promise(res=>setTimeout(()=>res('timeout'),ms));
  try{
-  const result=await Promise.race([sb.auth.getSession(),timeout]);
+  const result=await Promise.race([sb.auth.getSession(),timeout(6000)]);
   if(result==='timeout'){hideResumeOverlay();return;}
   const {data}=result;
   const user=data&&data.session&&data.session.user;
@@ -742,7 +742,15 @@ async function sbTryResume(){
   const meta=user.user_metadata||{};
   const role=(meta.role==='therapist'||meta.role==='receptionist'||meta.role==='owner')?meta.role:'receptionist';
   CURROLE=role;CURNAME=meta.name||(ROLES[role]&&ROLES[role].name)||user.email;MYTHER=null; // no name-scoping — any therapist sees all clinic data
-  await sbLoadData();await afterLogin();
+  // A print (especially a heavy one) can trigger the OS/browser to silently reload the tab.
+  // getSession() above usually still resolves fine on that reload, but the data fetch that
+  // follows can occasionally hang with no error (background tab throttling, a network blip
+  // right as the page comes back) — without a timeout here that left the "Restoring your
+  // session…" spinner frozen forever with nothing the person could do. Bail back to the
+  // login screen instead so they can just sign back in.
+  const loaded=await Promise.race([sbLoadData().then(()=>'ok'),timeout(10000)]);
+  if(loaded==='timeout'){hideResumeOverlay();return;}
+  await afterLogin();
  }catch(e){
   // Network hiccup, expired refresh token, etc. — don't hang the spinner forever;
   // fall back to the manual login form.
@@ -1301,7 +1309,7 @@ function togglePatientStatus(id){
  logAudit("Patient",(p.status==="Active"?"Marked Active":"Marked Inactive"),p.name||"");
  save();render();
 }
-function patientView(id,tab){const p=pById(id);const T=(CURROLE==='receptionist'&&(!tab||tab==='assess'))?'treat':(tab||"assess");
+function patientView(id,tab){const p=pById(id);const T=(CURROLE==='receptionist'&&(!tab||tab==='assess'))?'treat':(CURROLE==='therapist'&&tab==='bill')?'treat':(tab||"assess");
  logAudit("Viewed","Opened patient record",p.name);
  const invs=DB.invoices.filter(i=>i.pid===id),asmts=(DB.assessments||[]).filter(c=>c.pid===id).sort((a,b)=>b.date.localeCompare(a.date)),pkgs=DB.patientPkgs.filter(x=>x.pid===id),plans=DB.plans.filter(t=>t.pid===id);
  const homePlans=plans.filter(t=>t.home&&Array.isArray(t.home)&&t.home.length);
@@ -1312,7 +1320,7 @@ function patientView(id,tab){const p=pById(id);const T=(CURROLE==='receptionist'
   <div class="tabs" id="pvtabs">
    ${CURROLE==='receptionist'?'':`<button class="${T==='assess'?'active':''}" onclick="pvtab(this,'assess')">📋 Assessment</button>`}
    <button class="${T==='treat'?'active':''}" onclick="pvtab(this,'treat')">🩺 Treatment given</button>
-   <button class="${T==='bill'?'active':''}" onclick="pvtab(this,'bill')">🧾 Billing</button>
+   ${CURROLE==='therapist'?'':`<button class="${T==='bill'?'active':''}" onclick="pvtab(this,'bill')">🧾 Billing</button>`}
   </div>
   <div id="pv-assess" style="display:${CURROLE==='receptionist'?'none':show('assess')}">
    ${(p.email||p.addr||p.emName||p.refDr||p.occ)?`<div class="list-row" style="border:0.5px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:12px"><b class="muted" style="font-size:12px">Patient details</b><div style="font-size:13px;margin-top:4px;line-height:1.7">${p.occ?'<div>💼 '+p.occ+'</div>':''}${p.email?'<div>✉️ '+p.email+'</div>':''}${p.addr?'<div>📍 '+p.addr+'</div>':''}${p.emName||p.emPhone?'<div>🆘 '+(p.emName||'')+(p.emPhone?' · '+p.emPhone:'')+'</div>':''}${p.refDr?'<div>👨‍⚕️ Referred by '+p.refDr+'</div>':''}</div></div>`:''}
@@ -1337,7 +1345,7 @@ function patientView(id,tab){const p=pById(id);const T=(CURROLE==='receptionist'
    ${homePlans.length?'<hr class="sep"><b class="muted">🏠 Home programme</b>'+homePlans.map(t=>`<div class="list-row"><span class="tag blue">${t.homeFreq||'as advised'}</span><div class="pill-row" style="margin-top:5px">${(Array.isArray(t.home)?t.home:[]).map(e=>'<span class="tag gray">'+e+'</span>').join("")}</div></div>`).join("")+`<button class="btn sm sec" style="margin-top:8px" onclick="printHome('${id}')">🖨 Print / WhatsApp home plan</button>`:''}
    `}
   </div>
-  <div id="pv-bill" style="display:${show('bill')}">
+  <div id="pv-bill" style="display:${CURROLE==='therapist'?'none':show('bill')}">
    ${(()=>{
     const billed=invs.reduce((s,i)=>s+(i.type==='wallet-topup'?0:invTotals(i).total),0);
     const paid=invs.filter(i=>i.status==='Paid').reduce((s,i)=>s+invTotals(i).total,0);
@@ -2152,9 +2160,15 @@ function paySession(planId,sid){
  if(!s)return;
  openModal('<div class="modal-h"><h3>💳 Bill Session #'+s.n+' — '+p.name+'</h3><button class="x" onclick="closeModal()">×</button></div>'
   +'<div class="modal-b">'
+  +'<div class="field"><label style="display:flex;align-items:center;gap:7px;font-weight:400"><input type="checkbox" id="s_split" onchange="splitPayToggle(\'s\')" style="width:auto"> Split payment (e.g. part cash, part UPI)</label></div>'
   +'<div class="grid2" style="margin-top:6px">'
   +'<div class="field"><label>Session fee (₹)</label><input id="s_fee" type="number" value="800" oninput="updateSessionBillSummary()"></div>'
-  +'<div class="field"><label>Payment mode</label><select id="s_pay" onchange="updateSessionBillSummary()"><option>UPI</option><option>Cash</option><option>Card</option><option>Wallet (advance)</option><option>Package session</option><option>Corporate / Insurance</option><option>Bill later</option><option>No charge</option></select></div>'
+  +'<div class="field" id="s_mode_wrap"><label>Payment mode</label><select id="s_pay" onchange="updateSessionBillSummary()"><option>UPI</option><option>Cash</option><option>Card</option><option>Wallet (advance)</option><option>Package session</option><option>Corporate / Insurance</option><option>Bill later</option><option>No charge</option></select></div>'
+  +'</div>'
+  +'<div id="s_split_wrap" data-total="0" style="display:none;margin-bottom:13px">'
+  +'<div id="s_split_rows"></div>'
+  +'<button type="button" class="btn sm sec" onclick="splitPayAddRow(\'s\')">+ Add payment mode</button>'
+  +'<div id="s_split_summary" class="muted" style="font-size:12.5px;margin-top:6px"></div>'
   +'</div>'
   +'<div id="s_partial_wrap" style="display:none"><div class="grid2"><div class="field"><label>Amount collected now (₹)</label><input id="s_partial" type="number" placeholder="e.g. 400" oninput="updateSessionBillSummary()"></div><div class="field"><label style="color:var(--muted);font-size:11.5px">Remaining goes as balance due</label><div id="s_partial_remaining" style="font-size:13px;color:var(--danger);font-weight:600;padding-top:9px"></div></div></div></div>'
   +'<div id="s_corporate_wrap" style="display:none"><div class="field"><label>Company / Insurance name</label><input id="s_corp_name" placeholder="e.g. TCS, Star Health Insurance"></div></div>'
@@ -2176,10 +2190,27 @@ function saveSessionPayment(planId,sid){
  var corpName=v("s_corp_name");
  var discObj=readDisc("s");
  var branch=DB.patients.find(function(x){return x.id===t.pid;})?DB.patients.find(function(x){return x.id===t.pid;}).branch||"b1":"b1";
+ var isSplit=document.getElementById("s_split")&&document.getElementById("s_split").checked;
  // Build invoice number
  var invNum=nextInvNo();
  DB.invoices=DB.invoices||[];
- if(pay==="No charge"){
+ if(isSplit){
+  var items=[{d:"Physiotherapy session",qty:1,rate:fee}];
+  if(consultFee>0)items.push({d:"Consultation fee",qty:1,rate:consultFee});
+  var sub=items.reduce(function(s,i){return s+i.qty*i.rate;},0);
+  var discAmt=discObj?discAmtFromInputs(sub,discObj.type,discObj.value):0;
+  var total=sub-discAmt;
+  var parts=splitPayCollect("s");
+  if(!parts.length){alert("Add at least one payment.");return;}
+  var partSum=parts.reduce(function(s,r){return s+r.amount;},0);
+  if(partSum!==total){alert("Split amounts ("+inr(partSum)+") don't add up to the bill total ("+inr(total)+"). Adjust and try again.");return;}
+  var walletPart=parts.find(function(r){return r.mode==="Wallet (advance)";});
+  if(walletPart){if((p.wallet||0)<walletPart.amount){alert("Wallet balance ("+inr(p.wallet||0)+") is insufficient for the "+inr(walletPart.amount)+" wallet portion. Top up first.");return;}p.wallet-=walletPart.amount;}
+  var splitPayments=parts.map(function(r){return {mode:r.mode==="Corporate / Insurance"?"Corporate":r.mode,amount:r.amount};});
+  var sInv={id:invNum,pid:t.pid,date:todayISO,time:nowTime(),items:items,gst:0,status:"Paid",mode:splitPayments.map(function(r){return r.mode+" "+inr(r.amount);}).join(" + "),branch:branch,splitPayments:splitPayments};
+  if(discObj)sInv.discount=discObj;
+  DB.invoices.push(sInv);
+ } else if(pay==="No charge"){
   // Log as complimentary invoice
   DB.invoices.push({id:invNum,pid:t.pid,date:todayISO,time:nowTime(),items:[{d:"Physiotherapy session (complimentary)",qty:1,rate:0}],gst:0,status:"Paid",mode:"No charge",branch:branch});
  } else if(pay==="Package session"){
@@ -2250,32 +2281,35 @@ function sessionForm(planId,sid,forcedN){const t=DB.plans.find(x=>x.id===planId)
  fillEx('s_region','s_exsel');}
 function updateSessionBillSummary(){
  const pay=document.getElementById("s_pay");if(!pay)return;
+ const isSplit=document.getElementById("s_split")&&document.getElementById("s_split").checked;
  const mode=pay.value;
  const fee=+document.getElementById("s_fee").value||0;
  const partialWrap=document.getElementById("s_partial_wrap");
  const corpWrap=document.getElementById("s_corporate_wrap");
- if(partialWrap)partialWrap.style.display=(mode==="UPI"||mode==="Cash"||mode==="Card")?"block":"none";
- if(corpWrap)corpWrap.style.display=(mode==="Corporate / Insurance")?"block":"none";
- const partial=+((document.getElementById("s_partial")||{}).value)||0;
+ if(partialWrap)partialWrap.style.display=(!isSplit&&(mode==="UPI"||mode==="Cash"||mode==="Card"))?"block":"none";
+ if(corpWrap)corpWrap.style.display=(!isSplit&&mode==="Corporate / Insurance")?"block":"none";
+ const partial=isSplit?0:(+((document.getElementById("s_partial")||{}).value)||0);
  const remaining=fee>0&&partial>0&&partial<fee?fee-partial:0;
  const remEl=document.getElementById("s_partial_remaining");
  if(remEl)remEl.textContent=remaining>0?"₹"+remaining.toLocaleString("en-IN")+" will be pending":"";
  const addConsult=document.getElementById("s_add_consult")&&document.getElementById("s_add_consult").checked;
  const consultFee=addConsult?(+((document.getElementById("s_consult_fee")||{}).value)||0):0;
+ const discType=(document.getElementById("s_disc_type")||{}).value||"pct";
+ const discVal=+((document.getElementById("s_disc_val")||{}).value)||0;
+ const discSub=(!isSplit&&(mode==="Package session"||mode==="No charge")?0:fee)+consultFee;
+ const discAmt=discAmtFromInputs(discSub,discType,discVal);
+ const splitWrap=document.getElementById("s_split_wrap");
+ if(splitWrap){splitWrap.dataset.total=Math.max(0,discSub-discAmt);splitPayCalc("s");}
  const summary=document.getElementById("s_bill_summary");
  if(!summary)return;
  const lines=[];
- if(mode==="Package session"){lines.push("Session: covered by package (₹0)");}
- else if(mode==="No charge"){lines.push("Session: complimentary (₹0)");}
+ if(!isSplit&&mode==="Package session"){lines.push("Session: covered by package (₹0)");}
+ else if(!isSplit&&mode==="No charge"){lines.push("Session: complimentary (₹0)");}
  else{
    if(partial>0&&partial<fee)lines.push("Session: ₹"+fee.toLocaleString("en-IN")+" (collecting ₹"+partial.toLocaleString("en-IN")+" now, ₹"+(fee-partial).toLocaleString("en-IN")+" pending)");
    else lines.push("Session: ₹"+fee.toLocaleString("en-IN"));
  }
  if(consultFee>0){lines.push("Consult: ₹"+consultFee.toLocaleString("en-IN"));}
- const discType=(document.getElementById("s_disc_type")||{}).value||"pct";
- const discVal=+((document.getElementById("s_disc_val")||{}).value)||0;
- const discSub=(mode==="Package session"||mode==="No charge"?0:fee)+consultFee;
- const discAmt=discAmtFromInputs(discSub,discType,discVal);
  if(discAmt>0)lines.push("Discount: −₹"+discAmt.toLocaleString("en-IN")+(discType==="pct"?" ("+discVal+"%)":""));
  summary.innerHTML=lines.map(l=>"✓ "+l).join("<br>");
  summary.style.display=lines.length?"block":"none";
@@ -2489,9 +2523,15 @@ function assignPkg(pid){openModal(`<div class="modal-h"><h3>Assign Package</h3><
     💛 Balance due: <b id="k_balance_val"></b> — sessions are active immediately. Patient pays the rest in installments.
    </div>
   </div>
+  <div class="field"><label style="display:flex;align-items:center;gap:7px;font-weight:400"><input type="checkbox" id="k_split" onchange="splitPayToggle('k')" style="width:auto"> Split payment (e.g. part cash, part UPI)</label></div>
   <div class="grid2">
-   <div class="field"><label>Payment mode</label><select id="k_mode"><option>UPI</option><option>Cash</option><option>Card</option></select></div>
+   <div class="field" id="k_mode_wrap"><label>Payment mode</label><select id="k_mode"><option>UPI</option><option>Cash</option><option>Card</option></select></div>
    <div class="field"><label>Start date</label><input id="k_start" type="date" value="${todayISO}"></div>
+  </div>
+  <div id="k_split_wrap" data-total="0" style="display:none;margin-bottom:13px">
+   <div id="k_split_rows"></div>
+   <button type="button" class="btn sm sec" onclick="splitPayAddRow('k')">+ Add payment mode</button>
+   <div id="k_split_summary" class="muted" style="font-size:12.5px;margin-top:6px"></div>
   </div>
   <div class="field"><label style="display:flex;gap:7px;align-items:center;font-weight:400"><input type="checkbox" id="k_autobook" checked> Auto-schedule all appointments</label></div>
   <div class="grid2"><div class="field"><label>Session time</label><input id="k_time" type="time" value="10:00"></div>
@@ -2502,15 +2542,29 @@ function assignPkg(pid){openModal(`<div class="modal-h"><h3>Assign Package</h3><
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="savePkg()">Assign</button></div>`);
  updatePkgPrice();}
 function updatePkgPrice(){const sel=document.getElementById("k_pkg");if(!sel)return;const t=DB.pkgTemplates.find(x=>x.id===sel.value);if(!t)return;const priceEl=document.getElementById("k_total_price");if(priceEl)priceEl.value=t.price;updatePkgBalance();}
-function updatePkgBalance(){const totalEl=document.getElementById("k_total_price");const paidEl=document.getElementById("k_paid");if(!totalEl||!paidEl)return;const total=+totalEl.value||0;const paid=+paidEl.value||0;const bal=total-paid;const row=document.getElementById("k_balance_row");const valEl=document.getElementById("k_balance_val");if(row&&valEl){if(paid>0&&paid<total){row.style.display="block";valEl.textContent=inr(bal);}else{row.style.display="none";}}}
+function updatePkgBalance(){const totalEl=document.getElementById("k_total_price");const paidEl=document.getElementById("k_paid");if(!totalEl||!paidEl)return;const total=+totalEl.value||0;const paid=+paidEl.value||0;const bal=total-paid;const row=document.getElementById("k_balance_row");const valEl=document.getElementById("k_balance_val");if(row&&valEl){if(paid>0&&paid<total){row.style.display="block";valEl.textContent=inr(bal);}else{row.style.display="none";}}const splitWrap=document.getElementById("k_split_wrap");if(splitWrap){splitWrap.dataset.total=paid;splitPayCalc("k");}}
 function savePkg(){const v=k=>document.getElementById(k);const pid=v("k_pid").value;const t=DB.pkgTemplates.find(x=>x.id===v("k_pkg").value);
  const exp=new Date(todayISO);exp.setDate(exp.getDate()+t.validity);const expISO=exp.toISOString().slice(0,10);
  const paidAmt=+v("k_paid").value||t.price;const balance=t.price-paidAmt;
- DB.patientPkgs.push({id:uid("pp"),pid,pkg:t.name,total:t.sessions,used:0,price:t.price,paidAmount:paidAmt,bought:todayISO,expires:expISO,status:"Active"});
  const p=pById(pid);
+ const isSplit=v("k_split")&&v("k_split").checked;
+ let payMode=null,splitPayments=null;
+ if(isSplit&&paidAmt>0){
+  const parts=splitPayCollect("k");
+  if(!parts.length){alert("Add at least one payment.");return;}
+  const sum=parts.reduce((s,r)=>s+r.amount,0);
+  if(sum!==paidAmt){alert("Split amounts ("+inr(sum)+") don't add up to the amount paid today ("+inr(paidAmt)+"). Adjust and try again.");return;}
+  const walletPart=parts.find(r=>r.mode==="Wallet (advance)");
+  if(walletPart){if((p.wallet||0)<walletPart.amount){alert("Wallet balance ("+inr(p.wallet||0)+") is insufficient for the "+inr(walletPart.amount)+" wallet portion. Top up first.");return;}p.wallet-=walletPart.amount;}
+  splitPayments=parts.map(r=>({mode:r.mode==="Corporate / Insurance"?"Corporate":r.mode,amount:r.amount}));
+  payMode=splitPayments.map(r=>r.mode+" "+inr(r.amount)).join(" + ");
+ } else {
+  payMode=v("k_mode").value;
+ }
+ DB.patientPkgs.push({id:uid("pp"),pid,pkg:t.name,total:t.sessions,used:0,price:t.price,paidAmount:paidAmt,bought:todayISO,expires:expISO,status:"Active"});
  logAudit("Package","Assigned "+t.name+" ("+inr(paidAmt)+"/"+inr(t.price)+")",p.name);
  // Raise invoice for amount paid today
- if(paidAmt>0){DB.invoices.push({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items:[{d:t.name+(paidAmt<t.price?" (advance payment)":""),qty:1,rate:paidAmt}],gst:0,status:"Paid",mode:v("k_mode").value,branch:p.branch});}
+ if(paidAmt>0){const inv={id:nextInvNo(),pid,date:todayISO,time:nowTime(),items:[{d:t.name+(paidAmt<t.price?" (advance payment)":""),qty:1,rate:paidAmt}],gst:0,status:"Paid",mode:payMode,branch:p.branch};if(splitPayments)inv.splitPayments=splitPayments;DB.invoices.push(inv);}
  // If balance remaining, raise a pending invoice
  if(balance>0){DB.invoices.push({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items:[{d:t.name+" (balance due)",qty:1,rate:balance}],gst:0,status:"Pending",mode:"—",branch:p.branch});}
  if(v("k_autobook")&&v("k_autobook").checked){const per=+v("k_perwk").value||3;const gap=Math.max(1,Math.round(7/per));let d=v("k_start").value||todayISO;const ther=v("k_ther").value;
