@@ -480,6 +480,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <meta name="theme-color" content="#0b1b3d"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="PhysioVerse"><link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;PhysioVerse Therapy Centre&quot;,&quot;short_name&quot;:&quot;PhysioVerse&quot;,&quot;start_url&quot;:&quot;/&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230b1b3d&quot;,&quot;theme_color&quot;:&quot;%230b1b3d&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;https://img.icons8.com/fluency/192/heart-with-pulse.png&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/png&quot;}]}"></head>
 <body>
 <div id="gateResuming" style="position:fixed;inset:0;z-index:2001;background:linear-gradient(135deg,#0b1b3d,#2563eb);display:flex;align-items:center;justify-content:center;padding:20px">
@@ -565,6 +566,10 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
 // ══ SUPABASE SETUP — paste your real values here ══
 const SUPABASE_URL = "https://mtbrpfylkdpcvijhmcgg.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10YnJwZnlsa2RwY3ZpamhtY2dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1ODY2MTUsImV4cCI6MjEwMTE2MjYxNX0.9GK0PmyJcbTuzwhPhDeA8SG_PcSLYNqUmiSgm6YXJCg";
+// Fill this in after creating an OAuth Client ID (Web application) in Google Cloud Console —
+// see the Settings → "Google Drive auto-backup" section for the walkthrough. Leave the
+// placeholder as-is until then; the Connect button will just show a setup message.
+const GOOGLE_CLIENT_ID = "PASTE_YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE";
 const sb = (SUPABASE_URL.indexOf("PASTE_")===-1) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 // ══════════════════════════════════════════════════
 
@@ -830,7 +835,7 @@ async function sbLoadData(){
   await sbSaveData();
  }
 }
-let _sbSaving=false,_sbQueued=false;
+let _sbSaving=false,_sbQueued=false,_lastIdbSnap=0;
 async function sbSaveData(){
  if(!DB||!sb)return true;
  if(_sbSaving){_sbQueued=true;return true;}
@@ -840,11 +845,37 @@ async function sbSaveData(){
  _sbSaving=false;
  if(error){toast("⚠️ Sync failed — check your connection. Retrying…",4000);setTimeout(sbSaveData,3000);return false;}
  _lastSyncedAt=ts;
+ // Local safety-net snapshot (IndexedDB, this browser only) — throttled to once per 5 minutes
+ // so a burst of rapid edits doesn't spam it; still gives a very recent fallback if Supabase
+ // itself is ever unreachable.
+ if(Date.now()-_lastIdbSnap>300000){_lastIdbSnap=Date.now();idbSnap();}
+ gdriveMaybeAutoBackup();
  if(_sbQueued){_sbQueued=false;sbSaveData();}
  return true;
 }
 function save(){sbSaveData();return true;}
 function resetDB(){if(confirm("Reset to sample data? This replaces everything currently in your clinic's Supabase data.")){DB=JSON.parse(JSON.stringify(seed));save();fillBranches();render();}}
+// Genuine blank start for client handoff — every patient, appointment, assessment, treatment
+// plan, package, invoice, expense, and reminder is wiped, not just swapped for different
+// sample data. Only a single empty branch record is kept (code elsewhere assumes at least
+// one branch exists) — clinic name, address, staff, everything else starts truly empty.
+function factoryReset(){
+ if(CURROLE!=='owner'){alert("Only the owner can do this.");return;}
+ if(!confirm("⚠️ This permanently deletes EVERYTHING — every patient, appointment, assessment, treatment plan, package, invoice, expense, and reminder — for every login. There is no undo. Continue?"))return;
+ const typed=prompt('This cannot be undone. Type DELETE (all caps) to confirm wiping all clinic data:');
+ if(typed!=='DELETE'){alert("Cancelled — nothing was changed.");return;}
+ DB={
+  exercisePresets:[],customModalities:[],billingServices:[],exerciseLinks:[],
+  branches:[{id:"b1",name:"",address:"",phone:""}],
+  staff:[],attendance:[],patients:[],appointments:[],consultations:[],assessments:[],plans:[],
+  pkgTemplates:[],msgTemplates:[],patientPkgs:[],invoices:[],expenses:[],reminders:[],
+  active:[],auditLog:[],
+  settings:{wa:true,sms:true,leadHrs:24,payReminder:true,clinic:"",gstin:"",msgCredits:0}
+ };
+ ["pm_last_full_dl","pm_last_full_size","pm_last_dl","pm_gdrive_last","pm_gdrive_folder"].forEach(k=>localStorage.removeItem(k));
+ save();fillBranches();render();
+ alert("✅ Clinic data wiped. Set the clinic name in Settings, then add branches, staff, and patients to get started.");
+}
 async function sbLogout(){if(_rtChannel){sb.removeChannel(_rtChannel);_rtChannel=null;}if(sb)await sb.auth.signOut();DB=undefined;CURNAME=null;location.reload();}
 function logout(){sbLogout();}
 
@@ -879,6 +910,90 @@ function showBackups(){
 // 7-day download nudge
 function maybeShowBackupNudge(){const K="pm_last_full_dl";const last=+localStorage.getItem(K)||0;const days=(Date.now()-last)/(864e5);if(!last||days>7){setTimeout(()=>{const b=document.createElement("div");b.id="backup_nudge";b.style.cssText="position:fixed;bottom:18px;right:18px;z-index:9999;background:#1a1a2e;color:#fff;border-radius:12px;padding:12px 16px;max-width:300px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.3)";b.innerHTML=`<b>📦 Backup reminder</b><div style="margin:6px 0 10px;color:#ccc">${last?"It's been "+Math.floor(days)+" days since your last full backup (with documents).":"You haven't taken a full backup yet."} Keep a local copy alongside the cloud data.</div><div style="display:flex;gap:8px"><button class="btn sm" onclick="exportFullBackup();document.getElementById('backup_nudge').remove()">Full backup now</button><button class="btn sm sec" style="background:transparent;color:#ccc;border:1px solid #555" onclick="document.getElementById('backup_nudge').remove()">Later</button></div>`;document.body.appendChild(b);},2000);}}
 function exportDB(){const b=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="PhysioVerse_backup_"+todayISO+".json";a.click();localStorage.setItem("pm_last_dl",Date.now());}
+
+/* ── Google Drive auto-backup ─────────────────────────────────────────────
+   Uses Google Identity Services (OAuth token client) with the narrow
+   'drive.file' scope — this app can only see/manage files IT creates,
+   never the person's other Drive files. The access token only lives in
+   memory (never localStorage) and lasts ~1hr; when it expires, auto-backup
+   silently stops until the person reconnects from Settings — no repeated
+   consent popups firing on their own. */
+let _gdriveToken=null,_gdriveFolderId=localStorage.getItem("pm_gdrive_folder")||null,_gdriveTokenClient=null,_lastGdriveBackup=0;
+function gdriveConfigured(){return typeof GOOGLE_CLIENT_ID==="string"&&GOOGLE_CLIENT_ID.indexOf("PASTE_")===-1;}
+function gdriveConnected(){return !!_gdriveToken;}
+function gdriveConnect(){
+ if(!gdriveConfigured()){alert("Google Drive isn't set up yet — see the setup steps in Settings under Google Drive auto-backup.");return;}
+ if(typeof google==="undefined"||!google.accounts){alert("Google sign-in script hasn't loaded — check your internet connection and try again.");return;}
+ if(!_gdriveTokenClient){
+  _gdriveTokenClient=google.accounts.oauth2.initTokenClient({
+   client_id:GOOGLE_CLIENT_ID,
+   scope:"https://www.googleapis.com/auth/drive.file",
+   callback:(resp)=>{
+    if(resp&&resp.access_token){
+     _gdriveToken=resp.access_token;
+     toast("✓ Google Drive connected");
+     gdriveEnsureFolder().then(()=>{gdriveBackupNow(true);render();});
+    } else {
+     toast("Google Drive connection didn't complete — try again.",3500);
+    }
+   }
+  });
+ }
+ _gdriveTokenClient.requestAccessToken({prompt:_gdriveToken?"":"consent"});
+}
+function gdriveDisconnect(){_gdriveToken=null;render();toast("Google Drive disconnected");}
+async function gdriveEnsureFolder(){
+ if(_gdriveFolderId)return _gdriveFolderId;
+ try{
+  const q=encodeURIComponent("name='PhysioVerse Backups' and mimeType='application/vnd.google-apps.folder' and trashed=false");
+  const listRes=await fetch("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(id,name)",{headers:{Authorization:"Bearer "+_gdriveToken}});
+  const listData=await listRes.json();
+  if(listData.files&&listData.files.length){_gdriveFolderId=listData.files[0].id;}
+  else{
+   const createRes=await fetch("https://www.googleapis.com/drive/v3/files",{method:"POST",headers:{Authorization:"Bearer "+_gdriveToken,"Content-Type":"application/json"},body:JSON.stringify({name:"PhysioVerse Backups",mimeType:"application/vnd.google-apps.folder"})});
+   const createData=await createRes.json();
+   _gdriveFolderId=createData.id;
+  }
+  if(_gdriveFolderId)localStorage.setItem("pm_gdrive_folder",_gdriveFolderId);
+  return _gdriveFolderId;
+ }catch(e){return null;}
+}
+// Single rolling file (not one-per-day) — keeps this simple and avoids needing to manage/prune
+// a growing file list via the Drive API. It's a safety net, not a version history browser;
+// use the in-app "Download full backup" for point-in-time archives you want to keep forever.
+async function gdriveBackupNow(silent){
+ if(!_gdriveToken){if(!silent)toast("Connect Google Drive first (Settings).",3000);return false;}
+ const folderId=await gdriveEnsureFolder();
+ if(!folderId){if(!silent)toast("⚠️ Couldn't reach Google Drive — try again.",3500);return false;}
+ try{
+  const fname="PhysioVerse_backup_latest.json";
+  const q=encodeURIComponent("name='"+fname+"' and '"+folderId+"' in parents and trashed=false");
+  const listRes=await fetch("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(id)",{headers:{Authorization:"Bearer "+_gdriveToken}});
+  const listData=await listRes.json();
+  const existingId=listData.files&&listData.files[0]&&listData.files[0].id;
+  const metadata=existingId?{}:{name:fname,parents:[folderId]};
+  const body=new Blob([
+   "--boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+JSON.stringify(metadata)+"\r\n"+
+   "--boundary\r\nContent-Type: application/json\r\n\r\n"+JSON.stringify(DB)+"\r\n"+
+   "--boundary--"
+  ],{type:"multipart/related; boundary=boundary"});
+  const url=existingId
+   ?"https://www.googleapis.com/upload/drive/v3/files/"+existingId+"?uploadType=multipart"
+   :"https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
+  const res=await fetch(url,{method:existingId?"PATCH":"POST",headers:{Authorization:"Bearer "+_gdriveToken,"Content-Type":"multipart/related; boundary=boundary"},body});
+  if(!res.ok){if(res.status===401){_gdriveToken=null;render();}if(!silent)toast("⚠️ Google Drive backup failed — try reconnecting.",3500);return false;}
+  _lastGdriveBackup=Date.now();localStorage.setItem("pm_gdrive_last",Date.now());
+  if(!silent)toast("✓ Backed up to Google Drive");
+  return true;
+ }catch(e){if(!silent)toast("⚠️ Google Drive backup failed — check your connection.",3500);return false;}
+}
+// Called after every save; only actually uploads at most once per hour while connected —
+// a background safety net, not something that fires on every keystroke.
+function gdriveMaybeAutoBackup(){
+ if(!_gdriveToken)return;
+ if(Date.now()-_lastGdriveBackup<3600000)return;
+ gdriveBackupNow(true);
+}
 
 function _fullBackupProgress(msg){
   let el=document.getElementById("_fbProgress");
@@ -2571,9 +2686,9 @@ function savePkg(){const v=k=>document.getElementById(k);const pid=v("k_pid").va
    for(let i=0;i<t.sessions;i++){DB.appointments.push({id:uid("a"),pid,date:d,time:v("k_time").value||"10:00",type:"Therapy session",therapist:ther,status:"Pending",branch:p.branch});d=shiftDate(d,gap);}}
  save();closeModal();render();}
 // Package balance payment form
-function pkgPayment(pid){const pkgs=DB.patientPkgs.filter(k=>k.pid===pid&&k.status==="Active"&&(k.paidAmount||k.price)<k.price);
+function pkgPayment(pid){const pkgs=DB.patientPkgs.filter(k=>k.pid===pid&&(k.status==="Active"||k.status==="Expired")&&(k.paidAmount||k.price)<k.price);
  if(!pkgs.length){alert("No package balance outstanding for this patient.");return;}
- const opts=pkgs.map(k=>`<option value="${k.id}">${k.pkg||k.name||'Package'} — balance ${inr((k.price||0)-(k.paidAmount||0))}</option>`).join("");
+ const opts=pkgs.map(k=>`<option value="${k.id}">${k.pkg||k.name||'Package'} — balance ${inr((k.price||0)-(k.paidAmount||0))}${k.status==="Expired"?" (expired)":""}</option>`).join("");
  openModal(`<div class="modal-h"><h3>Package Balance Payment</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="field"><label>Package</label><select id="pp_id">${opts}</select></div>
@@ -3870,6 +3985,12 @@ views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel
   </div>
   <div class="muted" style="font-size:11.5px;margin-bottom:10px">The <b>full backup</b> works like a WhatsApp-style export — one .zip with every clinic record <i>and</i> every uploaded file (X-rays, scans, assessment PDFs, bill photos), whatever that adds up to — a handful of MB today, hundreds of MB once you've built up a larger document library. Nothing is trimmed or sampled — it's a complete, independent copy, meant as your second layer of protection alongside the Supabase cloud copy. Doing this weekly (or daily, if you're uploading a lot of scans) gives you two levels of protection: the live cloud copy, and your own local copy on this device. The <b>data only</b> backup is faster but the file/photo bytes stay in Supabase Storage, not in the download. Restore currently reads data.json (or the plain .json backup) — restoring uploaded files back into storage isn't automated yet. For a very large document library (many hundreds of files), running the full backup on a desktop browser will be faster and more reliable than on mobile.</div>
   <div class="muted" style="font-size:11.5px;margin-bottom:10px">⚠️ Restoring a backup replaces your clinic's <b>live cloud data</b> for everyone signed in — not just this device. Use it to undo a serious mistake, not as routine practice.</div>
+  <hr class="sep">
+  <b>☁️ Google Drive auto-backup</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">Keeps a rolling copy of your clinic data (patients, appointments, billing, etc. — not uploaded photos/documents) in a "PhysioVerse Backups" folder in your own Google Drive, updated automatically roughly once an hour while connected. Only files this app creates are touched — nothing else in your Drive is ever accessed.</div>
+  ${!gdriveConfigured()?`<div class="muted" style="font-size:12px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">Not set up yet. One-time setup (developer step): create an OAuth Client ID (Web application) in Google Cloud Console, enable the Drive API, add this site's URL under Authorized JavaScript origins, then paste the Client ID into <code>GOOGLE_CLIENT_ID</code> in the code.</div>`:
+  gdriveConnected()?`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="tag green">✓ Connected</span><button class="btn sm sec" onclick="gdriveBackupNow()">Back up now</button><button class="btn sm sec" onclick="gdriveDisconnect()">Disconnect</button></div><div class="muted" style="font-size:11.5px;margin-top:6px">${(function(){const last=+localStorage.getItem("pm_gdrive_last")||0;return last?"Last Drive backup: "+new Date(last).toLocaleString("en-IN",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"No backup uploaded yet this session — click Back up now.";})()}</div>`:
+  `<button class="btn sm" onclick="gdriveConnect()">🔗 Connect Google Drive</button>`}
+  <hr class="sep">
   <button class="btn sec sm" onclick="cleanOrphanedAppts()">🧹 Clean orphaned appointments</button>
   <button class="btn danger sm" onclick="resetDB()">↺ Reset demo data</button>
  </div></div>
