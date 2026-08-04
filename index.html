@@ -487,9 +487,11 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
   <div style="text-align:center;color:#fff">
     <div style="width:34px;height:34px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;margin:0 auto 14px;animation:gateSpin .8s linear infinite"></div>
     <div style="font-size:14px;opacity:.9">Restoring your session…</div>
+    <button id="gateResumeEscape" onclick="hideResumeOverlay()" style="display:none;margin-top:18px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;cursor:pointer">Taking too long? Tap to sign in manually</button>
   </div>
 </div>
 <style>@keyframes gateSpin{to{transform:rotate(360deg)}}</style>
+<script>setTimeout(function(){var b=document.getElementById('gateResumeEscape');if(b)b.style.display='inline-block';},5000);</script>
 <div id="demoGate" style="position:fixed;inset:0;z-index:2000;background:linear-gradient(135deg,#0b1b3d,#2563eb);display:flex;align-items:center;justify-content:center;padding:20px">
   <div class="login-card" style="max-width:380px;text-align:center">
     <div style="display:flex;justify-content:center;margin-bottom:16px">
@@ -1441,7 +1443,7 @@ function patientView(id,tab){const p=pById(id);const T=(CURROLE==='receptionist'
    ${(p.email||p.addr||p.emName||p.refDr||p.occ)?`<div class="list-row" style="border:0.5px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:12px"><b class="muted" style="font-size:12px">Patient details</b><div style="font-size:13px;margin-top:4px;line-height:1.7">${p.occ?'<div>💼 '+p.occ+'</div>':''}${p.email?'<div>✉️ '+p.email+'</div>':''}${p.addr?'<div>📍 '+p.addr+'</div>':''}${p.emName||p.emPhone?'<div>🆘 '+(p.emName||'')+(p.emPhone?' · '+p.emPhone:'')+'</div>':''}${p.refDr?'<div>👨‍⚕️ Referred by '+p.refDr+'</div>':''}</div></div>`:''}
    <button class="btn sm" onclick="assessForm('','${id}')">+ New assessment</button>
    <hr class="sep"><b class="muted">Assessments</b>
-   ${asmts.length?asmts.map(c=>`<div class="list-row clk" style="display:flex;justify-content:space-between;align-items:center" onclick="assessView('${c.id}')"><div><b>${c.dx||'Assessment'}</b><div class="mt muted">${fmtDate(c.date)} · ${c.therapist} · ${c.mode==='upload'?'paper scan':'digital'}</div></div><button class="btn ghost" onclick="event.stopPropagation();printRx('${c.id}','assessment')">🖨 Rx</button></div>`).join(""):'<div class=muted style="padding:6px 0">No assessments yet.</div>'}
+   ${asmts.length?asmts.map(c=>`<div class="list-row clk" style="display:flex;justify-content:space-between;align-items:center" onclick="closeModal();assessView('${c.id}')"><div><b>${c.dx||'Assessment'}</b><div class="mt muted">${fmtDate(c.date)} · ${c.therapist} · ${c.mode==='upload'?'paper scan':'digital'}</div></div><button class="btn ghost" onclick="event.stopPropagation();printRx('${c.id}','assessment')">🖨 Rx</button></div>`).join(""):'<div class=muted style="padding:6px 0">No assessments yet.</div>'}
    ${(p.docs&&p.docs.length)?`<hr class="sep"><b class="muted">Documents</b>${p.docs.map((d,di)=>`<div class="list-row" style="display:flex;justify-content:space-between;align-items:center"><span style="display:flex;align-items:center;gap:7px">${d.type==='assessment-pdf'?'📄':'📎'} ${d.n}</span><div style="display:flex;gap:6px;align-items:center"><span class="muted">${fmtDate(d.d)}</span>${(d.data||d.path||(d.type==='assessment-pdf'&&d.assessId))?`<button class="btn ghost" onclick="viewDoc('${id}',${di})">👁 View</button><button class="btn ghost" onclick="dlDoc('${id}',${di})">⬇</button>`:''}</div></div>`).join("")}`:''}
    <button class="btn sm sec" style="margin-top:10px" onclick="uploadDoc('${id}')">⬆ Upload document</button>
   </div>
@@ -4662,7 +4664,7 @@ function buildPDFHTML(id){
   const chip=(txt,bg,col)=>`<span style="display:inline-block;padding:1px 7px;border-radius:20px;font-size:9px;font-weight:600;background:${bg};color:${col};margin:1px 3px 1px 0;white-space:nowrap">${txt}</span>`;
   const lrow=(lbl,val)=>val?`<tr><td style="padding:3px 8px 3px 0;font-size:9.5px;font-weight:700;color:#64748b;white-space:nowrap;vertical-align:top;width:130px;text-transform:uppercase;letter-spacing:.2px">${lbl}</td><td style="padding:3px 0;font-size:10px;color:#1e293b;line-height:1.5">${val}</td></tr>`:''  ;
   const sec=(ico,lbl,col,content)=>content?`
-    <div style="margin-bottom:8px;page-break-inside:avoid;break-inside:avoid">
+    <div style="margin-bottom:8px;page-break-inside:avoid;break-inside:avoid" class="avoid-break">
       <div style="background:${col};color:#fff;padding:4px 12px;font-size:9.5px;font-weight:700;letter-spacing:.6px;display:flex;align-items:center;gap:6px;border-radius:5px 5px 0 0">${ico} ${lbl}</div>
       <div style="border:1px solid ${col}33;border-top:none;border-radius:0 0 5px 5px;padding:8px 12px;background:#fafbfc">${content}</div>
     </div>`:''  ;
@@ -4712,7 +4714,7 @@ function buildPDFHTML(id){
     if(negTests.length) cells+=`<tr><td style="padding:2px 0;font-size:9px;color:#64748b;font-weight:700;vertical-align:top">-ve Tests</td><td style="padding:2px 0;font-size:9px;color:#94a3b8">${negTests.join(', ')}</td></tr>`;
 
     if(cells){
-      regLines+=`<div style="margin-bottom:6px;padding:6px 8px;border:1px solid #e2e8f0;border-left:3px solid #2563eb;border-radius:4px;background:#fff;page-break-inside:avoid;break-inside:avoid">
+      regLines+=`<div style="margin-bottom:6px;padding:6px 8px;border:1px solid #e2e8f0;border-left:3px solid #2563eb;border-radius:4px;background:#fff;page-break-inside:avoid;break-inside:avoid" class="avoid-break">
         <div style="font-size:9.5px;font-weight:700;color:#0f172a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">${r}${side?' <span style="font-weight:400;color:#2563eb;text-transform:none">· '+side+'</span>':''}</div>
         <table style="width:100%;border-collapse:collapse">${cells}</table>
       </div>`;
@@ -4854,24 +4856,48 @@ async function buildAssessPDF(id){
 
   let doc;
   try{
+    // Record the top/bottom (in host CSS px) of every block that must not be sliced through —
+    // same sections the print CSS already protects with page-break-inside:avoid. Canvas
+    // slicing ignores CSS page-break rules entirely (it just cuts pixels), which is why the
+    // downloaded PDF was still splitting mid-section even after Print was fixed.
+    const hostTop=host.getBoundingClientRect().top;
+    const noSplitBlocks=Array.from(host.querySelectorAll('.avoid-break')).map(el=>{
+      const r=el.getBoundingClientRect();
+      return{top:r.top-hostTop,bottom:r.bottom-hostTop};
+    });
+
     const canvas=await html2canvas(host,{scale:2,backgroundColor:'#ffffff',useCORS:true,windowWidth:794});
     const W=210,H=297; // A4 mm
     const pxPerMm=canvas.width/W;
     const pageHeightPx=Math.floor(H*pxPerMm);
-    const contentPageHeightPx=pageHeightPx;
-    const totalPages=Math.max(1,Math.ceil(canvas.height/contentPageHeightPx));
+    const canvasScale=canvas.height/host.scrollHeight; // host CSS px → canvas px
+    const noSplitCanvasPx=noSplitBlocks.map(b=>({top:b.top*canvasScale,bottom:b.bottom*canvasScale}));
+
+    // Walk down the canvas one page at a time; if the next natural page boundary would land
+    // inside a protected block, pull the boundary back to just above that block instead —
+    // it moves to the top of the next page whole, rather than being cut in half.
+    const slices=[];
+    let cursor=0;
+    while(cursor<canvas.height-1){
+      let target=Math.min(cursor+pageHeightPx,canvas.height);
+      const offender=noSplitCanvasPx.find(b=>b.top<target&&b.bottom>target&&b.top>cursor+4);
+      if(offender)target=offender.top;
+      if(target<=cursor)target=Math.min(cursor+pageHeightPx,canvas.height); // block itself taller than one page — nothing to do but cut
+      slices.push([cursor,target]);
+      cursor=target;
+    }
 
     doc=new jsPDFLib({orientation:'portrait',unit:'mm',format:'a4'});
-    for(let i=0;i<totalPages;i++){
-      const sliceH=Math.min(contentPageHeightPx,canvas.height-i*contentPageHeightPx);
+    slices.forEach(([start,end],i)=>{
+      const sliceH=end-start;
       const pageCanvas=document.createElement('canvas');
       pageCanvas.width=canvas.width;pageCanvas.height=sliceH;
       const ctx=pageCanvas.getContext('2d');
       ctx.fillStyle='#ffffff';ctx.fillRect(0,0,pageCanvas.width,pageCanvas.height);
-      ctx.drawImage(canvas,0,i*contentPageHeightPx,canvas.width,sliceH,0,0,canvas.width,sliceH);
+      ctx.drawImage(canvas,0,start,canvas.width,sliceH,0,0,canvas.width,sliceH);
       if(i>0)doc.addPage();
       doc.addImage(pageCanvas.toDataURL('image/jpeg',0.95),'JPEG',0,0,W,sliceH/pxPerMm);
-    }
+    });
   }catch(err){
     console.error('Assessment PDF render failed:',err);
     alert('Could not generate the PDF. Please try again.');
