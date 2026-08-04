@@ -99,7 +99,7 @@ tr.clk:hover{background:#f7fafc;cursor:pointer}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:9999;white-space:nowrap}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .modal-f{padding:15px 21px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:9px;flex-shrink:0}
-.x{background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1}
+.x{background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;padding:10px;margin:-10px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
 .two-col{display:grid;grid-template-columns:1.6fr 1fr;gap:18px;align-items:start}
 .empty{text-align:center;padding:38px;color:var(--muted)}
 .muted{color:var(--muted)}
@@ -3001,57 +3001,82 @@ function updEInvTotal(){let sub=0;let idx=0;while(document.getElementById("eit_r
 function saveEditInvoice(id,n){const v=k=>document.getElementById(k);const i=DB.invoices.find(x=>x.id===id);for(let idx=0;idx<n;idx++){i.items[idx].rate=+(v("eit_r"+idx).value||0);i.items[idx].qty=+(v("eit_q"+idx).value||1);}
  const discObj=readDisc("ei");if(discObj)i.discount=discObj;else delete i.discount;
  const m=v("ei_mode").value;i.mode=m==="Corporate / Insurance"?"Corporate":m;if(i.mode!=="Bill later")i.status="Pending";logAudit("Invoice","Edited "+id);save();closeModal();viewInvoice(id);}
-function buildReceiptDoc(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.pid);const t=invTotals(i);
- const jsPDFLib=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;if(!jsPDFLib)return null;
- const doc=new jsPDFLib({unit:"mm",format:"a5"});let y=15;
- const W=148,M=14;
- function rule(){doc.setDrawColor(200);doc.line(M,y,W-M,y);y+=4;}
- // Header — logo + clinic name (left), doctor & contact (right), same as assessment PDF
- doc.addImage(CLINIC_LOGO_ICON_DATAURI,"JPEG",M,5,11,11);
- doc.setTextColor(29,78,216);doc.setFontSize(11);doc.setFont("helvetica","bold");
- doc.text("PHYSIOVERSE",M+14,10);doc.text("THERAPY CENTRE",M+14,14);
- doc.setTextColor(15,23,42);doc.setFontSize(8);doc.setFont("helvetica","bold");
- doc.text("Dr. Madhulika Sethiya (PT)",W-M,8,{align:"right"});
- doc.setFontSize(6.3);doc.setFont("helvetica","normal");doc.setTextColor(100);
- doc.text("+91 88711 33711 · +91 7898333338",W-M,12,{align:"right"});
- doc.text("Gemini, 4th Fl, 5A, Shreenagar Annex, Opp. Dewas Kothi,",W-M,15.3,{align:"right"});
- doc.text("Old Palasia, Indore - 452018 (M.P.)",W-M,18.3,{align:"right"});
- doc.setDrawColor(29,78,216);doc.setLineWidth(0.6);doc.line(0,21,W,21);doc.setLineWidth(0.2);
- doc.setTextColor(0,0,0);y=27;
- doc.setFontSize(11);doc.setFont("helvetica","bold");doc.text("INVOICE",M,y);doc.text(i.id,W-M,y,{align:"right"});y+=6;
- // Patient info
- doc.setFontSize(10);doc.setFont("helvetica","bold");doc.text("Bill To:",M,y);y+=5;
- doc.setFont("helvetica","normal");doc.setFontSize(10);
- doc.text(p.name,M,y);y+=4.5;
- doc.text(p.phone||' ',M,y);y+=4.5;
- doc.text("Date: "+fmtDate(i.date)+" | Mode: "+(i.mode||"—"),M,y);
- doc.setFontSize(10);doc.text("Status: "+i.status,W-M,y,{align:"right"});y+=7;
- rule();
- // Table header
- doc.setFont("helvetica","bold");doc.setFontSize(9);
- doc.text("Description",M,y);doc.text("Qty",86,y);doc.text("Rate",112,y,{align:"right"});doc.text("Amount",W-M,y,{align:"right"});y+=5;
- rule();
- doc.setFont("helvetica","normal");doc.setFontSize(9);
- i.items.forEach(it=>{doc.text(String(it.d||""),M,y,{maxWidth:68});doc.text(String(it.qty||1),86,y);doc.text(pdfInr(it.rate||0),112,y,{align:"right"});doc.text(pdfInr((it.qty||1)*(it.rate||0)),W-M,y,{align:"right"});y+=5.5;});
- rule();
- // Totals
- if(t.discount>0){doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("Subtotal",90,y);doc.text(pdfInr(t.sub),W-M,y,{align:"right"});y+=5;
-  doc.text("Discount"+(i.discount&&i.discount.type==="pct"?" ("+i.discount.value+"%)":""),90,y);doc.text("−"+pdfInr(t.discount),W-M,y,{align:"right"});y+=5.5;}
- doc.setFontSize(12);doc.setFont("helvetica","bold");doc.text("TOTAL",90,y);doc.text(pdfInr(t.total),W-M,y,{align:"right"});y+=7;
- doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(100);
- doc.text("Thank you for choosing "+DB.settings.clinic+". Computer-generated invoice.",M,y,{maxWidth:W-2*M});
- return{doc,p,i,t};}
-function downloadReceiptPDF(id){
- const built=buildReceiptDoc(id);
- if(!built){alert("PDF library not loaded. Refresh the page and try again.");return;}
- built.doc.save("Receipt_"+built.i.id+"_"+built.p.name.replace(/ /g,"_")+".pdf");
+function buildInvoiceHTML(id){const i=DB.invoices.find(x=>x.id===id);if(!i)return'';const p=pById(i.pid);const t=invTotals(i);
+ return `<div class="inv" style="width:750px;box-sizing:border-box">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;border-bottom:2px solid #1d4ed8;margin-bottom:10px">
+   <div style="display:flex;align-items:center;gap:10px">
+    <img src="${CLINIC_LOGO_ICON_DATAURI}" style="width:38px;height:38px;object-fit:contain;flex-shrink:0" />
+    <div style="font-size:14px;font-weight:800;color:#1d4ed8;line-height:1.2">PHYSIOVERSE<br/>THERAPY CENTRE</div>
+   </div>
+   <div style="text-align:right">
+    <div style="font-size:11px;font-weight:700;color:#0f172a">Dr. Madhulika Sethiya (PT)</div>
+    <div style="font-size:9px;color:#64748b;margin-top:2px">+91 88711 33711 &nbsp;·&nbsp; +91 7898333338</div>
+    <div style="font-size:8px;color:#64748b;margin-top:2px;max-width:280px">Gemini, 4th Floor, 5A, Shreenagar Annex, Opposite Dewas Kothi, Old Palasia, Indore - 452018 (M.P.)</div>
+   </div>
+  </div>
+  <div class="inv-h" style="justify-content:flex-end"><div style="text-align:right"><b>${i.id}</b><div class="muted">${fmtDate(i.date)}${i.time?' · '+i.time:''}${bName(i.branch)?' · '+bName(i.branch):''}</div><span class="tag ${statusTag(i.status)}">${i.status}</span></div></div>
+  <div style="margin:6px 0"><b>Bill to:</b> ${p.name} · ${p.phone}${p.addr?`<br><span class="muted">${p.addr}</span>`:""}</div>
+  <div style="overflow-x:auto"><table style="min-width:420px"><thead><tr><th>Description</th><th style="white-space:nowrap">Qty</th><th class="tot" style="white-space:nowrap">Rate</th><th class="tot" style="white-space:nowrap">Amount</th></tr></thead><tbody>
+  ${i.items.map(it=>`<tr><td>${it.d}${it.qty>1?`<div class="muted" style="font-size:11px">${inr(it.rate)} per session</div>`:""}</td><td>${it.qty}</td><td class="tot" style="white-space:nowrap">${inr(it.rate)}</td><td class="tot" style="white-space:nowrap">${inr(it.qty*it.rate)}</td></tr>`).join("")}</tbody></table></div>
+  <div class="tot">${t.discount>0?`<div><span>Subtotal</span><span>${inr(t.sub)}</span></div><div><span>Discount${i.discount&&i.discount.type==="pct"?" ("+i.discount.value+"%)":""}</span><span>−${inr(t.discount)}</span></div>`:""}<div class="grand"><span>Total</span><span>${inr(t.total)}</span></div>${i.paid&&i.paid<t.total?`<div><span style="color:var(--ok)">Paid</span><span style="color:var(--ok)">${inr(i.paid)}</span></div><div><span style="color:var(--danger)">Balance due</span><span style="color:var(--danger)">${inr(t.total-i.paid)}</span></div>`:""}</div>
+  ${i.discount&&i.discount.reason?`<div class="muted" style="font-size:11.5px">Discount reason: ${i.discount.reason}</div>`:""}
+  <hr class="sep"><div class="muted" style="font-size:12px">Payment mode: ${i.mode||"—"} ${i.paidAt?"· Paid on "+fmtDate(i.paidAt):""} · ${DB.settings.clinic} · Computer-generated invoice.</div>
+ </div>`;}
+// Renders buildInvoiceHTML to a canvas and slices it across A4 pages — same approach as
+// buildAssessPDF, so Print, downloaded PDF, and the WhatsApp-shared PDF are now all pixel
+// for pixel the same document instead of three different layouts.
+async function buildInvoicePDF(id){
+ const i=DB.invoices.find(x=>x.id===id);if(!i)return null;
+ const p=pById(i.pid);
+ const jsPDFLib=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+ if(!jsPDFLib){alert('PDF library not loaded. Please refresh and try again.');return null;}
+ if(typeof html2canvas!=='function'){alert('PDF renderer not loaded. Please refresh and try again.');return null;}
+ const html=buildInvoiceHTML(id);if(!html)return null;
+ const host=document.createElement('div');
+ host.style.cssText='position:fixed;left:-9999px;top:0;width:794px;background:#fff;padding:22px;box-sizing:border-box;z-index:-1';
+ host.innerHTML=html;
+ document.body.appendChild(host);
+ await Promise.all(Array.from(host.querySelectorAll('img')).map(img=>img.complete?Promise.resolve():new Promise(res=>{img.onload=img.onerror=res;})));
+ let doc;
+ try{
+  const canvas=await html2canvas(host,{scale:2,backgroundColor:'#ffffff',useCORS:true,windowWidth:794});
+  const W=210,H=297;
+  const pxPerMm=canvas.width/W;
+  const pageHeightPx=Math.floor(H*pxPerMm);
+  const totalPages=Math.max(1,Math.ceil(canvas.height/pageHeightPx));
+  doc=new jsPDFLib({orientation:'portrait',unit:'mm',format:'a4'});
+  for(let n=0;n<totalPages;n++){
+   const sliceH=Math.min(pageHeightPx,canvas.height-n*pageHeightPx);
+   const pageCanvas=document.createElement('canvas');
+   pageCanvas.width=canvas.width;pageCanvas.height=sliceH;
+   const ctx=pageCanvas.getContext('2d');
+   ctx.fillStyle='#ffffff';ctx.fillRect(0,0,pageCanvas.width,pageCanvas.height);
+   ctx.drawImage(canvas,0,n*pageHeightPx,canvas.width,sliceH,0,0,canvas.width,sliceH);
+   if(n>0)doc.addPage();
+   doc.addImage(pageCanvas.toDataURL('image/jpeg',0.95),'JPEG',0,0,W,sliceH/pxPerMm);
+  }
+ }catch(err){
+  console.error('Invoice PDF render failed:',err);
+  alert('Could not generate the PDF. Please try again.');
+  document.body.removeChild(host);
+  return null;
+ }
+ document.body.removeChild(host);
+ const fname="Receipt_"+i.id+"_"+p.name.replace(/ /g,"_")+".pdf";
+ return{doc,fname,i,p,t:invTotals(i)};
+}
+async function downloadReceiptPDF(id){
+ toast("Building PDF…",8000);
+ const built=await buildInvoicePDF(id);
+ if(!built)return;
+ built.doc.save(built.fname);
  logAudit("Invoice","PDF downloaded ("+built.i.id+")",built.p.name);}
 async function shareReceiptPDF(id){
- const built=buildReceiptDoc(id);
- if(!built){alert("PDF library not loaded. Refresh the page and try again.");return;}
- const filename="Receipt_"+built.i.id+"_"+built.p.name.replace(/ /g,"_")+".pdf";
+ toast("Building PDF…",8000);
+ const built=await buildInvoicePDF(id);
+ if(!built)return;
  const blob=built.doc.output("blob");
- const file=new File([blob],filename,{type:"application/pdf"});
+ const file=new File([blob],built.fname,{type:"application/pdf"});
  if(navigator.canShare&&navigator.canShare({files:[file]})){
   try{
    await navigator.share({files:[file],title:"Invoice "+built.i.id+" — "+built.p.name,text:"Invoice "+built.i.id+" from "+(DB.settings.clinic||"")+" — "+inr(built.t.total)});
@@ -3059,7 +3084,7 @@ async function shareReceiptPDF(id){
    return;
   }catch(e){if(e&&e.name==="AbortError")return;}
  }
- built.doc.save(filename);
+ built.doc.save(built.fname);
  alert("This browser can't attach files straight to WhatsApp. The PDF has been downloaded — open WhatsApp and attach it from Downloads/Files.");
  sendWA(built.i.pid,"Payment","PDF downloaded — opened WhatsApp",`Hi ${built.p.name.split(" ")[0]} 👋\n\nSharing your invoice *${built.i.id}* from *${DB.settings.clinic}* (${inr(built.t.total)}) — please find the attached PDF.`);}
 function statementData(id,from,to){
@@ -4637,7 +4662,7 @@ function buildPDFHTML(id){
   const chip=(txt,bg,col)=>`<span style="display:inline-block;padding:1px 7px;border-radius:20px;font-size:9px;font-weight:600;background:${bg};color:${col};margin:1px 3px 1px 0;white-space:nowrap">${txt}</span>`;
   const lrow=(lbl,val)=>val?`<tr><td style="padding:3px 8px 3px 0;font-size:9.5px;font-weight:700;color:#64748b;white-space:nowrap;vertical-align:top;width:130px;text-transform:uppercase;letter-spacing:.2px">${lbl}</td><td style="padding:3px 0;font-size:10px;color:#1e293b;line-height:1.5">${val}</td></tr>`:''  ;
   const sec=(ico,lbl,col,content)=>content?`
-    <div style="margin-bottom:8px">
+    <div style="margin-bottom:8px;page-break-inside:avoid;break-inside:avoid">
       <div style="background:${col};color:#fff;padding:4px 12px;font-size:9.5px;font-weight:700;letter-spacing:.6px;display:flex;align-items:center;gap:6px;border-radius:5px 5px 0 0">${ico} ${lbl}</div>
       <div style="border:1px solid ${col}33;border-top:none;border-radius:0 0 5px 5px;padding:8px 12px;background:#fafbfc">${content}</div>
     </div>`:''  ;
@@ -4687,7 +4712,7 @@ function buildPDFHTML(id){
     if(negTests.length) cells+=`<tr><td style="padding:2px 0;font-size:9px;color:#64748b;font-weight:700;vertical-align:top">-ve Tests</td><td style="padding:2px 0;font-size:9px;color:#94a3b8">${negTests.join(', ')}</td></tr>`;
 
     if(cells){
-      regLines+=`<div style="margin-bottom:6px;padding:6px 8px;border:1px solid #e2e8f0;border-left:3px solid #2563eb;border-radius:4px;background:#fff">
+      regLines+=`<div style="margin-bottom:6px;padding:6px 8px;border:1px solid #e2e8f0;border-left:3px solid #2563eb;border-radius:4px;background:#fff;page-break-inside:avoid;break-inside:avoid">
         <div style="font-size:9.5px;font-weight:700;color:#0f172a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">${r}${side?' <span style="font-weight:400;color:#2563eb;text-transform:none">· '+side+'</span>':''}</div>
         <table style="width:100%;border-collapse:collapse">${cells}</table>
       </div>`;
