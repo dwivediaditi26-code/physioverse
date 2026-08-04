@@ -594,7 +594,7 @@ const seed={
  staff:[
   {id:"s1",name:"Dr. Neha Verma",role:"Senior Physiotherapist",phone:"+91 98260 10101",branch:"b1",salary:55000,present:24,leave:2},
   {id:"s2",name:"Dr. Amit Joshi",role:"Physiotherapist",phone:"+91 98260 20202",branch:"b1",salary:42000,present:23,leave:3},
-  {id:"s3",name:"Priya Nair",role:"Receptionist",phone:"+91 98260 30303",branch:"b1",salary:22000,present:25,leave:1},
+  {id:"s3",name:"Receptionist",role:"Receptionist",phone:"+91 98260 30303",branch:"b1",salary:22000,present:25,leave:1},
   {id:"s4",name:"Dr. Karan Mehta",role:"Physiotherapist",phone:"+91 98260 40404",branch:"b2",salary:40000,present:22,leave:4}],
  attendance:[],
  patients:[
@@ -707,7 +707,7 @@ const ROLES={
    views:["dashboard","reports","patients","appointments","assessment","treatment","packages","billing","expenses","reminders","staff","branches","logins","settings","audit","help"]},
  therapist:{name:"Therapist",title:"Therapist",init:"TH",color:"#0d9488",home:"appointments",scope:null,
    views:["dashboard","patients","appointments","assessment","treatment","reminders","help"]},
- receptionist:{name:"Priya Nair",title:"Receptionist",init:"PN",color:"#d97706",home:"appointments",scope:null,
+ receptionist:{name:"Receptionist",title:"Receptionist",init:"RC",color:"#d97706",home:"appointments",scope:null,
    views:["dashboard","patients","appointments","packages","billing","reminders","help"]}
 };
 function canDo(cap){return true;}
@@ -2557,6 +2557,7 @@ function pullFromAssessment(){
 }
 
 /* PACKAGES */
+let PKGFILTER="Active", PKGSEARCH="", WALSEARCH="";
 views.packages=()=>`
  <div class="panel"><div class="panel-h"><h3>Package Templates</h3><button class="btn sm sec" onclick="pkgTmplModal()">+ Template</button></div>
  <div class="panel-b flush"><table><thead><tr><th>Package</th><th>Sessions</th><th>Price</th><th>Validity</th><th>Per session</th><th></th></tr></thead><tbody>
@@ -2564,8 +2565,13 @@ views.packages=()=>`
  </tbody></table></div></div>
  <div class="two-col" style="gap:15px">
   <div class="panel" style="margin-bottom:0"><div class="panel-h"><h3>Patient Packages</h3><button class="btn sm" onclick="assignPkg()">+ Assign</button></div>
+  <div style="padding:10px 14px 0">
+   <input id="pkgSearchBox" value="${PKGSEARCH.replace(/"/g,'&quot;')}" oninput="PKGSEARCH=this.value;render()" placeholder="🔍 Search patient…" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d9dee6;border-radius:8px;font-size:13px;margin-bottom:8px">
+   <div class="tabs" style="margin:0 0 4px">${["Active","Completed","Expired","All"].map(f=>`<button class="${PKGFILTER===f?'active':''}" onclick="PKGFILTER='${f}';render()">${f}</button>`).join("")}</div>
+  </div>
   <div class="panel-b" style="padding:0">${pkgListHTML()}</div></div>
   <div class="panel" style="margin-bottom:0"><div class="panel-h"><h3>Wallet Balances</h3><button class="btn sm" onclick="walletForm()">+ Top up</button></div>
+  <div style="padding:10px 14px 0"><input id="walSearchBox" value="${WALSEARCH.replace(/"/g,'&quot;')}" oninput="WALSEARCH=this.value;render()" placeholder="🔍 Search patient…" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d9dee6;border-radius:8px;font-size:13px"></div>
   <div class="panel-b">${walletListHTML()}</div></div>
  </div>`;
 function pkgTmplModal(id){const t=id?DB.pkgTemplates.find(x=>x.id===id):{id:"",name:"",sessions:"",price:"",validity:""};
@@ -2587,17 +2593,22 @@ function savePkgTmpl(id){const v=k=>document.getElementById(k).value.trim();cons
 function deletePkgTmpl(id){if(!confirm("Delete this package template? Existing patient packages using it won't be affected."))return;var _t=DB.pkgTemplates.find(x=>x.id===id);DB.pkgTemplates=DB.pkgTemplates.filter(x=>x.id!==id);logAudit("Package template","Deleted "+(_t?_t.name:id),"");save();closeModal();render();}
 function pkgListHTML(){
  var pkgs=DB.patientPkgs.filter(function(x){return inBranch(pById(x.pid));});
- if(!pkgs.length)return'<div class="empty">No packages assigned</div>';
+ if(PKGFILTER!=="All")pkgs=pkgs.filter(function(x){return x.status===PKGFILTER;});
+ if(PKGSEARCH.trim()){var q=PKGSEARCH.trim().toLowerCase();pkgs=pkgs.filter(function(x){var p=pById(x.pid);return p&&p.name.toLowerCase().indexOf(q)!==-1;});}
+ var ord={Active:0,Expired:1,Completed:2};
+ pkgs=pkgs.slice().sort(function(a,b){var oa=ord[a.status]!=null?ord[a.status]:3,ob=ord[b.status]!=null?ord[b.status]:3;if(oa!==ob)return oa-ob;return (a.expires||"").localeCompare(b.expires||"");});
+ if(!pkgs.length)return'<div class="empty">No '+(PKGFILTER==="All"?"":PKGFILTER.toLowerCase()+" ")+'packages'+(PKGSEARCH.trim()?" matching search":"")+'</div>';
  return pkgs.map(function(k){
   var p=pById(k.pid);var pct=k.total?Math.round((k.used||0)/k.total*100):0;
   var paidAmt=k.paidAmount!=null?k.paidAmount:(k.price||0);var bal=(k.price||0)-paidAmt;
   var balBtn=bal>0?'<button class="btn sm" style="font-size:11px;padding:3px 9px" onclick="pkgPayment(\''+p.id+'\')">Pay balance</button>':'';
+  var delBtn=CURROLE==='owner'?'<button class="btn sm sec" style="font-size:11px;padding:3px 8px;color:var(--danger)" title="Delete package" onclick="delPatientPkg(\''+k.id+'\')">🗑</button>':'';
   return '<div class="list-row" style="padding:11px 14px">'
    +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
    +'<div class="pcell" style="min-width:0"><div class="avatar" style="flex-shrink:0">'+initials(p.name)+'</div>'
    +'<div style="min-width:0"><div class="nm">'+p.name+'</div>'
    +'<div class="mt muted" style="font-size:11.5px">'+k.pkg+'</div></div></div>'
-   +'<span class="tag '+statusTag(k.status)+'" style="flex-shrink:0">'+k.status+'</span></div>'
+   +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0"><span class="tag '+statusTag(k.status)+'">'+k.status+'</span>'+delBtn+'</div></div>'
    +'<div style="margin:7px 0 4px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">'
    +'<span class="muted">'+k.used+'/'+k.total+' sessions</span><span class="muted">'+pct+'%</span></div>'
    +'<div class="bar"><div style="width:'+pct+'%"></div></div></div>'
@@ -2609,10 +2620,21 @@ function pkgListHTML(){
   +'</div>';
  }).join("");
 }
+function delPatientPkg(id){
+ if(CURROLE!=='owner')return;
+ var k=DB.patientPkgs.find(function(x){return x.id===id;});if(!k)return;
+ var p=pById(k.pid);
+ if(!confirm("Delete this package ("+(k.pkg||"")+") for "+(p?p.name:"this patient")+"? This cannot be undone."))return;
+ DB.patientPkgs=DB.patientPkgs.filter(function(x){return x.id!==id;});
+ logAudit("Patient package","Deleted "+(k.pkg||"")+" for "+(p?p.name:k.pid),p?p.name:"");
+ save();render();
+}
 function walletListHTML(){
  var pts=DB.patients.filter(inBranch).filter(function(p){return !MYTHER||p.therapist===MYTHER;}).filter(function(p){return (p.wallet||0)>0;});
- if(!pts.length)return'<div class="empty" style="padding:20px">No wallet balances<br><span class="muted" style="font-size:12px">Top up a patient to add advance funds</span></div>';
+ if(WALSEARCH.trim()){var q=WALSEARCH.trim().toLowerCase();pts=pts.filter(function(p){return p.name.toLowerCase().indexOf(q)!==-1;});}
+ if(!pts.length)return'<div class="empty" style="padding:20px">No wallet balances'+(WALSEARCH.trim()?" matching search":"")+'<br><span class="muted" style="font-size:12px">Top up a patient to add advance funds</span></div>';
  return pts.sort(function(a,b){return (b.wallet||0)-(a.wallet||0);}).map(function(p){
+  var delBtn=CURROLE==='owner'?'<button class="btn sm sec" style="font-size:11px;padding:3px 8px;color:var(--danger)" title="Clear balance" onclick="clearWallet(\''+p.id+'\')">🗑</button>':'';
   return '<div class="list-row" style="padding:11px 0">'
    +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
    +'<div class="pcell"><div class="avatar">'+initials(p.name)+'</div>'
@@ -2622,8 +2644,16 @@ function walletListHTML(){
    +'<div style="display:flex;gap:5px;margin-top:4px;justify-content:flex-end">'
    +'<button class="btn sm sec" style="font-size:11px;padding:3px 8px" onclick="walletFormPid(\''+p.id+'\')">+ Top up</button>'
    +'<button class="btn sm sec" style="font-size:11px;padding:3px 8px" onclick="patientView(\''+p.id+'\',\'bill\')">View</button>'
-   +'</div></div></div></div>';
+   +delBtn+'</div></div></div></div>';
  }).join("");
+}
+function clearWallet(pid){
+ if(CURROLE!=='owner')return;
+ var p=pById(pid);if(!p)return;
+ if(!confirm("Clear wallet balance of "+inr(p.wallet||0)+" for "+p.name+"? This cannot be undone."))return;
+ var prevBal=p.wallet||0;p.wallet=0;
+ logAudit("Wallet","Cleared balance of "+inr(prevBal),p.name);
+ save();render();
 }
 function assignPkg(pid){openModal(`<div class="modal-h"><h3>Assign Package</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
@@ -2823,14 +2853,20 @@ function filterPatients(q){
 function setInvPage(n){_invPage=n;render();}
 function patientPickerHTML(prefix,patients,selectedId,extraLabelFn){
  const selP=selectedId?patients.find(p=>p.id===selectedId):null;
- return `<input id="${prefix}_search" placeholder="Type name or phone..." oninput="filterPatientPicker('${prefix}')" autocomplete="off"
-    style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;margin-bottom:4px">
+ const sorted=patients.slice().sort((a,b)=>((b.since||'')+(b.sinceTime||'')).localeCompare((a.since||'')+(a.sinceTime||'')));
+ return `<div style="display:flex;gap:6px">
+    <input id="${prefix}_search" placeholder="Type name or phone..." oninput="filterPatientPicker('${prefix}');openPatientPicker('${prefix}')" onfocus="openPatientPicker('${prefix}')" autocomplete="off"
+      style="flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+    <button type="button" onclick="togglePatientPicker('${prefix}')" style="padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;color:var(--muted)" title="Show patient list">▾</button>
+   </div>
    <input type="hidden" id="${prefix}_pid" value="${selectedId||''}">
-   <div id="${prefix}_pid_selected" style="font-size:12.5px;font-weight:600;color:var(--brand,#2563eb);margin:2px 0 6px;min-height:16px">${selP?'✓ Selected: '+selP.name:''}</div>
-   <div id="${prefix}_pid_list" style="width:100%;max-height:150px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:8px;font-size:13px">
-    ${patients.map(p=>`<button type="button" class="pt-pick-row" data-pid="${p.id}" data-name="${p.name.replace(/"/g,'&quot;')}" data-txt="${(p.name+' '+(p.phone||'')+' '+(p.condition||'')).toLowerCase().replace(/"/g,'&quot;')}" onpointerup="selectPatientPicker('${prefix}','${p.id}')" style="display:block;width:100%;text-align:left;background:${p.id===selectedId?'var(--brand-soft,#dbeafe)':'#fff'};border:none;padding:8px 10px;cursor:pointer;touch-action:manipulation;border-bottom:1px solid var(--line);font:inherit;color:inherit;-webkit-appearance:none;appearance:none;border-radius:0">${p.name} — ${p.phone||''}${extraLabelFn?' · '+extraLabelFn(p):''}</button>`).join("")}
+   <div id="${prefix}_pid_selected" style="font-size:12.5px;font-weight:600;color:var(--brand,#2563eb);margin:4px 0 2px;min-height:16px">${selP?'✓ Selected: '+selP.name:''}</div>
+   <div id="${prefix}_pid_list" style="display:none;width:100%;max-height:220px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:8px;font-size:13px;margin-top:4px">
+    ${sorted.map(p=>`<button type="button" class="pt-pick-row" data-pid="${p.id}" data-name="${p.name.replace(/"/g,'&quot;')}" data-txt="${(p.name+' '+(p.phone||'')+' '+(p.condition||'')).toLowerCase().replace(/"/g,'&quot;')}" onpointerup="selectPatientPicker('${prefix}','${p.id}')" style="display:block;width:100%;text-align:left;background:${p.id===selectedId?'var(--brand-soft,#dbeafe)':'#fff'};border:none;padding:8px 10px;cursor:pointer;touch-action:manipulation;border-bottom:1px solid var(--line);font:inherit;color:inherit;-webkit-appearance:none;appearance:none;border-radius:0">${p.name} — ${p.phone||''}${extraLabelFn?' · '+extraLabelFn(p):''}</button>`).join("")}
    </div>`;
 }
+function togglePatientPicker(prefix){const list=document.getElementById(prefix+"_pid_list");if(!list)return;const willShow=list.style.display==='none';list.style.display=willShow?'block':'none';if(willShow){const s=document.getElementById(prefix+"_search");if(s)s.focus();}}
+function openPatientPicker(prefix){const list=document.getElementById(prefix+"_pid_list");if(list)list.style.display='block';}
 function filterPatientPicker(prefix){const el=document.getElementById(prefix+"_search");if(!el)return;const q=(el.value||"").toLowerCase();document.querySelectorAll("#"+prefix+"_pid_list .pt-pick-row").forEach(r=>{r.style.display=q&&!r.dataset.txt.includes(q)?"none":"";});}
 function selectPatientPicker(prefix,pid,cb){
  const hid=document.getElementById(prefix+"_pid");if(hid)hid.value=pid;
@@ -2842,6 +2878,8 @@ function selectPatientPicker(prefix,pid,cb){
  });
  const sel=document.getElementById(prefix+"_pid_selected");
  if(sel)sel.textContent=name?"✓ Selected: "+name:"";
+ const list=document.getElementById(prefix+"_pid_list");if(list)list.style.display='none';
+ const s=document.getElementById(prefix+"_search");if(s)s.value=name;
  if(cb)cb(pid);
 }
 function walletForm(pid){openModal(`<div class="modal-h"><h3>Wallet Top-up (advance)</h3><button class="x" onclick="closeModal()">×</button></div>
