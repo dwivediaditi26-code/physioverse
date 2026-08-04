@@ -596,7 +596,7 @@ html.ui-force-desktop .overlay{padding:20px!important;align-items:center!importa
       <button data-v="staff"><span class="ico">👥</span> Staff</button>
       <button data-v="branches"><span class="ico">🏢</span> Branches</button>
       <button data-v="logins"><span class="ico">🔑</span> Logins</button>
-      <button data-v="settings"><span class="ico">⚙️</span> Settings</button>
+      <button data-v="settings"><span class="ico">⚙️</span> Settings<span id="settingsBadge" style="display:none;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-left:6px"></span></button>
       <button data-v="audit"><span class="ico">📋</span> Audit Log</button>
       <button data-v="help"><span class="ico">❓</span> How to use</button>
     </nav>
@@ -1037,7 +1037,25 @@ function showBackups(){
     openModal(`<div class="modal-h"><h3>Auto-backups (last ${snaps.length})</h3><button class="x" onclick="closeModal()">×</button></div><div class="modal-b">${rows}<div class="muted" style="font-size:12px;margin-top:10px">Snapshots are saved automatically inside this browser every time data changes. Maximum ${IDB_MAX} kept.</div></div><div class="modal-f"><button class="btn sec" onclick="closeModal()">Close</button></div>`,true);
   });}
 // 7-day download nudge
-function maybeShowBackupNudge(){const K="pm_last_full_dl";const last=+localStorage.getItem(K)||0;const days=(Date.now()-last)/(864e5);if(!last||days>7){setTimeout(()=>{const b=document.createElement("div");b.id="backup_nudge";b.style.cssText="position:fixed;bottom:18px;right:18px;z-index:9999;background:#1a1a2e;color:#fff;border-radius:12px;padding:12px 16px;max-width:300px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.3)";b.innerHTML=`<b>📦 Backup reminder</b><div style="margin:6px 0 10px;color:#ccc">${last?"It's been "+Math.floor(days)+" days since your last full backup (with documents).":"You haven't taken a full backup yet."} Keep a local copy alongside the cloud data.</div><div style="display:flex;gap:8px"><button class="btn sm" onclick="exportFullBackup();document.getElementById('backup_nudge').remove()">Full backup now</button><button class="btn sm sec" style="background:transparent;color:#ccc;border:1px solid #555" onclick="document.getElementById('backup_nudge').remove()">Later</button></div>`;document.body.appendChild(b);},2000);}}
+function maybeShowBackupNudge(){
+ const K="pm_last_full_dl";const last=+localStorage.getItem(K)||0;const days=(Date.now()-last)/(864e5);
+ const overdue=!last||days>7;
+ applyBackupBadge(overdue);
+ // Owner and receptionist both get the toast (receptionist is often the one actually taking
+ // the backup day-to-day); therapist logins don't, since they've got no path to act on it.
+ if(CURROLE==="therapist")return;
+ if(overdue){setTimeout(()=>{const b=document.createElement("div");b.id="backup_nudge";b.style.cssText="position:fixed;bottom:18px;right:18px;z-index:9999;background:#1a1a2e;color:#fff;border-radius:12px;padding:12px 16px;max-width:300px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.3)";b.innerHTML=`<b>📦 Backup reminder</b><div style="margin:6px 0 10px;color:#ccc">${last?"It's been "+Math.floor(days)+" days since your last full backup (with documents).":"You haven't taken a full backup yet."} Keep a local copy alongside the cloud data.</div><div style="display:flex;gap:8px"><button class="btn sm" onclick="exportFullBackup();document.getElementById('backup_nudge').remove()">Full backup now</button><button class="btn sm sec" style="background:transparent;color:#ccc;border:1px solid #555" onclick="document.getElementById('backup_nudge').remove()">Later</button></div>`;document.body.appendChild(b);},2000);}
+}
+// The badge (sidebar Settings dot, mobile Settings dot, and the "More" bottom-nav dot) is
+// persistent — unlike the toast, dismissing it isn't possible, since "Later" on the toast
+// shouldn't also make the ongoing overdue state disappear from view. It only clears once a
+// full backup actually happens (exportFullBackup sets pm_last_full_dl, which this re-checks).
+function applyBackupBadge(overdue){
+ ["settingsBadge","settingsBadgeMobile","moreBadge"].forEach(id=>{
+  const el=document.getElementById(id);if(el)el.style.display=overdue?"inline-block":"none";
+ });
+}
+
 function exportDB(){const b=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="PhysioVerse_backup_"+todayISO+".json";a.click();localStorage.setItem("pm_last_dl",Date.now());}
 
 /* ── Google Drive auto-backup ─────────────────────────────────────────────
@@ -1143,6 +1161,12 @@ async function exportFullBackup(){
   if(!sb){alert("Supabase isn't connected — can't fetch your uploaded documents right now. Use the plain .json backup instead.");return;}
   if(typeof JSZip==="undefined"){alert("Couldn't load the zip library — check your internet connection and try again.");return;}
   if(!confirm("This downloads all your data PLUS every uploaded document, X-ray, scan and bill photo into one .zip file. With this many files it can take a little while and uses your data connection. Continue?"))return;
+  // Belt-and-suspenders: these two are lazily created elsewhere the first time they're
+  // actually used (first audit event, first visit note), so a brand-new clinic that hasn't
+  // triggered either yet wouldn't have the key at all. Force them to exist so the backup
+  // always has a complete, predictable shape rather than silently omitting an empty list.
+  if(!DB.auditLog)DB.auditLog=[];
+  if(!DB.visitNotes)DB.visitNotes=[];
 
   // Collect every (bucket, path, savedAsName) file reference in the database, de-duplicated.
   const files=[];const seen=new Set();
@@ -1166,10 +1190,11 @@ async function exportFullBackup(){
   const zip=new JSZip();
   zip.file("data.json",JSON.stringify(DB,null,2));
   zip.file("README.txt","PhysioVerse Therapy Centre full backup — "+todayISO+"\n\n"+
-    "• data.json = all clinic records (patients, appointments, assessments, invoices, etc.)\n"+
+    "• data.json = all clinic records (patients, appointments, assessments, invoices, attendance,\n"+
+    "  staff, packages, invoices, expenses, audit log, visit notes, settings, etc. — the entire database)\n"+
     "• files/ = the actual uploaded documents (X-rays, scans, assessment PDFs, bill photos) referenced from data.json\n\n"+
-    "To restore the records, use Settings → Restore from backup with data.json.\n"+
-    "Restoring uploaded files themselves isn't automated yet — this zip is your independent copy of them.");
+    "To restore everything (records + files, back into a fresh Supabase project if needed), use\n"+
+    "Settings → \"Restore full backup (.zip)\" and pick this file.");
 
   let ok=0,failedCount=0,failed=[],bytesDone=0;
   function fmtMB(n){return (n/1048576).toFixed(1)+" MB";}
@@ -1205,6 +1230,7 @@ async function exportFullBackup(){
   localStorage.setItem("pm_last_dl",Date.now());
   localStorage.setItem("pm_last_full_dl",Date.now());
   localStorage.setItem("pm_last_full_size",content.size);
+  applyBackupBadge(false);
 
   if(failed.length){
     alert("Backup downloaded ("+fmtMB(content.size)+"), but "+failed.length+" file(s) couldn't be fetched (they may have been deleted from storage):\n\n"+failed.slice(0,10).join("\n")+(failed.length>10?"\n…and "+(failed.length-10)+" more":""));
@@ -1213,6 +1239,68 @@ async function exportFullBackup(){
   }
 }
 function importDB(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!d.patients||!d.plans){alert("Invalid backup file");return;}if(!confirm("This will replace your clinic's LIVE data in Supabase — everyone signed in will see this backup's data instead of what's there now. This cannot be undone. Continue?")){e.target.value="";return;}DB=d;save();fillBranches();render();alert("Data restored to Supabase successfully ✅");}catch{alert("Could not read file");}};r.readAsText(f);}
+function _restoreProgress(msg){let el=document.getElementById("_frProgress");if(!el){el=document.createElement("div");el.id="_frProgress";el.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(11,27,61,.92);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;text-align:center;padding:20px";document.body.appendChild(el);}el.textContent=msg;}
+function _restoreDone(){const el=document.getElementById("_frProgress");if(el)el.remove();}
+// Restores a full .zip backup end-to-end: pushes data.json back into Supabase (same as
+// importDB) AND re-uploads every file under files/{bucket}/{path} back into Supabase Storage
+// at its original path, so documents are reconnected to patient records automatically —
+// not just sitting in the zip as an inert copy. Works against a brand-new empty Supabase
+// project too, since storage.upload() creates the object regardless of whether one already
+// exists there (upsert:true overwrites if it does).
+async function restoreFullBackup(e){
+ const f=e.target.files[0];if(!f)return;
+ if(!sb){alert("Supabase isn't connected — can't restore documents to Storage. Use the plain .json restore instead.");e.target.value="";return;}
+ if(typeof JSZip==="undefined"){alert("Couldn't load the zip library — check your internet connection and try again.");e.target.value="";return;}
+ try{
+  _restoreProgress("Reading backup file…");
+  const zip=await JSZip.loadAsync(f);
+  const dataEntry=zip.file("data.json");
+  if(!dataEntry){_restoreDone();alert("This doesn't look like a full backup zip — no data.json found inside.");e.target.value="";return;}
+  const dataText=await dataEntry.async("string");
+  const d=JSON.parse(dataText);
+  if(!d.patients||!d.plans){_restoreDone();alert("Invalid backup — data.json is missing expected clinic records.");e.target.value="";return;}
+  const fileEntries=zip.file(/^files\//);
+  _restoreDone();
+  if(!confirm("This restores "+fileEntries.length+" document(s) to Supabase Storage AND replaces your clinic's LIVE data — everyone signed in will see this backup's data instead of what's there now. This cannot be undone. Continue?")){e.target.value="";return;}
+
+  let ok=0,failed=[];
+  let nextIdx=0;
+  async function worker(){
+   while(nextIdx<fileEntries.length){
+    const i=nextIdx++;const entry=fileEntries[i];
+    // Path inside the zip is files/{bucket}/{original/storage/path...} — split off the
+    // leading "files/" and the bucket segment to recover the original storage path.
+    const rel=entry.name.slice("files/".length);
+    const slash=rel.indexOf("/");
+    if(slash===-1){failed.push(rel);continue;}
+    const bucket=rel.slice(0,slash);const path=rel.slice(slash+1);
+    try{
+     const blob=await entry.async("blob");
+     const {error}=await sb.storage.from(bucket).upload(path,blob,{upsert:true});
+     if(error)throw error;
+     ok++;
+    }catch(err){failed.push(bucket+"/"+path);}
+    _restoreProgress("Restoring documents to Storage… "+(ok+failed.length)+" of "+fileEntries.length);
+   }
+  }
+  _restoreProgress("Restoring documents to Storage… 0 of "+fileEntries.length);
+  await Promise.all(Array.from({length:Math.min(6,fileEntries.length)||1},worker));
+
+  _restoreProgress("Restoring clinic records…");
+  DB=d;save();fillBranches();render();
+  _restoreDone();
+  e.target.value="";
+  if(failed.length){
+   alert("Restore finished — "+ok+" document(s) reconnected, but "+failed.length+" failed:\n\n"+failed.slice(0,10).join("\n")+(failed.length>10?"\n…and "+(failed.length-10)+" more":"")+"\n\nClinic records were still restored successfully.");
+  }else{
+   alert("Full restore complete ✅ — "+ok+" document(s) and all clinic records are back.");
+  }
+ }catch(err){
+  _restoreDone();
+  alert("Couldn't read that file as a backup zip. Make sure it's the .zip from \"Download full backup\", not the plain .json.");
+  e.target.value="";
+ }
+}
 // App data loads after sign-in (see afterLogin → sbLoadData above), not synchronously here.
 if(!sb){const eEl=document.getElementById('demoPassErr');if(eEl){eEl.innerHTML="⚠️ Supabase isn't configured yet.<br>Paste your Project URL and anon key at the top of the &lt;script&gt; tag.";eEl.style.display='block';}}
 
@@ -4163,7 +4251,8 @@ views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel
   <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px">
    <button class="btn sm" onclick="exportFullBackup()">📦 Download full backup (.zip — includes documents)</button>
    <button class="btn sm sec" onclick="exportDB()">📥 Download data only (.json)</button>
-   <label class="btn sm sec" style="cursor:pointer">📤 Restore from backup<input type="file" accept=".json" style="display:none" onchange="importDB(event)"></label>
+   <label class="btn sm sec" style="cursor:pointer">📤 Restore data only (.json)<input type="file" accept=".json" style="display:none" onchange="importDB(event)"></label>
+   <label class="btn sm sec" style="cursor:pointer">📦 Restore full backup (.zip — records + documents)<input type="file" accept=".zip" style="display:none" onchange="restoreFullBackup(event)"></label>
   </div>
   <div class="muted" style="font-size:11.5px;margin-bottom:6px">
    ${(function(){
@@ -5608,5 +5697,5 @@ setInterval(function(){
   if(["dashboard","appointments","reminders"].includes(current))render();
 },60000);
 </script>
-<nav class="bottom-nav" id="bottomNav"><div class="bottom-nav-inner"><button class="bnav-btn active" id="bn-dashboard" onclick="go('dashboard');bnav('dashboard')"><span class="bico">🏠</span><span>Home</span></button><button class="bnav-btn" id="bn-patients" onclick="go('patients');bnav('patients')"><span class="bico">👤</span><span>Patients</span></button><button class="bnav-btn" id="bn-appointments" onclick="go('appointments');bnav('appointments')"><span class="bico">📅</span><span>Calendar</span></button><button class="bnav-btn" id="bn-billing" onclick="go('billing');bnav('billing')"><span class="bico">💰</span><span>Billing</span></button><button class="bnav-btn" id="bn-more" onclick="toggleMoreDrawer()"><span class="bico">&#8801;</span><span>More</span></button></div></nav><div class="more-drawer" id="moreDrawer"><div class="more-drawer-handle"></div><div class="more-drawer-grid"><button class="more-item" onclick="go('assessment');bnav('more');closeMoreDrawer()"><span class="mico">📝</span>Assessment</button><button class="more-item" onclick="go('treatment');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Treatments</button><button class="more-item" onclick="go('packages');bnav('more');closeMoreDrawer()"><span class="mico">🎁</span>Packages</button><button class="more-item" onclick="go('reminders');bnav('more');closeMoreDrawer()"><span class="mico">🔔</span>Reminders</button><button class="more-item" onclick="go('reports');bnav('more');closeMoreDrawer()"><span class="mico">📈</span>Reports</button><button class="more-item" onclick="go('expenses');bnav('more');closeMoreDrawer()"><span class="mico">💸</span>Expenses</button><button class="more-item" onclick="go('staff');bnav('more');closeMoreDrawer()"><span class="mico">👥</span>Staff</button><button class="more-item" onclick="go('audit');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Audit Log</button><button class="more-item" onclick="go('settings');bnav('more');closeMoreDrawer()"><span class="mico">&#9881;</span>Settings</button></div></div><div id="moreBackdrop" onclick="closeMoreDrawer()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:998;backdrop-filter:blur(2px)"></div></body>
+<nav class="bottom-nav" id="bottomNav"><div class="bottom-nav-inner"><button class="bnav-btn active" id="bn-dashboard" onclick="go('dashboard');bnav('dashboard')"><span class="bico">🏠</span><span>Home</span></button><button class="bnav-btn" id="bn-patients" onclick="go('patients');bnav('patients')"><span class="bico">👤</span><span>Patients</span></button><button class="bnav-btn" id="bn-appointments" onclick="go('appointments');bnav('appointments')"><span class="bico">📅</span><span>Calendar</span></button><button class="bnav-btn" id="bn-billing" onclick="go('billing');bnav('billing')"><span class="bico">💰</span><span>Billing</span></button><button class="bnav-btn" id="bn-more" onclick="toggleMoreDrawer()"><span class="bico" style="position:relative">&#8801;<span id="moreBadge" style="display:none;position:absolute;top:-2px;right:-4px;width:8px;height:8px;border-radius:50%;background:#ef4444"></span></span><span>More</span></button></div></nav><div class="more-drawer" id="moreDrawer"><div class="more-drawer-handle"></div><div class="more-drawer-grid"><button class="more-item" onclick="go('assessment');bnav('more');closeMoreDrawer()"><span class="mico">📝</span>Assessment</button><button class="more-item" onclick="go('treatment');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Treatments</button><button class="more-item" onclick="go('packages');bnav('more');closeMoreDrawer()"><span class="mico">🎁</span>Packages</button><button class="more-item" onclick="go('reminders');bnav('more');closeMoreDrawer()"><span class="mico">🔔</span>Reminders</button><button class="more-item" onclick="go('reports');bnav('more');closeMoreDrawer()"><span class="mico">📈</span>Reports</button><button class="more-item" onclick="go('expenses');bnav('more');closeMoreDrawer()"><span class="mico">💸</span>Expenses</button><button class="more-item" onclick="go('staff');bnav('more');closeMoreDrawer()"><span class="mico">👥</span>Staff</button><button class="more-item" onclick="go('audit');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Audit Log</button><button class="more-item" onclick="go('settings');bnav('more');closeMoreDrawer()"><span class="mico">&#9881;</span>Settings<span id="settingsBadgeMobile" style="display:none;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-left:6px"></span></button></div></div><div id="moreBackdrop" onclick="closeMoreDrawer()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:998;backdrop-filter:blur(2px)"></div></body>
 </html>
