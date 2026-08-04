@@ -463,6 +463,47 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
    width-detection needed, so there's nothing for a wrapped/embedded window to get wrong. */
 @media(max-width:640px){.bottom-nav{display:flex!important}.app{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}.nav{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}}
 @media(min-width:641px){.bottom-nav,.more-drawer,#moreBackdrop{display:none!important}.app{padding-bottom:0!important}}
+/* Manual layout override — lets a tablet visitor force mobile UI (or a narrow-window
+   desktop visitor force desktop UI) regardless of actual viewport width. Scoped to an
+   <html> class set by applyUIMode() below, so it always wins over the plain @media rules. */
+html.ui-force-mobile input,html.ui-force-mobile select,html.ui-force-mobile textarea{font-size:16px!important}
+html.ui-force-mobile .sidebar{transform:translateX(-100%)!important;transition:transform .25s ease;z-index:60;box-shadow:0 0 40px rgba(0,0,0,.45)}
+html.ui-force-mobile .sidebar.open{transform:translateX(0)!important}
+html.ui-force-mobile .main{margin-left:0!important}
+html.ui-force-mobile .hamburger{display:inline-flex!important}
+html.ui-force-mobile .topbar{padding:8px 12px!important;min-height:52px!important}
+html.ui-force-mobile .topbar .sub{display:none!important}
+html.ui-force-mobile #branchSel{display:none!important}
+html.ui-force-mobile .uc-text{display:none!important}
+html.ui-force-mobile .content{padding:10px!important}
+html.ui-force-mobile .cards{grid-template-columns:1fr 1fr!important;gap:9px!important}
+html.ui-force-mobile .grid2,html.ui-force-mobile .grid3,html.ui-force-mobile .two-col{grid-template-columns:1fr!important}
+html.ui-force-mobile .panel-b.flush{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+html.ui-force-mobile .panel-b.flush table{min-width:600px}
+html.ui-force-mobile .panel-h{padding:11px 13px!important;gap:7px!important}
+html.ui-force-mobile .panel-h h3{font-size:14px!important}
+html.ui-force-mobile .panel-b{padding:12px!important}
+html.ui-force-mobile .modal,html.ui-force-mobile .modal.wide{max-width:100%!important;border-radius:12px 12px 0 0!important;position:fixed!important;bottom:0!important;left:0!important;right:0!important;margin:0!important;max-height:92vh!important;display:flex!important;flex-direction:column!important}
+html.ui-force-mobile .overlay{padding:0!important;align-items:flex-end!important}
+html.ui-force-mobile .modal-b{padding:14px!important;overflow-y:auto!important;flex:1 1 auto!important}
+html.ui-force-mobile .modal-f{padding:12px 14px!important;flex-shrink:0!important}
+html.ui-force-mobile .btn{padding:8px 12px!important;font-size:13px!important}
+html.ui-force-mobile .btn.sm{padding:5px 9px!important;font-size:11.5px!important}
+html.ui-force-mobile .tabs{overflow-x:auto!important;flex-wrap:nowrap!important;-webkit-overflow-scrolling:touch}
+html.ui-force-mobile .tmpl-grid{grid-template-columns:1fr!important}
+html.ui-force-mobile .bottom-nav{display:flex!important}
+html.ui-force-mobile .app{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))!important}
+html.ui-force-mobile .nav{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))!important}
+
+html.ui-force-desktop .sidebar{transform:none!important;box-shadow:none!important}
+html.ui-force-desktop .main{margin-left:236px!important}
+html.ui-force-desktop .hamburger{display:none!important}
+html.ui-force-desktop .topbar .sub{display:block!important}
+html.ui-force-desktop #branchSel{display:inline-block!important}
+html.ui-force-desktop .bottom-nav,html.ui-force-desktop .more-drawer,html.ui-force-desktop #moreBackdrop{display:none!important}
+html.ui-force-desktop .app{padding-bottom:0!important}
+html.ui-force-desktop .modal,html.ui-force-desktop .modal.wide{position:relative!important;bottom:auto!important;left:auto!important;right:auto!important;border-radius:14px!important;max-height:88vh!important}
+html.ui-force-desktop .overlay{padding:20px!important;align-items:center!important}
 /* Desktop polish — make use of the extra width instead of just stretching the mobile layout */
 @media(min-width:1300px){
  .content{padding:28px 34px}
@@ -499,16 +540,34 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
     </div>
     <h1 style="font-size:22px;margin-bottom:4px;color:#1a2233">PhysioVerse</h1>
     <div class="login-sub">Sign in to your clinic</div>
-    <div class="field" style="text-align:left">
-      <label>Email</label>
-      <input type="email" id="loginEmail" placeholder="you@clinic.com" autocomplete="username">
+    <div id="loginFormWrap">
+      <div class="field" style="text-align:left">
+        <label>Email</label>
+        <input type="email" id="loginEmail" placeholder="you@clinic.com" autocomplete="username">
+      </div>
+      <div class="field" style="text-align:left">
+        <label>Password</label>
+        <input type="password" id="loginPassInput" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')sbSignIn()">
+      </div>
+      <div style="text-align:right;margin:-8px 0 12px">
+        <a href="#" onclick="showForgotForm();return false;" style="font-size:12.5px;color:#2563eb;text-decoration:none">Forgot password?</a>
+      </div>
+      <div id="demoPassErr" style="color:#dc2626;font-size:13px;margin:-6px 0 10px;display:none"></div>
+      <button class="btn" id="loginBtn" style="width:100%;justify-content:center;font-size:15px;padding:12px" onclick="sbSignIn()">Sign In →</button>
     </div>
-    <div class="field" style="text-align:left">
-      <label>Password</label>
-      <input type="password" id="loginPassInput" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')sbSignIn()">
+    <div id="forgotFormWrap" style="display:none;text-align:left">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px">Enter your login email — we'll send a link to reset your password.</div>
+      <div class="field"><label>Email</label><input type="email" id="forgotEmail" placeholder="you@clinic.com" onkeydown="if(event.key==='Enter')sendResetEmail()"></div>
+      <div id="forgotMsg" style="font-size:13px;margin:-4px 0 10px;display:none"></div>
+      <button class="btn" id="forgotBtn" style="width:100%;justify-content:center;font-size:15px;padding:12px" onclick="sendResetEmail()">Send reset link</button>
+      <div style="text-align:center;margin-top:14px"><a href="#" onclick="showLoginForm();return false;" style="font-size:12.5px;color:var(--muted)">← Back to sign in</a></div>
     </div>
-    <div id="demoPassErr" style="color:#dc2626;font-size:13px;margin:-6px 0 10px;display:none"></div>
-    <button class="btn" id="loginBtn" style="width:100%;justify-content:center;font-size:15px;padding:12px" onclick="sbSignIn()">Sign In →</button>
+    <div id="resetFormWrap" style="display:none;text-align:left">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px">Set a new password for your account.</div>
+      <div class="field"><label>New password</label><input type="password" id="resetNewPass" placeholder="Min 6 characters" onkeydown="if(event.key==='Enter')submitNewPassword()"></div>
+      <div id="resetMsg" style="font-size:13px;margin:-4px 0 10px;display:none"></div>
+      <button class="btn" id="resetBtn" style="width:100%;justify-content:center;font-size:15px;padding:12px" onclick="submitNewPassword()">Set new password</button>
+    </div>
     <div style="margin-top:16px;font-size:11px;color:var(--muted)">PhysioVerse Therapy Centre · Clinic OS</div>
   </div>
 </div>
@@ -553,6 +612,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:15px 0}
       <div class="right">
         <select id="branchSel" class="clinic-chip" onchange="render()" style="cursor:pointer"></select>
         <div id="userChip" class="userchip"></div>
+        <button class="btn sec sm" id="uiModeBtn" onclick="cycleUIMode()" title="Switch between mobile and desktop layout">⚙️ Auto view</button>
         <button class="btn sec sm" onclick="sbLogout()" title="Sign out">Sign out</button>
       </div>
     </div>
@@ -573,6 +633,22 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // placeholder as-is until then; the Connect button will just show a setup message.
 const GOOGLE_CLIENT_ID = "PASTE_YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE";
 const sb = (SUPABASE_URL.indexOf("PASTE_")===-1) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+// Forgot-password flow. Supabase signs the person into a short-lived "recovery" session
+// the moment they click the emailed link, before they've actually set a new password —
+// so sbTryResume() below (which runs on every page load) needs to know to back off and
+// show the reset-password screen instead of silently logging them into the app as whoever
+// that recovery link belonged to.
+let RECOVERY_MODE=false;
+if(sb){
+  sb.auth.onAuthStateChange(function(event){
+    if(event==="PASSWORD_RECOVERY"){
+      RECOVERY_MODE=true;
+      hideResumeOverlay();
+      var gate=document.getElementById("demoGate");if(gate)gate.style.display="flex";
+      showResetForm();
+    }
+  });
+}
 // ══════════════════════════════════════════════════
 
 function localISO(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
@@ -711,6 +787,54 @@ const ROLES={
    views:["dashboard","patients","appointments","packages","billing","reminders","help"]}
 };
 function canDo(cap){return true;}
+function showLoginForm(){
+ document.getElementById("loginFormWrap").style.display="block";
+ document.getElementById("forgotFormWrap").style.display="none";
+ document.getElementById("resetFormWrap").style.display="none";
+}
+function showForgotForm(){
+ document.getElementById("loginFormWrap").style.display="none";
+ document.getElementById("forgotFormWrap").style.display="block";
+ document.getElementById("resetFormWrap").style.display="none";
+ var m=document.getElementById("forgotMsg");if(m){m.style.display="none";m.textContent="";}
+ var pre=(document.getElementById("loginEmail").value||"").trim();
+ if(pre)document.getElementById("forgotEmail").value=pre;
+}
+function showResetForm(){
+ document.getElementById("loginFormWrap").style.display="none";
+ document.getElementById("forgotFormWrap").style.display="none";
+ document.getElementById("resetFormWrap").style.display="block";
+}
+async function sendResetEmail(){
+ const email=(document.getElementById("forgotEmail").value||"").trim();
+ const msg=document.getElementById("forgotMsg");const btn=document.getElementById("forgotBtn");
+ msg.style.display="block";msg.style.color="var(--muted)";msg.textContent="";
+ if(!sb){msg.style.color="var(--danger)";msg.textContent="Supabase isn't configured.";return;}
+ if(!email){msg.style.color="var(--danger)";msg.textContent="Enter your email.";return;}
+ btn.disabled=true;btn.textContent="Sending…";
+ const redirectTo=window.location.origin+window.location.pathname;
+ const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:redirectTo});
+ btn.disabled=false;btn.textContent="Send reset link";
+ if(error){msg.style.color="var(--danger)";msg.textContent=error.message;return;}
+ msg.style.color="var(--ok)";msg.textContent="✓ If that email exists, a reset link has been sent. Check your inbox (and spam folder).";
+}
+async function submitNewPassword(){
+ const pass=document.getElementById("resetNewPass").value;
+ const msg=document.getElementById("resetMsg");const btn=document.getElementById("resetBtn");
+ msg.style.display="block";msg.style.color="var(--muted)";msg.textContent="";
+ if(!pass||pass.length<6){msg.style.color="var(--danger)";msg.textContent="Password must be at least 6 characters.";return;}
+ btn.disabled=true;btn.textContent="Saving…";
+ const {data,error}=await sb.auth.updateUser({password:pass});
+ if(error){btn.disabled=false;btn.textContent="Set new password";msg.style.color="var(--danger)";msg.textContent=error.message;return;}
+ msg.style.color="var(--ok)";msg.textContent="✓ Password updated. Signing you in…";
+ RECOVERY_MODE=false;
+ const meta=(data.user&&data.user.user_metadata)||{};
+ const role=(meta.role==="therapist"||meta.role==="receptionist"||meta.role==="owner")?meta.role:"receptionist";
+ CURROLE=role;CURNAME=meta.name||(ROLES[role]&&ROLES[role].name)||data.user.email;MYTHER=null;
+ await sbLoadData();
+ await afterLogin();
+}
+
 // Real login: email + password via Supabase Auth. The role comes from the signed-in
 // user's user_metadata.role ("owner" | "therapist" | "receptionist"), set by the owner
 // when creating each login in Supabase — never chosen by the person signing in.
@@ -739,10 +863,12 @@ function hideResumeOverlay(){const el=document.getElementById('gateResuming');if
 // reload snaps straight back into the app instead of looking like a logout.
 async function sbTryResume(){
  if(!sb){hideResumeOverlay();return;}
+ if(RECOVERY_MODE){hideResumeOverlay();return;}
  const timeout=(ms)=>new Promise(res=>setTimeout(()=>res('timeout'),ms));
  try{
   const result=await Promise.race([sb.auth.getSession(),timeout(6000)]);
   if(result==='timeout'){hideResumeOverlay();return;}
+  if(RECOVERY_MODE){hideResumeOverlay();return;}
   const {data}=result;
   const user=data&&data.session&&data.session.user;
   if(!user){hideResumeOverlay();return;}
@@ -756,6 +882,7 @@ async function sbTryResume(){
   // session…" spinner frozen forever with nothing the person could do. Bail back to the
   // login screen instead so they can just sign back in.
   const loaded=await Promise.race([sbLoadData().then(()=>'ok'),timeout(10000)]);
+  if(RECOVERY_MODE){hideResumeOverlay();return;}
   if(loaded==='timeout'){hideResumeOverlay();return;}
   await afterLogin();
  }catch(e){
@@ -5445,6 +5572,27 @@ function applyLayoutMode(){
 const _desktopMQ=window.matchMedia("(min-width:641px)");
 (_desktopMQ.addEventListener?_desktopMQ.addEventListener.bind(_desktopMQ):_desktopMQ.addListener.bind(_desktopMQ))("change",applyLayoutMode);
 window.addEventListener("resize",applyLayoutMode);
+// Manual mobile/desktop override — mainly for tablets, which are wide enough to hit the
+// desktop @media breakpoint but where some people still want the phone-style layout (or
+// vice versa). Persisted per-device in localStorage; "Auto" just means "use the CSS
+// breakpoints as normal", which is the default for everyone.
+function getUIMode(){return localStorage.getItem("pm_uimode")||"auto";}
+function applyUIMode(){
+  var m=getUIMode();
+  document.documentElement.classList.remove("ui-force-mobile","ui-force-desktop");
+  if(m==="mobile")document.documentElement.classList.add("ui-force-mobile");
+  else if(m==="desktop")document.documentElement.classList.add("ui-force-desktop");
+  var btn=document.getElementById("uiModeBtn");
+  if(btn)btn.textContent=m==="mobile"?"📱 Mobile view":m==="desktop"?"🖥️ Desktop view":"⚙️ Auto view";
+  applyLayoutMode();
+}
+function cycleUIMode(){
+  var order=["auto","mobile","desktop"];
+  var next=order[(order.indexOf(getUIMode())+1)%order.length];
+  localStorage.setItem("pm_uimode",next);
+  applyUIMode();
+}
+applyUIMode();
 // The bottom-nav element is defined further down in the HTML, after this script tag —
 // calling applyLayoutMode() immediately here would run before that element exists at all,
 // silently doing nothing. Wait until the full page has loaded instead.
