@@ -3717,7 +3717,7 @@ views.expenses=()=>{const ex=DB.expenses.filter(inBranch);const total=ex.reduce(
  const curMonth=todayISO.slice(0,7);
  const byMonth={};ex.forEach(e=>{const m=(e.date||'').slice(0,7)||'unknown';(byMonth[m]=byMonth[m]||[]).push(e);});
  const months=Object.keys(byMonth).sort().reverse();
- const rowHTML=e=>{const billShort=e.bill&&e.bill.length>18?e.bill.slice(0,15)+'…':e.bill;return `<tr><td>${fmtDate(e.date)}${e.time?`<div class="muted" style="font-size:10.5px">${e.time}</div>`:''}</td><td><span class="tag purple">${e.cat}</span>${e.bill?` <span class="tag gray" title="${e.bill.replace(/"/g,'&quot;')}" style="display:inline-block;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle">📎 ${billShort}</span>${e.billPath?` <button class="btn ghost" onclick="viewExpBill('${e.id}')">👁 View</button>`:''}`:''}</td><td>${e.note||''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td></tr>`;};
+ const rowHTML=e=>{const billShort=e.bill&&e.bill.length>18?e.bill.slice(0,15)+'…':e.bill;return `<tr><td>${fmtDate(e.date)}${e.time?`<div class="muted" style="font-size:10.5px">${e.time}</div>`:''}</td><td><span class="tag purple">${e.cat}</span>${e.bill?` <span class="tag gray" title="${e.bill.replace(/"/g,'&quot;')}" style="display:inline-block;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle">📎 ${billShort}</span>${e.billPath?` <button class="btn ghost" onclick="viewExpBill('${e.id}')">👁 View</button>`:''}`:''}</td><td>${e.note||''}</td><td style="text-align:right"><b>${inr(e.amount)}</b></td><td>${CURROLE==='owner'?`<button class="btn ghost" style="color:var(--danger)" title="Delete" onclick="delExpense('${e.id}')">🗑</button>`:''}</td></tr>`;};
  const monthBlocks=months.map(m=>{
    const list=byMonth[m].slice().sort((a,b)=>b.date.localeCompare(a.date));
    const monthTotal=list.reduce((s,e)=>s+e.amount,0);
@@ -3732,7 +3732,7 @@ views.expenses=()=>{const ex=DB.expenses.filter(inBranch);const total=ex.reduce(
          <span style="font-size:15px;color:var(--muted)">${isOpen?'▾':'▸'}</span>
        </div>
      </div>
-     ${isOpen?`<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table><thead><tr><th>Date</th><th>Category</th><th>Note</th><th style="text-align:right">Amount</th></tr></thead><tbody>${list.map(rowHTML).join("")}</tbody></table></div>`:''}
+     ${isOpen?`<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table><thead><tr><th>Date</th><th>Category</th><th>Note</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>${list.map(rowHTML).join("")}</tbody></table></div>`:''}
    </div>`;
  }).join("")||'<div class="empty">No expenses</div>';
  return `<div class="cards" style="grid-template-columns:repeat(3,1fr)">
@@ -3822,6 +3822,15 @@ async function viewExpBill(id){
  const {data,error}=await sb.storage.from('bill-photos').createSignedUrl(e.billPath,3600);
  if(error||!data){if(w)w.close();alert("Couldn't load bill: "+(error&&error.message||'unknown error'));return;}
  if(w)w.location=data.signedUrl;
+}
+async function delExpense(id){
+ if(CURROLE!=='owner'){alert("Only the owner can delete expenses.");return;}
+ const e=(DB.expenses||[]).find(x=>x.id===id);if(!e)return;
+ if(!confirm("Delete this "+e.cat+" expense of "+inr(e.amount)+" ("+fmtDate(e.date)+")? This cannot be undone."))return;
+ if(sb&&e.billPath){try{await sb.storage.from('bill-photos').remove([e.billPath]);}catch(err){/* best-effort — don't block the record delete on this */}}
+ DB.expenses=DB.expenses.filter(x=>x.id!==id);
+ save();logAudit("Expense","Deleted "+e.cat+" expense of "+inr(e.amount));
+ render();
 }
 
 /* REPORTS */
