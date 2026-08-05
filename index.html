@@ -3379,7 +3379,14 @@ async function shareReceiptPDF(id){
  if(!built)return;
  const blob=built.doc.output("blob");
  const file=new File([blob],built.fname,{type:"application/pdf"});
- if(navigator.canShare&&navigator.canShare({files:[file]})){
+ // macOS's native Share Sheet (what navigator.share hands off to on a Mac) never lists
+ // WhatsApp Desktop as an option — it only registers Mail/Messages/Notes/AirDrop as share
+ // targets — so on Mac we skip straight to the PDF-download + direct-WhatsApp-chat fallback
+ // instead of opening a share sheet that can't reach WhatsApp anyway. Phones don't have this
+ // problem: WhatsApp does register as a share target on Android/iOS, so the native share
+ // path still runs there and attaches the file directly.
+ const isMac=/Macintosh/.test(navigator.userAgent)&&!/iPad|iPhone/.test(navigator.userAgent);
+ if(!isMac&&navigator.canShare&&navigator.canShare({files:[file]})){
   try{
    await navigator.share({files:[file],title:"Invoice "+built.i.id+" — "+built.p.name,text:"Invoice "+built.i.id+" from "+(DB.settings.clinic||"")+" — "+inr(built.t.total)});
    logAudit("Invoice","Shared as PDF ("+built.i.id+")",built.p.name);
@@ -3387,7 +3394,7 @@ async function shareReceiptPDF(id){
   }catch(e){if(e&&e.name==="AbortError")return;}
  }
  built.doc.save(built.fname);
- alert("This browser can't attach files straight to WhatsApp. The PDF has been downloaded — open WhatsApp and attach it from Downloads/Files.");
+ alert(isMac?"The PDF has downloaded — WhatsApp Desktop doesn't accept files shared straight from a Mac browser (a WhatsApp limitation, not this app). Opening the chat now — just drag the downloaded PDF in.":"This browser can't attach files straight to WhatsApp. The PDF has been downloaded — open WhatsApp and attach it from Downloads/Files.");
  sendWA(built.i.pid,"Payment","PDF downloaded — opened WhatsApp",`Hi ${built.p.name.split(" ")[0]} 👋\n\nSharing your invoice *${built.i.id}* from *${DB.settings.clinic}* (${inr(built.t.total)}) — please find the attached PDF.`);}
 function statementData(id,from,to){
  const p=pById(id);
@@ -3534,7 +3541,8 @@ async function shareStatementPDF(id,from,to){
  const filename="Statement_"+built.p.name.replace(/ /g,"_")+"_"+from+"_to_"+to+".pdf";
  const blob=built.doc.output("blob");
  const file=new File([blob],filename,{type:"application/pdf"});
- if(navigator.canShare&&navigator.canShare({files:[file]})){
+ const isMac=/Macintosh/.test(navigator.userAgent)&&!/iPad|iPhone/.test(navigator.userAgent);
+ if(!isMac&&navigator.canShare&&navigator.canShare({files:[file]})){
   try{
    await navigator.share({files:[file],title:"Statement — "+built.p.name,text:"Statement from "+(DB.settings.clinic||"")+" ("+fmtDate(from)+" – "+fmtDate(to)+")"});
    logAudit("Statement","Shared as PDF "+from+" to "+to,built.p.name);
@@ -3542,7 +3550,7 @@ async function shareStatementPDF(id,from,to){
   }catch(e){if(e&&e.name==="AbortError")return;}
  }
  built.doc.save(filename);
- alert("This browser can't attach files straight to WhatsApp. The PDF has been downloaded — open WhatsApp and attach it from Downloads/Files.");
+ alert(isMac?"The PDF has downloaded — WhatsApp Desktop doesn't accept files shared straight from a Mac browser (a WhatsApp limitation, not this app). Opening the chat now — just drag the downloaded PDF in.":"This browser can't attach files straight to WhatsApp. The PDF has been downloaded — open WhatsApp and attach it from Downloads/Files.");
  sendWA(id,"Statement","PDF downloaded — opened WhatsApp",`Hi ${built.p.name.split(" ")[0]} 👋\n\nSharing your statement from *${DB.settings.clinic}* (${fmtDate(from)} – ${fmtDate(to)}) — please find the attached PDF.`);}
 function printStatementNow(id,from,to){
  const p=pById(id);
