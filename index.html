@@ -789,6 +789,40 @@ const ROLES={
    views:["dashboard","patients","appointments","packages","billing","reminders","help"]}
 };
 function canDo(cap){return true;}
+// One-time cleanup before handing a demo/setup install off to a real client. Owner-only,
+// and requires typing an exact phrase (not just clicking through a confirm()) since this is
+// the single most destructive action in the app — there is no undo once it's saved, other
+// than restoring from a backup taken before this ran.
+async function resetForNewClient(){
+ if(CURROLE!=="owner"){alert("Only the owner can do this.");return;}
+ const phrase="RESET "+(DB.settings.clinic||"CLINIC").toUpperCase();
+ const typed=prompt("This permanently deletes ALL patients, appointments, invoices, expenses, assessments, package assignments, wallet balances, reminders, consultations, visit notes, the audit log, and resets staff attendance counters to zero. Staff accounts, branches, package templates, and clinic settings are kept.\n\nThis cannot be undone except by restoring a backup taken beforehand.\n\nTo confirm, type exactly:\n"+phrase);
+ if(typed!==phrase){if(typed!==null)alert("Text didn't match — nothing was deleted.");return;}
+ if(!confirm("Really sure? This is your last chance to back out."))return;
+
+ toast("Clearing data…",6000);
+ if(sb){
+  for(const bucket of["assessment-pdfs","patient-documents","bill-photos"]){
+   try{
+    const {data:list}=await sb.storage.from(bucket).list("",{limit:1000});
+    if(list&&list.length){
+     const paths=list.filter(f=>f.id!==null).map(f=>f.name);
+     if(paths.length)await sb.storage.from(bucket).remove(paths);
+    }
+   }catch(e){/* best-effort — a bucket that doesn't exist yet is fine to skip */}
+  }
+ }
+
+ DB.patients=[];DB.appointments=[];DB.invoices=[];DB.assessments=[];DB.patientPkgs=[];
+ DB.reminders=[];DB.consultations=[];DB.visitNotes=[];DB.active=[];DB.auditLog=[];DB.expenses=[];
+ (DB.staff||[]).forEach(s=>{s.present=0;s.leave=0;});
+
+ await save();
+ logAudit("System","Reset for new client — all patient/billing/appointment data cleared","");
+ await save();
+ fillBranches();render();
+ alert("✓ Done. This install is clean and ready to hand off — next invoice will be INV-"+new Date().getFullYear()+"-001.");
+}
 function showLoginForm(){
  document.getElementById("loginFormWrap").style.display="block";
  document.getElementById("forgotFormWrap").style.display="none";
@@ -986,7 +1020,6 @@ async function sbSaveData(){
  return true;
 }
 function save(){sbSaveData();return true;}
-function resetDB(){if(confirm("Reset to sample data? This replaces everything currently in your clinic's Supabase data.")){DB=JSON.parse(JSON.stringify(seed));save();fillBranches();render();}}
 // Genuine blank start for client handoff — every patient, appointment, assessment, treatment
 // plan, package, invoice, expense, and reminder is wiped, not just swapped for different
 // sample data. Only a single empty branch record is kept (code elsewhere assumes at least
@@ -4321,10 +4354,10 @@ views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel
   `<button class="btn sm" onclick="gdriveConnect()">🔗 Connect Google Drive</button>`}
   <hr class="sep">
   <button class="btn sec sm" onclick="cleanOrphanedAppts()">🧹 Clean orphaned appointments</button>
-  <button class="btn danger sm" onclick="resetDB()">↺ Reset demo data</button>
+  <button class="btn danger sm" onclick="resetForNewClient()">🧹 Reset for new client (owner only)</button>
  </div></div>
  <div class="panel" style="max-width:640px"><div class="panel-h"><h3>About this build</h3></div><div class="panel-b muted" style="font-size:13px">
-  PhysioVerse Therapy Centre — Clinic OS, demo v2.0. Feature-complete UI prototype covering patients, appointments, consultations & prescriptions, treatments, packages, GST billing, expenses, reports, staff payroll, multi-branch, and WhatsApp/SMS reminders. For a clinic relying on it daily, the production version adds a secure cloud backend, user logins with role-based access, and live messaging integrations.
+  PhysioVerse Therapy Centre — Clinic OS. Covers patients, appointments, consultations & prescriptions, treatments, packages, GST billing, expenses, reports, staff payroll, multi-branch, and WhatsApp/SMS reminders, backed by a secure cloud database with user logins and role-based access.
  </div></div>`;
 
 /* ══════════════════════════════════════════════════════
