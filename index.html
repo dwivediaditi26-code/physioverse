@@ -789,6 +789,42 @@ const ROLES={
    views:["dashboard","patients","appointments","packages","billing","reminders","help"]}
 };
 function canDo(cap){return true;}
+// One-time cleanup before handing a demo/setup install off to a real client. Owner-only,
+// and requires typing an exact phrase (not just clicking through a confirm()) since this is
+// the single most destructive action in the app — there is no undo once it's saved, other
+// than restoring from a backup taken before this ran.
+async function resetForNewClient(){
+ if(CURROLE!=="owner"){alert("Only the owner can do this.");return;}
+ const phrase="RESET "+(DB.settings.clinic||"CLINIC").toUpperCase();
+ const typed=prompt("This permanently deletes ALL patients, appointments, invoices, assessments, package assignments, wallet balances, reminders, consultations, visit notes, and the audit log. Staff, branches, package templates, and clinic settings are kept.\n\nThis cannot be undone except by restoring a backup taken beforehand.\n\nTo confirm, type exactly:\n"+phrase);
+ if(typed!==phrase){if(typed!==null)alert("Text didn't match — nothing was deleted.");return;}
+ if(!confirm("Really sure? This is your last chance to back out."))return;
+
+ toast("Clearing data…",6000);
+ // Clean up orphaned Storage files first, while we can still see what belonged to whom —
+ // once the records referencing them are gone there'd be no way to tell which files were
+ // ever attached to a real patient vs already-orphaned clutter.
+ if(sb){
+  for(const bucket of["assessment-pdfs","patient-documents","bill-photos"]){
+   try{
+    const {data:list}=await sb.storage.from(bucket).list("",{limit:1000});
+    if(list&&list.length){
+     const paths=list.filter(f=>f.id!==null).map(f=>f.name);
+     if(paths.length)await sb.storage.from(bucket).remove(paths);
+    }
+   }catch(e){/* best-effort — a bucket that doesn't exist yet is fine to skip */}
+  }
+ }
+
+ DB.patients=[];DB.appointments=[];DB.invoices=[];DB.assessments=[];DB.patientPkgs=[];
+ DB.reminders=[];DB.consultations=[];DB.visitNotes=[];DB.active=[];DB.auditLog=[];
+
+ await save();
+ logAudit("System","Reset for new client — all patient/billing/appointment data cleared",""); 
+ await save();
+ fillBranches();render();
+ alert("✓ Done. This install is clean and ready to hand off — next invoice will be INV-"+new Date().getFullYear()+"-001.");
+}
 function showLoginForm(){
  document.getElementById("loginFormWrap").style.display="block";
  document.getElementById("forgotFormWrap").style.display="none";
@@ -4311,8 +4347,13 @@ views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel
      return "Last full backup (with documents): <b>"+fmtWhen(lastFull)+(lastFullSize?" · "+fmtMB2(lastFullSize):"")+"</b><br>Last backup of any kind: <b>"+fmtWhen(lastAny)+"</b>";
    })()}
   </div>
-  <div class="muted" style="font-size:11.5px;margin-bottom:10px">The <b>full backup</b> works like a WhatsApp-style export — one .zip with every clinic record <i>and</i> every uploaded file (X-rays, scans, assessment PDFs, bill photos), whatever that adds up to — a handful of MB today, hundreds of MB once you've built up a larger document library. Nothing is trimmed or sampled — it's a complete, independent copy, meant as your second layer of protection alongside the Supabase cloud copy. Doing this weekly (or daily, if you're uploading a lot of scans) gives you two levels of protection: the live cloud copy, and your own local copy on this device. The <b>data only</b> backup is faster but the file/photo bytes stay in Supabase Storage, not in the download. Restore currently reads data.json (or the plain .json backup) — restoring uploaded files back into storage isn't automated yet. For a very large document library (many hundreds of files), running the full backup on a desktop browser will be faster and more reliable than on mobile.</div>
+  <div class="muted" style="font-size:11.5px;margin-bottom:10px">The <b>full backup</b> works like a WhatsApp-style export — one .zip with every clinic record <i>and</i> every uploaded file (X-rays, scans, assessment PDFs, bill photos), whatever that adds up to — a handful of MB today, hundreds of MB once you've built up a larger document library. Nothing is trimmed or sampled — it's a complete, independent copy, meant as your second layer of protection alongside the Supabase cloud copy. Doing this weekly (or daily, if you're uploading a lot of scans) gives you two levels of protection: the live cloud copy, and your own local copy on this device. The <b>data only</b> backup is faster but the file/photo bytes stay in Supabase Storage, not in the download — restoring it brings back records only, not documents. For a very large document library (many hundreds of files), running the full backup on a desktop browser will be faster and more reliable than on mobile.</div>
   <div class="muted" style="font-size:11.5px;margin-bottom:10px">⚠️ Restoring a backup replaces your clinic's <b>live cloud data</b> for everyone signed in — not just this device. Use it to undo a serious mistake, not as routine practice.</div>
+  <hr class="sep">
+  <b style="color:var(--danger)">⚠️ Danger Zone</b>
+  <div class="muted" style="font-size:12.5px;margin:6px 0 10px">One-time cleanup for handing this clinic install off to a new client. Wipes every patient, appointment, invoice, assessment, package assignment, wallet balance, reminder, and consultation note — the demo data — while keeping staff, branches, package templates, and clinic settings exactly as configured. Invoice numbering restarts fresh (next one will be INV-${new Date().getFullYear()}-001).</div>
+  <div class="muted" style="font-size:11.5px;margin-bottom:10px">This does <b>not</b> touch: staff accounts, login credentials, branches, package templates, billing/service catalog, exercise presets, message templates, or clinic branding/settings.</div>
+  <button class="btn sm" style="background:var(--danger)" onclick="resetForNewClient()">🧹 Reset for new client (owner only)</button>
   <hr class="sep">
   <b>☁️ Google Drive auto-backup</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">Keeps a full rolling backup — clinic records AND every uploaded document (X-rays, scans, assessment PDFs, bill photos) — as one .zip in a "PhysioVerse Backups" folder in your own Google Drive, updated automatically roughly once a day while connected. Only files this app creates are touched — nothing else in your Drive is ever accessed.</div>
   ${!gdriveConfigured()?`<div class="muted" style="font-size:12px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">Not set up yet. One-time setup (developer step): create an OAuth Client ID (Web application) in Google Cloud Console, enable the Drive API, add this site's URL under Authorized JavaScript origins, then paste the Client ID into <code>GOOGLE_CLIENT_ID</code> in the code.</div>`:
