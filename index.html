@@ -631,7 +631,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Fill this in after creating an OAuth Client ID (Web application) in Google Cloud Console —
 // see the Settings → "Google Drive auto-backup" section for the walkthrough. Leave the
 // placeholder as-is until then; the Connect button will just show a setup message.
-const GOOGLE_CLIENT_ID = "PASTE_YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE";
+const GOOGLE_CLIENT_ID = "691033574851-2vrmu1bo8loscn5r60mtt2c61f30esut.apps.googleusercontent.com";
 const sb = (SUPABASE_URL.indexOf("PASTE_")===-1) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 // Forgot-password flow. Supabase signs the person into a short-lived "recovery" session
 // the moment they click the emailed link, before they've actually set a new password —
@@ -1134,11 +1134,11 @@ async function gdriveBackupNow(silent){
   return true;
  }catch(e){if(!silent)toast("⚠️ Google Drive backup failed — check your connection.",3500);return false;}
 }
-// Called after every save; only actually uploads at most once per hour while connected —
+// Called after every save; only actually uploads at most once per day while connected —
 // a background safety net, not something that fires on every keystroke.
 function gdriveMaybeAutoBackup(){
  if(!_gdriveToken)return;
- if(Date.now()-_lastGdriveBackup<3600000)return;
+ if(Date.now()-_lastGdriveBackup<86400000)return; // once per day
  gdriveBackupNow(true);
 }
 
@@ -2027,7 +2027,6 @@ views.appointments=()=>{
      <button class="btn sm ${calView==='day'?'':'sec'}" onclick="setCalView('day')">Day grid</button>
      <button class="btn sm ${calView==='agenda'?'':'sec'}" onclick="setCalView('agenda')">Agenda</button>
      <button class="btn sm" onclick="apptForm('${calDate}')">+ Book</button>
-     <button class="btn sm sec" onclick="debugStaffList()" title="Shows exactly what staff data is actually saved right now">🔍 Staff data</button>
    </div></div>`;
  if(calView==='month'){
    // Build month grid: 7 columns (Sun-Sat), rows as needed
@@ -3893,14 +3892,6 @@ function staffForm(id){
   <div class="field"><label>Role-based access</label><select id="m_access">${[["admin","Full access (Admin)"],["therapist","Therapist (patients + notes)"],["reception","Reception (appointments + billing)"]].map(([val,label])=>`<option value="${val}" ${(s&&s.access?s.access===val:val==="admin")?'selected':''}>${label}</option>`).join("")}</select></div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveStaff('${id||''}')">Save</button></div>`);}
-function debugStaffList(){
- const rows=(DB.staff||[]).map((s,i)=>(i+1)+". \""+s.name+"\"  —  role: \""+(s.role||'(empty)')+"\"  —  branch: "+(s.branch||'(none)'));
- const names=[...new Set((DB.staff||[]).map(s=>s.name))];
- alert("LIVE staff data right now (this is exactly what's saved, straight from the database):\n\n"+
-  (rows.length?rows.join("\n"):"(no staff records at all)")+
-  "\n\n— — —\nTherapist columns the calendar WILL show ("+names.length+"):\n"+names.join(", ")+
-  "\n\nIf a name is missing from the list above entirely, it was never saved to the database — re-add them from Staff → Add Member and press Save again, then check here immediately.");
-}
 function saveStaff(id){const v=k=>document.getElementById(k).value;if(!v("m_name")){alert("Name required");return;}
  var _sname=v("m_name"),_srole=v("m_role"),_sacc=v("m_access");
  if(id){
@@ -4267,7 +4258,7 @@ views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel
   <div class="muted" style="font-size:11.5px;margin-bottom:10px">The <b>full backup</b> works like a WhatsApp-style export — one .zip with every clinic record <i>and</i> every uploaded file (X-rays, scans, assessment PDFs, bill photos), whatever that adds up to — a handful of MB today, hundreds of MB once you've built up a larger document library. Nothing is trimmed or sampled — it's a complete, independent copy, meant as your second layer of protection alongside the Supabase cloud copy. Doing this weekly (or daily, if you're uploading a lot of scans) gives you two levels of protection: the live cloud copy, and your own local copy on this device. The <b>data only</b> backup is faster but the file/photo bytes stay in Supabase Storage, not in the download. Restore currently reads data.json (or the plain .json backup) — restoring uploaded files back into storage isn't automated yet. For a very large document library (many hundreds of files), running the full backup on a desktop browser will be faster and more reliable than on mobile.</div>
   <div class="muted" style="font-size:11.5px;margin-bottom:10px">⚠️ Restoring a backup replaces your clinic's <b>live cloud data</b> for everyone signed in — not just this device. Use it to undo a serious mistake, not as routine practice.</div>
   <hr class="sep">
-  <b>☁️ Google Drive auto-backup</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">Keeps a rolling copy of your clinic data (patients, appointments, billing, etc. — not uploaded photos/documents) in a "PhysioVerse Backups" folder in your own Google Drive, updated automatically roughly once an hour while connected. Only files this app creates are touched — nothing else in your Drive is ever accessed.</div>
+  <b>☁️ Google Drive auto-backup</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">Keeps a rolling copy of your clinic data (patients, appointments, billing, etc. — not uploaded photos/documents) in a "PhysioVerse Backups" folder in your own Google Drive, updated automatically roughly once a day while connected. Only files this app creates are touched — nothing else in your Drive is ever accessed.</div>
   ${!gdriveConfigured()?`<div class="muted" style="font-size:12px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">Not set up yet. One-time setup (developer step): create an OAuth Client ID (Web application) in Google Cloud Console, enable the Drive API, add this site's URL under Authorized JavaScript origins, then paste the Client ID into <code>GOOGLE_CLIENT_ID</code> in the code.</div>`:
   gdriveConnected()?`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="tag green">✓ Connected</span><button class="btn sm sec" onclick="gdriveBackupNow()">Back up now</button><button class="btn sm sec" onclick="gdriveDisconnect()">Disconnect</button></div><div class="muted" style="font-size:11.5px;margin-top:6px">${(function(){const last=+localStorage.getItem("pm_gdrive_last")||0;return last?"Last Drive backup: "+new Date(last).toLocaleString("en-IN",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"No backup uploaded yet this session — click Back up now.";})()}</div>`:
   `<button class="btn sm" onclick="gdriveConnect()">🔗 Connect Google Drive</button>`}
