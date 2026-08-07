@@ -2915,6 +2915,7 @@ function assignPkg(pid){openModal(`<div class="modal-h"><h3>Assign Package</h3><
    <div class="field"><label>Package total (₹)</label><input id="k_total_price" type="number" readonly style="background:#f8fafc;color:var(--muted)"></div>
    <div class="field"><label>Amount paid today (₹)</label><input id="k_paid" type="number" placeholder="Full or partial" oninput="updatePkgBalance()"></div>
   </div>
+  ${discField("k","updatePkgBalance")}
   <div id="k_balance_row" style="display:none;margin-bottom:10px">
    <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:7px;padding:8px 12px;font-size:12.5px">
     💛 Balance due: <b id="k_balance_val"></b> — sessions are active immediately. Patient pays the rest in installments.
@@ -2939,10 +2940,17 @@ function assignPkg(pid){openModal(`<div class="modal-h"><h3>Assign Package</h3><
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="savePkg()">Assign</button></div>`);
  updatePkgPrice();}
 function updatePkgPrice(){const sel=document.getElementById("k_pkg");if(!sel)return;const t=DB.pkgTemplates.find(x=>x.id===sel.value);if(!t)return;const priceEl=document.getElementById("k_total_price");if(priceEl)priceEl.value=t.price;updatePkgBalance();}
-function updatePkgBalance(){const totalEl=document.getElementById("k_total_price");const paidEl=document.getElementById("k_paid");if(!totalEl||!paidEl)return;const total=+totalEl.value||0;const paid=+paidEl.value||0;const bal=total-paid;const row=document.getElementById("k_balance_row");const valEl=document.getElementById("k_balance_val");if(row&&valEl){if(paid>0&&paid<total){row.style.display="block";valEl.textContent=inr(bal);}else{row.style.display="none";}}const splitWrap=document.getElementById("k_split_wrap");if(splitWrap){splitWrap.dataset.total=paid;splitPayCalc("k");}}
+function updatePkgBalance(){const totalEl=document.getElementById("k_total_price");const paidEl=document.getElementById("k_paid");if(!totalEl||!paidEl)return;const total=+totalEl.value||0;const paid=+paidEl.value||0;
+ const discType=(document.getElementById("k_disc_type")||{}).value||"pct";const discVal=+((document.getElementById("k_disc_val")||{}).value)||0;const discAmt=discAmtFromInputs(total,discType,discVal);
+ const effTotal=total-discAmt;const bal=effTotal-paid;
+ const row=document.getElementById("k_balance_row");const valEl=document.getElementById("k_balance_val");
+ if(row&&valEl){if(paid>0&&paid<effTotal){row.style.display="block";valEl.textContent=inr(bal)+(discAmt>0?" (after "+inr(discAmt)+" discount — payable "+inr(effTotal)+")":"");}else{row.style.display="none";}}
+ const splitWrap=document.getElementById("k_split_wrap");if(splitWrap){splitWrap.dataset.total=paid;splitPayCalc("k");}}
 function savePkg(){const v=k=>document.getElementById(k);const pid=v("k_pid").value;const t=DB.pkgTemplates.find(x=>x.id===v("k_pkg").value);
  const exp=new Date(todayISO);exp.setDate(exp.getDate()+t.validity);const expISO=exp.toISOString().slice(0,10);
- const paidAmt=+v("k_paid").value||t.price;const balance=t.price-paidAmt;
+ const discObj=readDisc("k");const discAmt=discObj?discAmtFromInputs(t.price,discObj.type,discObj.value):0;
+ const effPrice=t.price-discAmt;
+ const paidAmt=+v("k_paid").value||effPrice;const balance=effPrice-paidAmt;
  const p=pById(pid);
  const isSplit=v("k_split")&&v("k_split").checked;
  let payMode=null,splitPayments=null;
@@ -2958,10 +2966,10 @@ function savePkg(){const v=k=>document.getElementById(k);const pid=v("k_pid").va
  } else {
   payMode=v("k_mode").value;
  }
- DB.patientPkgs.push({id:uid("pp"),pid,pkg:t.name,total:t.sessions,used:0,price:t.price,paidAmount:paidAmt,bought:todayISO,expires:expISO,status:"Active"});
- logAudit("Package","Assigned "+t.name+" ("+inr(paidAmt)+"/"+inr(t.price)+")",p.name);
+ DB.patientPkgs.push({id:uid("pp"),pid,pkg:t.name,total:t.sessions,used:0,price:effPrice,paidAmount:paidAmt,bought:todayISO,expires:expISO,status:"Active"});
+ logAudit("Package","Assigned "+t.name+" ("+inr(paidAmt)+"/"+inr(effPrice)+(discAmt>0?", "+inr(discAmt)+" discount":"")+")",p.name);
  // Raise invoice for amount paid today
- if(paidAmt>0){const inv={id:nextInvNo(),pid,date:todayISO,time:nowTime(),items:[{d:t.name+(paidAmt<t.price?" (advance payment)":""),qty:1,rate:paidAmt}],gst:0,status:"Paid",mode:payMode,branch:p.branch};if(splitPayments)inv.splitPayments=splitPayments;DB.invoices.push(inv);}
+ if(paidAmt>0){const items=[{d:t.name+(paidAmt<effPrice?" (advance payment)":"")+(discAmt>0?" — "+inr(discAmt)+" discount applied":""),qty:1,rate:paidAmt}];const inv={id:nextInvNo(),pid,date:todayISO,time:nowTime(),items,gst:0,status:"Paid",mode:payMode,branch:p.branch};if(splitPayments)inv.splitPayments=splitPayments;DB.invoices.push(inv);}
  // If balance remaining, raise a pending invoice
  if(balance>0){DB.invoices.push({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items:[{d:t.name+" (balance due)",qty:1,rate:balance}],gst:0,status:"Pending",mode:"—",branch:p.branch});}
  if(v("k_autobook")&&v("k_autobook").checked){const per=+v("k_perwk").value||3;const gap=Math.max(1,Math.round(7/per));let d=v("k_start").value||todayISO;const ther=v("k_ther").value;
@@ -3135,14 +3143,22 @@ function selectPatientPicker(prefix,pid,cb){
 function walletForm(pid){openModal(`<div class="modal-h"><h3>Wallet Top-up (advance)</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   <div class="field"><label>Patient</label>${patientPickerHTML("w",DB.patients,pid,p=>"balance "+inr(p.wallet||0))}</div>
-  <div class="grid2"><div class="field"><label>Amount (₹)</label><input id="w_amt" type="number" value="2000"></div><div class="field"><label>Mode</label><select id="w_mode"><option>UPI</option><option>Cash</option><option>Card</option></select></div></div>
+  <div class="grid2"><div class="field"><label>Amount (₹)</label><input id="w_amt" type="number" value="2000" oninput="updateWalletPayable()"></div><div class="field"><label>Mode</label><select id="w_mode"><option>UPI</option><option>Cash</option><option>Card</option></select></div></div>
+  ${discField("w","updateWalletPayable")}
+  <div id="w_payable_row" style="display:none;margin-bottom:10px"><div style="background:#dcfce7;border:1px solid #bbf7d0;border-radius:7px;padding:8px 12px;font-size:12.5px">✓ Wallet credited: <b id="w_payable_credit"></b> · Patient pays: <b id="w_payable_val"></b></div></div>
   <div class="muted" style="font-size:12.5px">Advance balance can be used to pay for future sessions.</div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveTopup()">Add to wallet</button></div>`);}
+function updateWalletPayable(){const amtEl=document.getElementById("w_amt");if(!amtEl)return;const amt=+amtEl.value||0;
+ const discType=(document.getElementById("w_disc_type")||{}).value||"pct";const discVal=+((document.getElementById("w_disc_val")||{}).value)||0;const discAmt=discAmtFromInputs(amt,discType,discVal);
+ const row=document.getElementById("w_payable_row");
+ if(row){if(discAmt>0){row.style.display="block";document.getElementById("w_payable_credit").textContent=inr(amt);document.getElementById("w_payable_val").textContent=inr(amt-discAmt);}else{row.style.display="none";}}}
 function walletFormPid(pid){walletForm(pid);}
 function saveTopup(){const v=k=>document.getElementById(k).value;const pid=v("w_pid");const amt=+v("w_amt")||0;const p=pById(pid);p.wallet=(p.wallet||0)+amt;
- DB.invoices.push({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items:[{d:"Wallet top-up (advance)",qty:1,rate:amt}],gst:0,status:"Paid",mode:v("w_mode"),branch:p.branch,type:"wallet-topup"});
- logAudit("Wallet top-up",inr(amt)+" added via "+v("w_mode")+" (new balance: "+inr(p.wallet)+")",p.name);
+ const discObj=readDisc("w");const discAmt=discObj?discAmtFromInputs(amt,discObj.type,discObj.value):0;const payable=amt-discAmt;
+ const items=[{d:"Wallet top-up (advance)"+(discAmt>0?" — credited "+inr(amt)+", "+inr(discAmt)+" discount applied":""),qty:1,rate:payable}];
+ DB.invoices.push({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items,gst:0,status:"Paid",mode:v("w_mode"),branch:p.branch,type:"wallet-topup"});
+ logAudit("Wallet top-up",inr(amt)+" credited"+(discAmt>0?" ("+inr(payable)+" collected, "+inr(discAmt)+" discount)":"")+" via "+v("w_mode")+" (new balance: "+inr(p.wallet)+")",p.name);
  save();closeModal();render();}
 // Standalone consultation invoice
 function consultInvForm(pid){openModal(`<div class="modal-h"><h3>Consultation Invoice</h3><button class="x" onclick="closeModal()">×</button></div>
