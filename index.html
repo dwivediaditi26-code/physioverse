@@ -2969,7 +2969,19 @@ function savePkg(){const v=k=>document.getElementById(k);const pid=v("k_pid").va
  DB.patientPkgs.push({id:uid("pp"),pid,pkg:t.name,total:t.sessions,used:0,price:effPrice,paidAmount:paidAmt,bought:todayISO,expires:expISO,status:"Active"});
  logAudit("Package","Assigned "+t.name+" ("+inr(paidAmt)+"/"+inr(effPrice)+(discAmt>0?", "+inr(discAmt)+" discount":"")+")",p.name);
  // Raise invoice for amount paid today
- if(paidAmt>0){const items=[{d:t.name+(paidAmt<effPrice?" (advance payment)":"")+(discAmt>0?" — "+inr(discAmt)+" discount applied":""),qty:1,rate:paidAmt}];const inv={id:nextInvNo(),pid,date:todayISO,time:nowTime(),items,gst:0,status:"Paid",mode:payMode,branch:p.branch};if(splitPayments)inv.splitPayments=splitPayments;DB.invoices.push(inv);}
+ if(paidAmt>0){
+  let items,invExtra={};
+  if(balance<=0&&discAmt>0){
+   // Paid in full — show the real Subtotal/Discount/Total breakdown, same as a regular invoice
+   items=[{d:t.name,qty:1,rate:t.price}];
+   invExtra.discount=discObj;
+  } else {
+   items=[{d:t.name+(paidAmt<effPrice?" (advance payment)":"")+(discAmt>0?" — "+inr(discAmt)+" discount applied":""),qty:1,rate:paidAmt}];
+  }
+  const inv=Object.assign({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items,gst:0,status:"Paid",mode:payMode,branch:p.branch},invExtra);
+  if(splitPayments)inv.splitPayments=splitPayments;
+  DB.invoices.push(inv);
+ }
  // If balance remaining, raise a pending invoice
  if(balance>0){DB.invoices.push({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items:[{d:t.name+" (balance due)",qty:1,rate:balance}],gst:0,status:"Pending",mode:"—",branch:p.branch});}
  if(v("k_autobook")&&v("k_autobook").checked){const per=+v("k_perwk").value||3;const gap=Math.max(1,Math.round(7/per));let d=v("k_start").value||todayISO;const ther=v("k_ther").value;
@@ -3156,8 +3168,10 @@ function updateWalletPayable(){const amtEl=document.getElementById("w_amt");if(!
 function walletFormPid(pid){walletForm(pid);}
 function saveTopup(){const v=k=>document.getElementById(k).value;const pid=v("w_pid");const amt=+v("w_amt")||0;const p=pById(pid);p.wallet=(p.wallet||0)+amt;
  const discObj=readDisc("w");const discAmt=discObj?discAmtFromInputs(amt,discObj.type,discObj.value):0;const payable=amt-discAmt;
- const items=[{d:"Wallet top-up (advance)"+(discAmt>0?" — credited "+inr(amt)+", "+inr(discAmt)+" discount applied":""),qty:1,rate:payable}];
- DB.invoices.push({id:nextInvNo(),pid,date:todayISO,time:nowTime(),items,gst:0,status:"Paid",mode:v("w_mode"),branch:p.branch,type:"wallet-topup"});
+ const items=[{d:"Wallet top-up (advance)"+(discAmt>0?" — ₹"+amt+" credited":""),qty:1,rate:amt}];
+ const inv={id:nextInvNo(),pid,date:todayISO,time:nowTime(),items,gst:0,status:"Paid",mode:v("w_mode"),branch:p.branch,type:"wallet-topup"};
+ if(discObj&&discAmt>0)inv.discount=discObj;
+ DB.invoices.push(inv);
  logAudit("Wallet top-up",inr(amt)+" credited"+(discAmt>0?" ("+inr(payable)+" collected, "+inr(discAmt)+" discount)":"")+" via "+v("w_mode")+" (new balance: "+inr(p.wallet)+")",p.name);
  save();closeModal();render();}
 // Standalone consultation invoice
