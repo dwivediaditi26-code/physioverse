@@ -2584,7 +2584,7 @@ function saveSessionPayment(planId,sid){
   // Deduct from patientPkgs. The session itself is already fully paid for as part of the
   // package purchase, so it's logged at ₹0 here — charging the session fee again would be
   // double-billing on top of the package price already collected.
-  var pkg=(DB.patientPkgs||[]).find(function(pk){return pk.pid===t.pid&&pk.status==="Active"&&pk.used<pk.total&&(!pk.expires||pk.expires>=todayISO);});
+  var pkg=(DB.patientPkgs||[]).find(function(pk){return pk.pid===t.pid&&(pk.status==="Active"||pk.status==="Expired")&&pk.used<pk.total;});
   if(pkg){pkg.used=(pkg.used||0)+1;if(pkg.used>=pkg.total)pkg.status="Completed";}
   else{alert("No active package found for this patient. Invoice logged as package.");}
   var pkgItems=[{d:"Physiotherapy session (covered by package)",qty:1,rate:0}];
@@ -3686,7 +3686,7 @@ function saveInv(){
   inv.splitPayments=parts.map(r=>({mode:r.mode==="Corporate / Insurance"?"Corporate":r.mode,amount:r.amount}));
   inv.status="Paid";inv.mode=inv.splitPayments.map(r=>r.mode+" "+inr(r.amount)).join(" + ");inv.paidAt=todayISO;
  }
- else if(mode==="Package session"){const pk=DB.patientPkgs.find(k=>k.pid===pid&&k.status==="Active"&&k.used<k.total&&(!k.expires||k.expires>=todayISO));if(!pk){alert("No active (non-expired) package with sessions left for this patient.");return;}pk.used++;inv.items=items.map(i=>({...i,d:i.d+" (package)",rate:0}));inv.total=0;inv.status="Paid";inv.mode="Package";inv.paidAt=todayISO;}
+ else if(mode==="Package session"){const pk=DB.patientPkgs.find(k=>k.pid===pid&&(k.status==="Active"||k.status==="Expired")&&k.used<k.total);if(!pk){alert("No package with sessions left for this patient.");return;}pk.used++;inv.items=items.map(i=>({...i,d:i.d+" (package)",rate:0}));inv.total=0;inv.status="Paid";inv.mode="Package";inv.paidAt=todayISO;}
  else if(mode==="Wallet"){if((p.wallet||0)<gross){alert("Insufficient wallet balance ("+inr(p.wallet||0)+"). Top up first.");return;}p.wallet-=gross;inv.status="Paid";inv.mode="Wallet";inv.paidAt=todayISO;}
  else if(mode==="Pending"){inv.status="Pending";inv.mode="—";}
  else{inv.status="Paid";inv.mode=mode;inv.paidAt=todayISO;}
