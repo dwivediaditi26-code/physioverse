@@ -2734,6 +2734,7 @@ function findRegionForPicker(exId){
   return rEl?rEl.value:"";
 }
 function addLine(selId,taId){const val=document.getElementById(selId).value;if(!val)return;const ta=document.getElementById(taId);const has=ta.value.split("\n").map(x=>x.trim()).includes(val);if(has)return;ta.value=(ta.value.trim()?ta.value.replace(/\s+$/,'')+"\n":"")+val;}
+function escAttr(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function planForm(id,forcedPid){
  const t=id?DB.plans.find(x=>x.id===id):(function(){
    const pid=forcedPid||DB.patients[0].id;
@@ -2759,19 +2760,19 @@ function planForm(id,forcedPid){
  <div class="modal-b">
   <div class="field"><label>Patient</label><div style="display:flex;gap:6px"><select id="t_pid" style="flex:1" ${id?'':`onchange="planForm('',this.value)"`}>${DB.patients.map(p=>`<option value="${p.id}" ${t.pid===p.id?'selected':''}>${p.name}</option>`).join("")}</select><button type="button" class="btn sm sec" style="white-space:nowrap" onclick="pullFromAssessment()">📋 Pull from assessment</button></div></div>
   ${(!id&&t._fromAssessDate)?`<div class="muted" style="font-size:12px;margin:-6px 0 10px">✓ Pre-filled from this patient's assessment on ${fmtDate(t._fromAssessDate)} — review and adjust before saving.</div>`:''}
-  <div class="field"><label>Diagnosis</label><input id="t_dx" list="dxlist2" value="${t.diagnosis}" placeholder="Pick from list or type your own"><datalist id="dxlist2">${DXLIST.map(d=>`<option value="${d}">`).join("")}</datalist></div>
-  <div class="field"><label>Goal</label><input id="t_goal" value="${t.goal}"></div>
+  <div class="field"><label>Diagnosis</label><input id="t_dx" list="dxlist2" value="${escAttr(t.diagnosis)}" placeholder="Pick from list or type your own"><datalist id="dxlist2">${DXLIST.map(d=>`<option value="${d}">`).join("")}</datalist></div>
+  <div class="field"><label>Goal</label><input id="t_goal" value="${escAttr(t.goal)}"></div>
   <div class="grid2"><div class="field"><label>Total sessions</label><input id="t_sess" type="number" value="${t.sessions}"></div><div class="field"><label>Completed</label><input id="t_done" type="number" value="${t.done}"></div></div>
-  <div class="field"><label>Modalities / electrotherapy — pick & add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="mod_sel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">${modOpts()}</select><button type="button" class="btn sm" onclick="addLine('mod_sel','t_mod')">+ Add</button><button type="button" class="btn sm sec" title="Type a new modality and save it for reuse with every future patient" onclick="promptNewModality('mod_sel','t_mod')">💾 New</button></div><textarea id="t_mod" rows="3" placeholder="One modality per line">${tmod.join("\n")}</textarea></div>
-  <div class="field"><label>Clinic exercises — ${EXCOUNT}+ in library, pick region &amp; add (or type below)</label>${picker('p_region','p_exsel','t_ex')}<textarea id="t_ex" rows="4" placeholder="One exercise per line">${tex.join("\n")}</textarea></div>
-  <div class="field"><label>🏠 Home programme — add exercises for the patient to do at home</label>${picker('h_region','h_exsel','t_home')}<textarea id="t_home" rows="3" placeholder="One exercise per line">${thome.join("\n")}</textarea></div>
-  <div class="field"><label>Home programme frequency</label><input id="t_homefreq" value="${t.homeFreq||''}" placeholder="e.g. 2× daily, 7 days a week"></div>
+  <div class="field"><label>Modalities / electrotherapy — pick & add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="mod_sel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">${modOpts()}</select><button type="button" class="btn sm" onclick="addLine('mod_sel','t_mod')">+ Add</button><button type="button" class="btn sm sec" title="Type a new modality and save it for reuse with every future patient" onclick="promptNewModality('mod_sel','t_mod')">💾 New</button></div><textarea id="t_mod" rows="3" placeholder="One modality per line">${escAttr(tmod.join("\n"))}</textarea></div>
+  <div class="field"><label>Clinic exercises — ${EXCOUNT}+ in library, pick region &amp; add (or type below)</label>${picker('p_region','p_exsel','t_ex')}<textarea id="t_ex" rows="4" placeholder="One exercise per line">${escAttr(tex.join("\n"))}</textarea></div>
+  <div class="field"><label>🏠 Home programme — add exercises for the patient to do at home</label>${picker('h_region','h_exsel','t_home')}<textarea id="t_home" rows="3" placeholder="One exercise per line">${escAttr(thome.join("\n"))}</textarea></div>
+  <div class="field"><label>Home programme frequency</label><input id="t_homefreq" value="${escAttr(t.homeFreq)}" placeholder="e.g. 2× daily, 7 days a week"></div>
   <div class="field"><label>📎 Exercise video links <span class="muted" style="font-weight:400;font-size:12px">(optional — sent with WhatsApp message)</span></label>
    ${hlLibPickerHTML('hl')}
    <div id="homeLinks_list">${window._hl.map((l,i)=>hlRowHTML('hl',i,l)).join("")}</div>
    <div style="display:flex;gap:8px;margin-top:4px"><button type="button" class="btn sm sec" onclick="addHomeLink()">+ Add video link</button><button type="button" class="btn sm sec" style="margin-left:auto" onclick="manageExerciseLibrary()">📚 Manage saved library</button></div>
   </div>
-  <div class="field"><label>Clinical notes</label><textarea id="t_notes" rows="2">${t.notes}</textarea></div>
+  <div class="field"><label>Clinical notes</label><textarea id="t_notes" rows="2">${escAttr(t.notes)}</textarea></div>
   ${id?'<hr style="margin:12px 0;border:none;border-top:1px solid var(--line)"><div style="background:var(--bg2);border-radius:10px;padding:12px;margin-top:4px"><div style="font-weight:600;margin-bottom:8px;color:var(--accent)">&#x1F4CB; Today\'s Visit Note</div><div class="field"><label>Pain score today (0 = no pain, 10 = worst)</label><div style="display:flex;align-items:center;gap:12px"><input type="range" id="t_pain" min="0" max="10" value="5" style="flex:1" oninput="document.getElementById(\'t_pain_val\').textContent=this.value"><span id="t_pain_val" style="font-size:1.3rem;font-weight:700;min-width:24px;text-align:center">5</span></div></div><div class="field"><label>Progress note</label><textarea id="t_progress" rows="3" placeholder="Patient\'s response to treatment, improvements, concerns…"></textarea></div></div>':''}
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="savePlan('${id||''}')">Save</button></div>`,true);
