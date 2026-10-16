@@ -1156,7 +1156,6 @@ async function buildFullBackupZip(silent){
     "Settings → \"Restore full backup (.zip)\" and pick this file.");
 
   let ok=0,failedCount=0,failed=[],bytesDone=0;
-  function fmtMB(n){return (n/1048576).toFixed(1)+" MB";}
   let nextIdx=0;
   async function worker(){
     while(nextIdx<files.length){
@@ -1199,6 +1198,7 @@ async function saveBlobToComputer(blob,fname){
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=fname;document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),60000);return true;
 }
+function fmtMB(n){return (n/1048576).toFixed(1)+" MB";}
 async function exportFullBackup(){
   if(!sb){alert("Supabase isn't connected — can't fetch your uploaded documents right now. Use the plain .json backup instead.");return;}
   if(typeof JSZip==="undefined"){alert("Couldn't load the zip library — check your internet connection and try again.");return;}
