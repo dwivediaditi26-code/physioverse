@@ -915,15 +915,43 @@ async function afterLogin(){
 // while receptionist has the app open) without needing a manual refresh/re-login. Requires
 // Realtime replication to be turned on for the "clinic_data" table in the Supabase dashboard
 // (Database → Replication) — this subscribe call alone can't turn that on remotely.
-let _rtChannel=null,_pendingDB=null,_lastSyncedAt=null;
+let _rtChannel=null,_pendingDB=null,_pendingTS=null,_lastSyncedAt=null,_baseJSON=null;
+// _baseJSON = the last copy of the data we know matches Supabase. Saves are conditional on the
+// row still being at _lastSyncedAt; if another device saved first we 3-way merge (base/mine/theirs)
+// by record id instead of overwriting their work — and nobody's copy can silently revert another's.
+function adoptRemote(d,ts){DB=d;_lastSyncedAt=ts||_lastSyncedAt;_baseJSON=JSON.stringify(d);}
+function _idList(a){return Array.isArray(a)&&a.every(x=>x&&typeof x==='object'&&!Array.isArray(x)&&x.id!==undefined);}
+function _mergeById(b,m,t){
+ const bm=new Map((b||[]).map(x=>[x.id,JSON.stringify(x)])),tm=new Map(t.map(x=>[x.id,x])),mIds=new Set(m.map(x=>x.id));
+ const out=[];
+ m.forEach(x=>{
+  const bs=bm.get(x.id),changed=bs===undefined||JSON.stringify(x)!==bs;
+  if(tm.has(x.id)){out.push(changed?x:tm.get(x.id));}   // they may have edited it; if I didn't, take theirs
+  else if(bs===undefined||changed){out.push(x);}          // I added/edited it (even if they deleted it) — keep mine
+  /* else: they deleted it and I didn't touch it → stays deleted */
+ });
+ t.forEach(x=>{if(!mIds.has(x.id)&&!bm.has(x.id))out.push(x);}); // added on the other device (not something I deleted)
+ return out;
+}
+function mergeDB(base,mine,theirs){
+ base=base||{};const out={};
+ new Set([...Object.keys(mine),...Object.keys(theirs)]).forEach(k=>{
+  const b=base[k],m=mine[k],t=theirs[k];
+  if(m===undefined){out[k]=(b===undefined)?t:undefined;if(out[k]===undefined)delete out[k];return;} // I removed the key
+  if(t===undefined){out[k]=m;return;}
+  if(_idList(m)&&_idList(t)&&(b===undefined||_idList(b))){out[k]=_mergeById(b,m,t);if(k==='auditLog')out[k].sort((x,y)=>String(y.ts||'').localeCompare(String(x.ts||'')));return;}
+  out[k]=(JSON.stringify(m)===JSON.stringify(b))?t:m;
+ });
+ return out;
+}
 function sbSubscribeRealtime(){
  if(!sb||_rtChannel)return;
  _rtChannel=sb.channel('clinic_data_live').on('postgres_changes',{event:'*',schema:'public',table:'clinic_data',filter:'id=eq.main'},(payload)=>{
   if(!payload.new||!payload.new.data)return;
-  _lastSyncedAt=payload.new.updated_at||_lastSyncedAt;
   if(_sbSaving||_sbQueued){return;} // our own save is about to echo back with the same data — skip, no-op
-  if(ov&&ov.classList.contains('show')){_pendingDB=payload.new.data;return;} // don't yank data out from under an open form
-  DB=payload.new.data;render();renderActiveBar();
+  if(payload.new.updated_at&&payload.new.updated_at===_lastSyncedAt)return;
+  if(ov&&ov.classList.contains('show')){_pendingDB=payload.new.data;_pendingTS=payload.new.updated_at;return;} // don't yank data out from under an open form
+  adoptRemote(payload.new.data,payload.new.updated_at);render();renderActiveBar();
  }).subscribe();
  // Safety net: realtime sockets can drop silently (device sleep, flaky wifi, a dashboard
  // publication that isn't configured). Poll every 20s as a backstop so a stale screen never
@@ -938,15 +966,15 @@ async function sbPollFallback(){
   if(error||!data)return;
   if(_sbSaving||seq0!==_saveSeq)return; // a local save happened while fetching — this copy is stale
   if(_lastSyncedAt&&data.updated_at===_lastSyncedAt)return;
-  _lastSyncedAt=data.updated_at;
-  if(ov&&ov.classList.contains('show')){_pendingDB=data.data;return;}
-  DB=data.data;render();renderActiveBar();
+  if(ov&&ov.classList.contains('show')){_pendingDB=data.data;_pendingTS=data.updated_at;return;}
+  adoptRemote(data.data,data.updated_at);render();renderActiveBar();
  }catch(e){/* transient network hiccup — next poll will catch up */}
 }
 async function sbLoadData(){
  const {data,error}=await sb.from('clinic_data').select('data,updated_at').eq('id','main').maybeSingle();
  if(error){alert("Could not load your data from Supabase:\n\n"+error.message+"\n\nCheck your internet connection, then refresh the page.");DB=JSON.parse(JSON.stringify(seed));return;}
  if(data&&data.data){
+  _baseJSON=JSON.stringify(data.data);
   DB=data.data;
   _lastSyncedAt=data.updated_at||null;
   if(!DB.msgTemplates||!DB.msgTemplates.length)DB.msgTemplates=JSON.parse(JSON.stringify(seed.msgTemplates));
@@ -974,11 +1002,31 @@ async function sbSaveData(){
  if(!DB||!sb)return true;
  if(_sbSaving){_sbQueued=true;return true;}
  _sbSaving=true;
- const ts=new Date().toISOString();
- const {error}=await sb.from('clinic_data').upsert({id:'main',data:DB,updated_at:ts});
+ let ok=false,err=null,merged=false;
+ try{
+  for(let attempt=0;attempt<4&&!ok;attempt++){
+   const ts=new Date().toISOString();
+   if(!_lastSyncedAt){ // nothing in Supabase yet (first run) — plain insert
+    const {error}=await sb.from('clinic_data').upsert({id:'main',data:DB,updated_at:ts});
+    if(error){err=error;break;}
+    _lastSyncedAt=ts;_baseJSON=JSON.stringify(DB);ok=true;break;
+   }
+   // Conditional write: only succeeds if nobody else saved since we last synced.
+   const {data:rows,error}=await sb.from('clinic_data').update({data:DB,updated_at:ts}).eq('id','main').eq('updated_at',_lastSyncedAt).select('updated_at');
+   if(error){err=error;break;}
+   if(rows&&rows.length){_lastSyncedAt=rows[0].updated_at;_baseJSON=JSON.stringify(DB);ok=true;break;}
+   // Someone else saved first: pull their copy, merge my changes into it, try again.
+   const {data:cur,error:e2}=await sb.from('clinic_data').select('data,updated_at').eq('id','main').maybeSingle();
+   if(e2){err=e2;break;}
+   if(!cur||!cur.data){_lastSyncedAt=null;continue;}
+   let base=null;try{base=JSON.parse(_baseJSON||'null');}catch(e){}
+   DB=mergeDB(base,DB,cur.data);_lastSyncedAt=cur.updated_at;_baseJSON=JSON.stringify(cur.data);merged=true;
+  }
+  if(!ok&&!err)err={message:"could not merge with changes from another device"};
+ }catch(e){err=e;}
  _sbSaving=false;
- if(error){toast("⚠️ Sync failed — check your connection. Retrying…",4000);setTimeout(sbSaveData,3000);return false;}
- _lastSyncedAt=ts;
+ if(!ok){toast("⚠️ Sync failed — check your connection. Retrying…",4000);setTimeout(sbSaveData,3000);return false;}
+ if(merged){_pendingDB=null;if(!(ov&&ov.classList.contains('show'))){render();renderActiveBar();}toast("ℹ️ Combined your changes with ones saved from another device",3500);}
  // Local safety-net snapshot (IndexedDB, this browser only) — throttled to once per 5 minutes
  // so a burst of rapid edits doesn't spam it; still gives a very recent fallback if Supabase
  // itself is ever unreachable.
@@ -987,7 +1035,7 @@ async function sbSaveData(){
  if(_sbQueued){_sbQueued=false;sbSaveData();}
  return true;
 }
-function save(){_pendingDB=null;_saveSeq++;sbSaveData();return true;} // local DB is the newest state: drop any queued remote copy so closeModal() can't overwrite the edit just made
+function save(){_pendingDB=null;_pendingTS=null;_saveSeq++;sbSaveData();return true;} // local DB is the newest state: drop any queued remote copy so closeModal() can't overwrite the edit just made
 // Genuine blank start for client handoff — every patient, appointment, assessment, treatment
 // plan, package, invoice, expense, and reminder is wiped, not just swapped for different
 // sample data. Only a single empty branch record is kept (code elsewhere assumes at least
@@ -1551,7 +1599,7 @@ function endAllSessions(){
 function openConsole(pid){const t=DB.plans.find(x=>x.pid===pid);if(!t){if(confirm(pById(pid).name+" has no active treatment plan. Create one now?")){closeModal();go("treatment");setTimeout(planForm,40);}return;}sessionForm(t.id);}
 const ov=document.getElementById("overlay"),md=document.getElementById("modal");
 function openModal(html,wide){md.className="modal"+(wide?" wide":"");md.innerHTML=html;ov.classList.add("show");}
-function closeModal(){ov.classList.remove("show");if(_pendingDB){DB=_pendingDB;_pendingDB=null;render();renderActiveBar();}}
+function closeModal(){ov.classList.remove("show");if(_pendingDB){adoptRemote(_pendingDB,_pendingTS);_pendingDB=null;_pendingTS=null;render();renderActiveBar();}}
 ov.addEventListener("click",e=>{if(e.target===ov)closeModal();});
 
 const views={};
