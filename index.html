@@ -2027,17 +2027,17 @@ function patientForm(id){const p=id?pById(id):{name:"",dob:"",gender:"M",phone:"
  openModal(`<div class="modal-h"><h3>${id?"Edit":"New"} Patient</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
   ${id?`<div class="muted" style="font-size:12.5px;margin-bottom:10px">Patient ID: <b style="color:var(--brand)">${patientCode(p)}</b> (date of birth)</div>`:''}
-  <div class="field"><label>Full name</label><input id="f_name" value="${p.name}"></div>
-  <div class="grid3"><div class="field"><label>Date of birth <span class="muted">(= patient ID)</span></label><input id="f_dob" type="date" value="${p.dob||''}"></div>
+  <div class="field"><label>Full name</label><input id="f_name" value="${escAttr(p.name)}"></div>
+  <div class="grid3"><div class="field"><label>Date of birth <span class="muted">(= patient ID)</span></label><input id="f_dob" type="date" value="${escAttr(p.dob)}"></div>
    <div class="field"><label>Gender</label><select id="f_gender"><option ${p.gender==='M'?'selected':''}>M</option><option ${p.gender==='F'?'selected':''}>F</option></select></div>
-   <div class="field"><label>Phone</label><input id="f_phone" value="${p.phone}"></div></div>
-  <div class="field"><label>Condition / Diagnosis</label><input id="f_cond" value="${p.condition}"></div>
-  <div class="grid2"><div class="field"><label>Email</label><input id="f_email" value="${p.email||''}"></div>
-   <div class="field"><label>Occupation</label><input id="f_occ" value="${p.occ||''}"></div></div>
-  <div class="field"><label>Address</label><input id="f_addr" value="${p.addr||''}"></div>
-  <div class="grid2"><div class="field"><label>Emergency contact — name</label><input id="f_emname" value="${p.emName||''}"></div>
-   <div class="field"><label>Emergency contact — phone</label><input id="f_emphone" value="${p.emPhone||''}"></div></div>
-  <div class="field"><label>Referred by (doctor)</label><input id="f_refdr" value="${p.refDr||''}"></div>
+   <div class="field"><label>Phone</label><input id="f_phone" value="${escAttr(p.phone)}"></div></div>
+  <div class="field"><label>Condition / Diagnosis</label><input id="f_cond" value="${escAttr(p.condition)}"></div>
+  <div class="grid2"><div class="field"><label>Email</label><input id="f_email" value="${escAttr(p.email)}"></div>
+   <div class="field"><label>Occupation</label><input id="f_occ" value="${escAttr(p.occ)}"></div></div>
+  <div class="field"><label>Address</label><input id="f_addr" value="${escAttr(p.addr)}"></div>
+  <div class="grid2"><div class="field"><label>Emergency contact — name</label><input id="f_emname" value="${escAttr(p.emName)}"></div>
+   <div class="field"><label>Emergency contact — phone</label><input id="f_emphone" value="${escAttr(p.emPhone)}"></div></div>
+  <div class="field"><label>Referred by (doctor)</label><input id="f_refdr" value="${escAttr(p.refDr)}"></div>
   <div class="grid2"><div class="field"><label>Therapist</label><select id="f_ther">${DB.staff.map(s=>`<option ${p.therapist===s.name?'selected':''}>${s.name}</option>`).join("")}</select></div>
    <div class="field"><label>Branch</label><select id="f_branch">${DB.branches.map(b=>`<option value="${b.id}" ${p.branch===b.id?'selected':''}>${b.name}</option>`).join("")}</select></div></div>
  </div>
@@ -4469,7 +4469,7 @@ function aInitView(formAst){
   const a=formAst;
   // Pain row
   const pr=document.getElementById("apainRow");
-  if(pr&&!pr.children.length){for(let i=0;i<=10;i++){const b=document.createElement("button");b.textContent=i;b.onclick=()=>{a.painScore=i;aUpdatePainFor(a);};pr.appendChild(b);}}
+  if(pr&&!pr.children.length){for(let i=0;i<=10;i++){const b=document.createElement("button");b.textContent=i;b.onclick=()=>{a.painScore=i;a.pain=i;aUpdatePainFor(a);};pr.appendChild(b);}}
   aUpdatePainFor(a);
   aBuildRegionsFor(a);
   aBuildFuncFor(a);
@@ -4483,7 +4483,7 @@ function aToggle(id){document.getElementById(id).classList.toggle("open");}
 
 function aUpdatePainFor(a){
   document.querySelectorAll("#apainRow button").forEach((b,i)=>{
-    b.className=i===a.painScore?"psel psel-"+i:"";
+    b.className=i===(a.painScore!=null?a.painScore:a.pain)?"psel psel-"+i:"";
   });
 }
 
@@ -4631,7 +4631,7 @@ function aTest(r,t,res){const a=window._aForm;if(!a)return;if(!a.tests[r])a.test
 function aFunc(i,v){const a=window._aForm;if(!a)return;if(v&&!a.func.includes(i))a.func.push(i);else a.func=a.func.filter(x=>x!==i);const el=document.getElementById("afunc-"+i);if(el)el.classList.toggle("fon",v);}
 
 // ── Pain chip updates in form ──
-function aSetPain(i){const a=window._aForm;if(!a)return;a.painScore=i;aUpdatePainFor(a);}
+function aSetPain(i){const a=window._aForm;if(!a)return;a.painScore=i;a.pain=i;aUpdatePainFor(a);}
 
 // ── assessForm: open the full assessment modal (new or edit) ──
 function assessForm(_,pid){
@@ -5392,16 +5392,16 @@ function assessEdit(id){
   </div>
   <div id="ca-upload" style="display:${existing.mode==='upload'?'block':'none'}">
     <div class="field"><label>Photo / scan</label><input type="file" id="ca_img" accept="image/*" onchange="caPreview(this)"><div id="ca_imgprev" class="muted" style="font-size:12px;margin-top:6px">${existing.assessFilePath?`<img data-path="${existing.assessFilePath.replace(/"/g,"&quot;")}" alt="Loading scan…" style="width:40%;min-width:220px;max-width:100%;max-height:400px;object-fit:contain;border-radius:8px;border:1px solid var(--line);display:block;margin-top:4px">`:(existing.assessFile?'📎 '+existing.assessFile:'No file chosen.')}</div></div>
-    <div class="grid2"><div class="field"><label>Chief complaint</label><input id="cau_comp" value="${existing.complaint||''}" oninput="window._aForm.complaint=this.value"></div><div class="field"><label>Pain (0–10)</label><input id="cau_pain" type="number" min="0" max="10" value="${existing.pain??''}" oninput="window._aForm.pain=+this.value"></div></div>
-    <div class="field"><label>Diagnosis</label><input id="cau_dx" list="dxlistCA" value="${existing.dx||''}" oninput="window._aForm.dx=this.value"><datalist id="dxlistCA">${DXLIST.map(d=>`<option value="${d}">`).join("")}</datalist></div>
-    <div class="field"><label>Quick note</label><textarea id="cau_note" rows="2" oninput="window._aForm.assessment=this.value">${existing.assessment||''}</textarea></div>
+    <div class="grid2"><div class="field"><label>Chief complaint</label><input id="cau_comp" value="${escAttr(existing.complaint)}" oninput="window._aForm.complaint=this.value"></div><div class="field"><label>Pain (0–10)</label><input id="cau_pain" type="number" min="0" max="10" value="${existing.pain??''}" oninput="window._aForm.pain=+this.value"></div></div>
+    <div class="field"><label>Diagnosis</label><input id="cau_dx" list="dxlistCA" value="${escAttr(existing.dx)}" oninput="window._aForm.dx=this.value"><datalist id="dxlistCA">${DXLIST.map(d=>`<option value="${d}">`).join("")}</datalist></div>
+    <div class="field"><label>Quick note</label><textarea id="cau_note" rows="2" oninput="window._aForm.assessment=this.value">${escAttr(existing.assessment)}</textarea></div>
   </div>
   <div id="ca-template" style="display:${existing.mode!=='upload'?'block':'none'}">
     <div class="soap-h s">S · Subjective</div>
-    <div class="grid2"><div class="field"><label>Chief complaint</label><input id="ca_comp" value="${existing.complaint||''}" oninput="window._aForm.complaint=this.value"></div><div class="field"><label>Duration / onset</label><input id="ca_onset" value="${existing.onset||''}" placeholder="e.g. gradual, 3 weeks" oninput="window._aForm.onset=this.value"></div></div>
-    <div class="grid2"><div class="field"><label>Pain site & radiation</label><input id="ca_painsite" value="${existing.painsite||''}" oninput="window._aForm.painsite=this.value"></div><div class="field"><label>Pain (NPRS 0–10)</label><div class="pain-row-a" id="apainRow" style="margin-top:4px"></div></div></div>
-    <div class="grid2"><div class="field"><label>Aggravating factors</label><input id="ca_aggr" value="${existing.aggr||''}" oninput="window._aForm.aggr=this.value"></div><div class="field"><label>Relieving factors</label><input id="ca_reliev" value="${existing.reliev||''}" oninput="window._aForm.reliev=this.value"></div></div>
-    <div class="field"><label>Past history / medications</label><textarea id="ca_hist" rows="2" oninput="window._aForm.history=this.value">${existing.history||''}</textarea></div>
+    <div class="grid2"><div class="field"><label>Chief complaint</label><input id="ca_comp" value="${escAttr(existing.complaint)}" oninput="window._aForm.complaint=this.value"></div><div class="field"><label>Duration / onset</label><input id="ca_onset" value="${escAttr(existing.onset)}" placeholder="e.g. gradual, 3 weeks" oninput="window._aForm.onset=this.value"></div></div>
+    <div class="grid2"><div class="field"><label>Pain site & radiation</label><input id="ca_painsite" value="${escAttr(existing.painsite)}" oninput="window._aForm.painsite=this.value"></div><div class="field"><label>Pain (NPRS 0–10)</label><div class="pain-row-a" id="apainRow" style="margin-top:4px"></div></div></div>
+    <div class="grid2"><div class="field"><label>Aggravating factors</label><input id="ca_aggr" value="${escAttr(existing.aggr)}" oninput="window._aForm.aggr=this.value"></div><div class="field"><label>Relieving factors</label><input id="ca_reliev" value="${escAttr(existing.reliev)}" oninput="window._aForm.reliev=this.value"></div></div>
+    <div class="field"><label>Past history / medications</label><textarea id="ca_hist" rows="2" oninput="window._aForm.history=this.value">${escAttr(existing.history)}</textarea></div>
     <div class="soap-h s" style="margin-top:10px">Body Regions</div>
     <p style="font-size:12px;color:var(--muted);margin:4px 0 8px">Select involved regions.</p>
     <div class="rchips" id="aregChips"></div><div id="aregSummary" style="font-size:12px;color:var(--muted);margin:4px 0 10px"></div>
@@ -5415,18 +5415,18 @@ function assessEdit(id){
     <div id="atestBody"><div class="empty-reg">Select a region above.</div></div>
     <div class="soap-h o" style="margin-top:10px">O · Functional Limitations</div>
     <div class="func-grid-a" id="afuncGrid" style="margin:8px 0"></div>
-    <div class="field"><label>Other limitations</label><input id="ca_funcother" value="${existing.funcOther||''}" placeholder="Describe…" oninput="window._aForm.funcOther=this.value"></div>
+    <div class="field"><label>Other limitations</label><input id="ca_funcother" value="${escAttr(existing.funcOther)}" placeholder="Describe…" oninput="window._aForm.funcOther=this.value"></div>
     <div class="soap-h o" style="margin-top:10px">O · General Objective</div>
-    <div class="grid2"><div class="field"><label>Posture</label><input id="ca_posture" value="${existing.posture||''}" oninput="window._aForm.posture=this.value"></div><div class="field"><label>Gait</label><input id="ca_gait" value="${existing.gait||''}" oninput="window._aForm.gait=this.value"></div></div>
-    <div class="grid2"><div class="field"><label>Swelling / deformity</label><input id="ca_swelling" value="${existing.swelling||''}" oninput="window._aForm.swelling=this.value"></div><div class="field"><label>Neuro (sensation / reflexes)</label><input id="ca_neuro" value="${existing.neuroNote||''}" oninput="window._aForm.neuroNote=this.value"></div></div>
+    <div class="grid2"><div class="field"><label>Posture</label><input id="ca_posture" value="${escAttr(existing.posture)}" oninput="window._aForm.posture=this.value"></div><div class="field"><label>Gait</label><input id="ca_gait" value="${escAttr(existing.gait)}" oninput="window._aForm.gait=this.value"></div></div>
+    <div class="grid2"><div class="field"><label>Swelling / deformity</label><input id="ca_swelling" value="${escAttr(existing.swelling)}" oninput="window._aForm.swelling=this.value"></div><div class="field"><label>Neuro (sensation / reflexes)</label><input id="ca_neuro" value="${escAttr(existing.neuroNote)}" oninput="window._aForm.neuroNote=this.value"></div></div>
   </div>
   <div class="soap-h a" style="margin-top:10px">A · Assessment</div>
-  <div class="field"><label>Provisional diagnosis</label><input id="ca_dx" list="dxlistCA2" value="${existing.dx||''}" placeholder="Pick from list or type" oninput="window._aForm.dx=this.value"><datalist id="dxlistCA2">${DXLIST.map(d=>`<option value="${d}">`).join("")}</datalist></div>
-  <div class="field"><label>Problem list</label><textarea id="ca_problem" rows="2" oninput="window._aForm.problem=this.value">${existing.problem||''}</textarea></div>
-  <div class="field"><label>Clinical notes</label><textarea id="ca_assessment" rows="2" oninput="window._aForm.assessment=this.value">${existing.assessment||''}</textarea></div>
+  <div class="field"><label>Provisional diagnosis</label><input id="ca_dx" list="dxlistCA2" value="${escAttr(existing.dx)}" placeholder="Pick from list or type" oninput="window._aForm.dx=this.value"><datalist id="dxlistCA2">${DXLIST.map(d=>`<option value="${d}">`).join("")}</datalist></div>
+  <div class="field"><label>Problem list</label><textarea id="ca_problem" rows="2" oninput="window._aForm.problem=this.value">${escAttr(existing.problem)}</textarea></div>
+  <div class="field"><label>Clinical notes</label><textarea id="ca_assessment" rows="2" oninput="window._aForm.assessment=this.value">${escAttr(existing.assessment)}</textarea></div>
   <div class="soap-h p" style="margin-top:10px">P · Plan</div>
-  <div class="grid2"><div class="field"><label>Short-term goals (2–4 wks)</label><input id="ca_stg" value="${existing.stg||''}" oninput="window._aForm.stg=this.value"></div><div class="field"><label>Long-term goals (discharge)</label><input id="ca_ltg" value="${existing.ltg||''}" oninput="window._aForm.ltg=this.value"></div></div>
-  <div class="grid2"><div class="field"><label>Total sessions</label><input id="ca_sessions" type="number" min="1" value="${existing.sessions||12}" oninput="window._aForm.sessions=+this.value"></div><div class="field"><label>Sessions / frequency</label><input id="ca_freq" value="${existing.freq||''}" placeholder="e.g. 3×/week × 4 weeks" oninput="window._aForm.freq=this.value"></div></div>
+  <div class="grid2"><div class="field"><label>Short-term goals (2–4 wks)</label><input id="ca_stg" value="${escAttr(existing.stg)}" oninput="window._aForm.stg=this.value"></div><div class="field"><label>Long-term goals (discharge)</label><input id="ca_ltg" value="${escAttr(existing.ltg)}" oninput="window._aForm.ltg=this.value"></div></div>
+  <div class="grid2"><div class="field"><label>Total sessions</label><input id="ca_sessions" type="number" min="1" value="${existing.sessions||12}" oninput="window._aForm.sessions=+this.value"></div><div class="field"><label>Sessions / frequency</label><input id="ca_freq" value="${escAttr(existing.freq)}" placeholder="e.g. 3×/week × 4 weeks" oninput="window._aForm.freq=this.value"></div></div>
   <div class="field"><label>Modalities / electrotherapy — pick &amp; add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_modsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px">${modOpts()}</select><button type="button" class="btn sm" onclick="addLine('ca_modsel','ca_mods')">+ Add</button><button type="button" class="btn sm sec" title="Type a new modality and save it for reuse with every future patient" onclick="promptNewModality('ca_modsel','ca_mods')">💾 New</button></div><textarea id="ca_mods" rows="2" placeholder="One modality per line">${(existing.modalities||[]).join("\n")}</textarea></div>
   <div class="field"><label>Clinic exercises — ${EXCOUNT}+ in library, pick region &amp; add (or type below)</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_exreg" onchange="fillEx('ca_exreg','ca_exsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select><select id="ca_exsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('ca_exsel','ca_ex')">+ Add</button><button type="button" class="btn sm sec" title="Type a new exercise and save it to the library for reuse with every future patient" onclick="promptNewExercise('ca_exreg','ca_exsel','ca_ex')">💾 New</button></div><textarea id="ca_ex" rows="3" placeholder="One exercise per line">${(existing.exercises||[]).join("\n")}</textarea></div>
   <div class="field"><label>🏠 Home programme — exercises for patient to do at home</label><div style="display:flex;gap:6px;margin:6px 0"><select id="ca_hreg" onchange="fillEx('ca_hreg','ca_hsel')" style="flex:0 0 135px;padding:8px;border:1px solid var(--line);border-radius:8px">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select><select id="ca_hsel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px"></select><button type="button" class="btn sm" onclick="addExTo('ca_hsel','ca_home')">+ Add</button></div><textarea id="ca_home" rows="2" placeholder="One exercise per line">${(existing.home||[]).join("\n")}</textarea></div>
@@ -5434,8 +5434,8 @@ function assessEdit(id){
    <div id="chLinks_list"></div>
    <button type="button" class="btn sm sec" style="margin-top:4px" onclick="addConsultHomeLink()">+ Add video link</button>
   </div>
-  <div class="field"><label>Home programme frequency</label><input id="ca_homefreq" value="${existing.homeFreq||''}" placeholder="e.g. 2× daily, 7 days a week" oninput="window._aForm.homeFreq=this.value"></div>
-  <div class="field"><label>General advice / precautions</label><textarea id="ca_adv" rows="2" oninput="window._aForm.advice=this.value">${existing.advice||''}</textarea></div>
+  <div class="field"><label>Home programme frequency</label><input id="ca_homefreq" value="${escAttr(existing.homeFreq)}" placeholder="e.g. 2× daily, 7 days a week" oninput="window._aForm.homeFreq=this.value"></div>
+  <div class="field"><label>General advice / precautions</label><textarea id="ca_adv" rows="2" oninput="window._aForm.advice=this.value">${escAttr(existing.advice)}</textarea></div>
   <div class="field"><label>Medication (Rx) — one per line</label><textarea id="ca_rx" rows="2">${(existing.rx||[]).join("\n")}</textarea></div>
  </div>
  <div class="modal-f"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveAssess()">Save Changes</button></div>`,true);
