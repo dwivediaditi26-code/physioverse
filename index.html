@@ -921,7 +921,7 @@ function sbSubscribeRealtime(){
  _rtChannel=sb.channel('clinic_data_live').on('postgres_changes',{event:'*',schema:'public',table:'clinic_data',filter:'id=eq.main'},(payload)=>{
   if(!payload.new||!payload.new.data)return;
   _lastSyncedAt=payload.new.updated_at||_lastSyncedAt;
-  if(_sbSaving){return;} // our own save is about to echo back with the same data — skip, no-op
+  if(_sbSaving||_sbQueued){return;} // our own save is about to echo back with the same data — skip, no-op
   if(ov&&ov.classList.contains('show')){_pendingDB=payload.new.data;return;} // don't yank data out from under an open form
   DB=payload.new.data;render();renderActiveBar();
  }).subscribe();
@@ -933,8 +933,10 @@ function sbSubscribeRealtime(){
 async function sbPollFallback(){
  if(!sb||_sbSaving)return;
  try{
+  const seq0=_saveSeq;
   const {data,error}=await sb.from('clinic_data').select('data,updated_at').eq('id','main').maybeSingle();
   if(error||!data)return;
+  if(_sbSaving||seq0!==_saveSeq)return; // a local save happened while fetching — this copy is stale
   if(_lastSyncedAt&&data.updated_at===_lastSyncedAt)return;
   _lastSyncedAt=data.updated_at;
   if(ov&&ov.classList.contains('show')){_pendingDB=data.data;return;}
@@ -967,7 +969,7 @@ async function sbLoadData(){
   await sbSaveData();
  }
 }
-let _sbSaving=false,_sbQueued=false,_lastIdbSnap=0;
+let _sbSaving=false,_sbQueued=false,_lastIdbSnap=0,_saveSeq=0;
 async function sbSaveData(){
  if(!DB||!sb)return true;
  if(_sbSaving){_sbQueued=true;return true;}
@@ -985,7 +987,7 @@ async function sbSaveData(){
  if(_sbQueued){_sbQueued=false;sbSaveData();}
  return true;
 }
-function save(){sbSaveData();return true;}
+function save(){_pendingDB=null;_saveSeq++;sbSaveData();return true;} // local DB is the newest state: drop any queued remote copy so closeModal() can't overwrite the edit just made
 // Genuine blank start for client handoff — every patient, appointment, assessment, treatment
 // plan, package, invoice, expense, and reminder is wiped, not just swapped for different
 // sample data. Only a single empty branch record is kept (code elsewhere assumes at least
