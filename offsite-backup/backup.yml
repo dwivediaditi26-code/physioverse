@@ -1,0 +1,36 @@
+# Off-site daily backup of the PhysioVerse clinic data.
+# !! Put this file in a PRIVATE GitHub repo (e.g. "physioverse-backups") at .github/workflows/backup.yml
+# !! NEVER in the public physioverse repo — it stores patient data. See README.md in this folder.
+name: Daily clinic backup
+on:
+  schedule:
+    - cron: '30 20 * * *'   # 02:00 India time, every day
+  workflow_dispatch: {}      # lets you run it by hand from the Actions tab
+permissions:
+  contents: write
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download clinic data from Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p backups
+          curl -fsS "$SUPABASE_URL/rest/v1/clinic_data?id=eq.main&select=data" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" -o raw.json
+          # Refuse to save an empty/broken export (job fails → GitHub emails you)
+          jq -e '.[0].data.patients | length > 0' raw.json > /dev/null
+          jq '.[0].data' raw.json | gzip -9 > "backups/clinic-$(date -u +%F).json.gz"
+          rm raw.json
+          ls -1 backups | head -n -60 | while read f; do rm "backups/$f"; done   # keep the newest 60 days
+      - name: Commit the backup
+        run: |
+          git config user.name "backup-bot"
+          git config user.email "backup-bot@users.noreply.github.com"
+          git add backups
+          git diff --cached --quiet || git commit -m "Backup $(date -u +%F)"
+          git push
