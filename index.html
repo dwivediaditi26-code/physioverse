@@ -1313,6 +1313,22 @@ async function buildFullBackupZip(silent){
   return {content,ok,failed};
 }
 
+// Saves a file to THIS computer (no Google involved). Chrome/Edge: opens a "Save as" dialog so the
+// person picks the folder; other browsers: normal download to the Downloads folder.
+// Returns true if saved, false if the person cancelled the dialog.
+async function saveBlobToComputer(blob,fname){
+  if(window.showSaveFilePicker){
+    try{
+      const h=await showSaveFilePicker({suggestedName:fname,types:[{description:"Zip file",accept:{"application/zip":[".zip"]}}]});
+      const w=await h.createWritable();await w.write(blob);await w.close();return true;
+    }catch(e){
+      if(e&&e.name==="AbortError")return false;
+      /* any other failure (permissions, iframe) → fall back to a normal download below */
+    }
+  }
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=fname;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),60000);return true;
+}
 async function exportFullBackup(){
   if(!sb){alert("Supabase isn't connected — can't fetch your uploaded documents right now. Use the plain .json backup instead.");return;}
   if(typeof JSZip==="undefined"){alert("Couldn't load the zip library — check your internet connection and try again.");return;}
@@ -1322,7 +1338,8 @@ async function exportFullBackup(){
   if(!result){alert("Couldn't build the backup — check your connection and try again.");return;}
   const {content,ok,failed}=result;
 
-  const a=document.createElement("a");a.href=URL.createObjectURL(content);a.download="PhysioVerse_full_backup_"+todayISO+".zip";a.click();
+  const saved=await saveBlobToComputer(content,"PhysioVerse_full_backup_"+todayISO+".zip");
+  if(saved===false)return; // person cancelled the Save dialog — nothing was saved, don't mark as backed up
   localStorage.setItem("pm_last_dl",Date.now());
   localStorage.setItem("pm_last_full_dl",Date.now());
   localStorage.setItem("pm_last_full_size",content.size);
@@ -4374,7 +4391,7 @@ views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel
   <hr class="sep">
   <b>Data &amp; Backup</b><div class="muted" style="font-size:12.5px;margin:6px 0 10px">Your data lives in Supabase (cloud) — the same data shows up on every device you sign into. Download a backup here as an independent copy that doesn't depend on Supabase being reachable.</div>
   <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px">
-   <button class="btn sm" onclick="exportFullBackup()">📦 Download full backup (.zip — includes documents)</button>
+   <button class="btn sm" onclick="exportFullBackup()">💾 Save full backup to this computer (.zip — includes documents)</button>
    <button class="btn sm sec" onclick="exportDB()">📥 Download data only (.json)</button>
    <label class="btn sm sec" style="cursor:pointer">📤 Restore data only (.json)<input type="file" accept=".json" style="display:none" onchange="importDB(event)"></label>
    <label class="btn sm sec" style="cursor:pointer">📦 Restore full backup (.zip — records + documents)<input type="file" accept=".zip" style="display:none" onchange="restoreFullBackup(event)"></label>
@@ -4396,7 +4413,7 @@ views.settings=()=>`<div class="panel" style="max-width:640px"><div class="panel
   ${!gdriveConfigured()?`<div class="muted" style="font-size:12px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">Not set up yet. One-time setup (developer step): create an OAuth Client ID (Web application) in Google Cloud Console, enable the Drive API, add this site's URL under Authorized JavaScript origins, then paste the Client ID into <code>GOOGLE_CLIENT_ID</code> in the code.</div>`:
   gdriveConnected()?`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="tag green">✓ Connected</span><button class="btn sm sec" onclick="gdriveBackupNow()">Back up now</button><button class="btn sm sec" onclick="gdriveDisconnect()">Disconnect</button></div><div class="muted" style="font-size:11.5px;margin-top:6px">${(function(){const last=+localStorage.getItem("pm_gdrive_last")||0;return last?"Last Drive backup: "+new Date(last).toLocaleString("en-IN",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"No backup uploaded yet this session — click Back up now.";})()}</div>`:
   localStorage.getItem("pm_gdrive_was_connected")==="1"?`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="tag" style="background:#fef3c7;color:#92400e">⏳ Reconnecting…</span><button class="btn sm sec" onclick="gdriveConnect()">Reconnect now</button></div><div class="muted" style="font-size:11.5px;margin-top:6px">Was connected before, but this browser's Google sign-in needs refreshing (happens after being closed a while, or ~1hr idle). Trying automatically — if this doesn't clear in a few seconds, click Reconnect. ${(function(){const last=+localStorage.getItem("pm_gdrive_last")||0;return last?"Last successful backup: "+new Date(last).toLocaleString("en-IN",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"";})()}</div>`:
-  `<button class="btn sm" onclick="gdriveConnect()">🔗 Connect Google Drive</button>`}
+  `<button class="btn sm sec" onclick="gdriveConnect()">🔗 Connect Google Drive (optional — signs in with a Google account)</button>`}
  </div></div>
  <div class="panel" style="max-width:640px"><div class="panel-h"><h3>About this build</h3></div><div class="panel-b muted" style="font-size:13px">
   PhysioVerse Therapy Centre — Clinic OS. Covers patients, appointments, consultations & prescriptions, treatments, packages, GST billing, expenses, reports, staff payroll, multi-branch, and WhatsApp/SMS reminders, backed by a secure cloud database with user logins and role-based access.
