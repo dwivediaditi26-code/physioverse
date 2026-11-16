@@ -600,7 +600,7 @@ html.ui-force-desktop .overlay{padding:20px!important;align-items:center!importa
       <button data-v="audit"><span class="ico">📋</span> Audit Log</button>
       <button data-v="help"><span class="ico">❓</span> How to use</button>
     </nav>
-    <div class="side-foot" id="sideFoot"></div>
+    <div class="side-foot" id="sideFoot"><button id="recBackupSide" class="btn sm" style="display:none;width:100%;margin-bottom:8px" onclick="exportFullBackup()">💾 Full backup</button></div>
   </aside>
   <div class="main">
     <div class="apphead">
@@ -650,7 +650,10 @@ if(sb){
 
 function localISO(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 function nowTime(){const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}
-const todayISO=localISO(new Date());
+let todayISO=localISO(new Date());
+// "Today" used to be fixed when the page loaded, so a tab left open overnight kept showing
+// yesterday (today's appointments missing, month revenue off). Refresh it before every render.
+function refreshToday(){const t=localISO(new Date());if(t!==todayISO){try{if(calDate===todayISO)calDate=t;}catch(e){}todayISO=t;}}
 function uid(p){return p+Math.random().toString(36).slice(2,8)}
 function isPhysio(s){return !!(s&&s.role&&/physio/i.test(s.role));}
 const seed={
@@ -899,6 +902,7 @@ async function afterLogin(){
  const kids=[...document.getElementById("nav").children];
  kids.forEach((el,i)=>{if(el.classList.contains("grp")){let any=false;for(let j=i+1;j<kids.length;j++){const k=kids[j];if(k.classList.contains("grp"))break;if(k.tagName==="BUTTON"&&k.style.display!=="none"){any=true;break;}}el.style.display=any?"":"none";}});
  document.getElementById("userChip").innerHTML=`<div class="avatar" style="background:${r.color}">${initials}</div><div class="uc-text" style="line-height:1.15"><div style="font-weight:700;font-size:13px">${dispName}</div><div style="font-size:11px;color:var(--muted)">${r.title}</div></div>`;
+ ["recBackupSide","recBackupMore"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=(role==="receptionist"||role==="therapist")?"":"none";});
  fillBranches();document.getElementById("branchSel").value="b1";
  logAudit("Login","Signed in as "+role);
  go(r.home);
@@ -913,6 +917,22 @@ let _rtChannel=null,_pendingDB=null,_pendingTS=null,_lastSyncedAt=null,_baseJSON
 // _baseJSON = the last copy of the data we know matches Supabase. Saves are conditional on the
 // row still being at _lastSyncedAt; if another device saved first we 3-way merge (base/mine/theirs)
 // by record id instead of overwriting their work — and nobody's copy can silently revert another's.
+// A remote change arrived. Normally adopt it straight away. If a popup is open we hold it back
+// (so an edit form isn't pulled out from under someone) — EXCEPT the read-only patient record,
+// which is rebuilt in place so the owner sees new payments/sessions without closing it.
+let _pvOpen=null;
+function applyRemote(d,ts){
+ if(ov&&ov.classList.contains('show')){
+  if(_pvOpen&&DB.patients.some(p=>p.id===_pvOpen.id)){
+   const pv=_pvOpen,mb=md.querySelector('.modal-b'),top=mb?mb.scrollTop:0;
+   adoptRemote(d,ts);render();renderActiveBar();
+   if(DB.patients.some(p=>p.id===pv.id)){patientView(pv.id,pv.tab);const nb=md.querySelector('.modal-b');if(nb)nb.scrollTop=top;}else closeModal();
+   return;
+  }
+  _pendingDB=d;_pendingTS=ts;return;
+ }
+ adoptRemote(d,ts);render();renderActiveBar();
+}
 function adoptRemote(d,ts){DB=d;_lastSyncedAt=ts||_lastSyncedAt;_baseJSON=JSON.stringify(d);}
 function _idList(a){return Array.isArray(a)&&a.every(x=>x&&typeof x==='object'&&!Array.isArray(x)&&x.id!==undefined);}
 function _mergeById(b,m,t){
@@ -944,8 +964,7 @@ function sbSubscribeRealtime(){
   if(!payload.new||!payload.new.data)return;
   if(_sbSaving||_sbQueued){return;} // our own save is about to echo back with the same data — skip, no-op
   if(payload.new.updated_at&&payload.new.updated_at===_lastSyncedAt)return;
-  if(ov&&ov.classList.contains('show')){_pendingDB=payload.new.data;_pendingTS=payload.new.updated_at;return;} // don't yank data out from under an open form
-  adoptRemote(payload.new.data,payload.new.updated_at);render();renderActiveBar();
+  applyRemote(payload.new.data,payload.new.updated_at);
  }).subscribe();
  // Safety net: realtime sockets can drop silently (device sleep, flaky wifi, a dashboard
  // publication that isn't configured). Poll every 20s as a backstop so a stale screen never
@@ -960,8 +979,7 @@ async function sbPollFallback(){
   if(error||!data)return;
   if(_sbSaving||seq0!==_saveSeq)return; // a local save happened while fetching — this copy is stale
   if(_lastSyncedAt&&data.updated_at===_lastSyncedAt)return;
-  if(ov&&ov.classList.contains('show')){_pendingDB=data.data;_pendingTS=data.updated_at;return;}
-  adoptRemote(data.data,data.updated_at);render();renderActiveBar();
+  applyRemote(data.data,data.updated_at);
  }catch(e){/* transient network hiccup — next poll will catch up */}
 }
 async function sbLoadData(){
@@ -1438,6 +1456,7 @@ function go(v){current=v;document.querySelectorAll("#nav button").forEach(b=>b.c
 document.getElementById("nav").addEventListener("click",e=>{const b=e.target.closest("button");if(b){go(b.dataset.v);toggleNav(false);}});
 function toggleNav(force){const sb=document.querySelector(".sidebar"),bd=document.getElementById("backdrop"),bn=document.getElementById("bottomNav");const open=force!==undefined?force:!sb.classList.contains("open");sb.classList.toggle("open",open);bd.classList.toggle("show",open);if(bn)bn.style.display=open?"none":"";}
 function render(){
+  refreshToday();
   // Remember what was focused before the re-render (search boxes trigger render on every keystroke,
   // so without this the input gets destroyed and rebuilt, kicking the mobile keyboard off after 1 letter).
   const active=document.activeElement;
@@ -1485,8 +1504,8 @@ function endAllSessions(){
 }
 function openConsole(pid){const t=DB.plans.find(x=>x.pid===pid);if(!t){if(confirm(pById(pid).name+" has no active treatment plan. Create one now?")){closeModal();go("treatment");setTimeout(planForm,40);}return;}sessionForm(t.id);}
 const ov=document.getElementById("overlay"),md=document.getElementById("modal");
-function openModal(html,wide){md.className="modal"+(wide?" wide":"");md.innerHTML=html;ov.classList.add("show");}
-function closeModal(){ov.classList.remove("show");if(_pendingDB){adoptRemote(_pendingDB,_pendingTS);_pendingDB=null;_pendingTS=null;render();renderActiveBar();}}
+function openModal(html,wide){_pvOpen=null;md.className="modal"+(wide?" wide":"");md.innerHTML=html;ov.classList.add("show");}
+function closeModal(){_pvOpen=null;ov.classList.remove("show");if(_pendingDB){adoptRemote(_pendingDB,_pendingTS);_pendingDB=null;_pendingTS=null;render();renderActiveBar();}}
 ov.addEventListener("click",e=>{if(e.target===ov)closeModal();});
 
 const views={};
@@ -1626,7 +1645,6 @@ function togglePatientStatus(id){
  save();render();
 }
 function patientView(id,tab){const p=pById(id);const T=(CURROLE==='receptionist'&&(!tab||tab==='assess'))?'treat':(CURROLE==='therapist'&&tab==='bill')?'treat':(tab||"assess");
- logAudit("Viewed","Opened patient record",p.name);
  const invs=DB.invoices.filter(i=>i.pid===id),asmts=(DB.assessments||[]).filter(c=>c.pid===id).sort((a,b)=>b.date.localeCompare(a.date)),pkgs=DB.patientPkgs.filter(x=>x.pid===id),plans=DB.plans.filter(t=>t.pid===id);
  const homePlans=plans.filter(t=>t.home&&Array.isArray(t.home)&&t.home.length);
  const visits=[];plans.forEach(t=>(t.visits||[]).forEach(s=>visits.push({...s,planId:t.id})));visits.sort((a,b)=>b.date.localeCompare(a.date)||b.n-a.n);
@@ -1692,8 +1710,8 @@ function patientView(id,tab){const p=pById(id);const T=(CURROLE==='receptionist'
    ${invs.length?invs.map(i=>`<div class="list-row clk" style="display:flex;justify-content:space-between;align-items:center" onclick="viewInvoice('${i.id}')"><span>${i.id} · ${fmtDate(i.date)}<br><span class="muted" style="font-size:11.5px">${i.items&&i.items[0]?i.items[0].d:''}</span></span><span style="text-align:right">${inr(invTotals(i).total)} <span class="tag ${statusTag(i.status)}">${i.status}</span>${i.status==='Pending'?`<br><button class="btn sm" style="margin-top:4px" onclick="event.stopPropagation();markPaid('${i.id}')">Mark paid</button>`:''}</span></div>`).join(""):'<div class=muted>No invoices.</div>'}
   </div>
  </div>
- <div class="modal-f"><button class="btn sec" onclick="closeModal()">Close</button><button class="btn sec" onclick="patientForm('${id}')">Edit patient</button></div>`,true);}
-function pvtab(btn,t){document.querySelectorAll("#pvtabs button").forEach(b=>b.classList.remove("active"));btn.classList.add("active");["assess","treat","bill"].forEach(x=>document.getElementById("pv-"+x).style.display=x===t?"block":"none");}
+ <div class="modal-f"><button class="btn sec" onclick="closeModal()">Close</button><button class="btn sec" onclick="patientForm('${id}')">Edit patient</button></div>`,true);_pvOpen={id:id,tab:T};}
+function pvtab(btn,t){if(_pvOpen)_pvOpen.tab=t;document.querySelectorAll("#pvtabs button").forEach(b=>b.classList.remove("active"));btn.classList.add("active");["assess","treat","bill"].forEach(x=>document.getElementById("pv-"+x).style.display=x===t?"block":"none");}
 function printHome(id){const p=pById(id);const hp=DB.plans.filter(t=>t.pid===id&&t.home&&Array.isArray(t.home)&&t.home.length);
  openModal(`<div class="modal-h"><h3>Home Exercise Programme</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b"><div class="inv">
@@ -5419,7 +5437,7 @@ function renderAssessTable(){
 }
 function filterAssessTable(){_assessQ=(document.getElementById("assessSearch")?.value||"").toLowerCase();_assessTher=(document.getElementById("assessTherFilter")?.value||"");_assessPage=0;renderAssessTable();}
 
-function logAudit(a,d,p){DB.auditLog=DB.auditLog||[];var _role=CURROLE||"owner";var _roleLabel=_role.charAt(0).toUpperCase()+_role.slice(1);var _who=(CURNAME?CURNAME+" (":"")+_roleLabel+(CURNAME?")":"");DB.auditLog.unshift({id:uid("al"),ts:new Date().toISOString(),action:a,detail:d,user:_who,patient:p||""});if(DB.auditLog.length>2000)DB.auditLog=DB.auditLog.slice(0,2000);save();}
+function logAudit(a,d,p){DB.auditLog=DB.auditLog||[];var _role=CURROLE||"owner";var _roleLabel=_role.charAt(0).toUpperCase()+_role.slice(1);var _who=(CURNAME&&CURNAME.toLowerCase()!==_roleLabel.toLowerCase())?CURNAME+" ("+_roleLabel+")":_roleLabel;DB.auditLog.unshift({id:uid("al"),ts:new Date().toISOString(),action:a,detail:d,user:_who,patient:p||""});if(DB.auditLog.length>2000)DB.auditLog=DB.auditLog.slice(0,2000);save();}
 let _auditOpenMonths={};
 function toggleAuditMonth(m){_auditOpenMonths[m]=!(_auditOpenMonths[m]!==undefined?_auditOpenMonths[m]:(m===todayISO.slice(0,7)));render();}
 views.help=function(){
@@ -5593,7 +5611,7 @@ views.audit=function(){
   var l=DB.auditLog;
   var fEl=document.getElementById("audit_q");
   var q=fEl?(fEl.value||"").toLowerCase():"";
-  var filtered=q?l.filter(function(e){return((e.action||"")+(e.detail||"")+(e.patient||"")).toLowerCase().indexOf(q)>=0;}):l;
+  var filtered=q?l.filter(function(e){return((e.action||"")+(e.detail||"")+(e.patient||"")+(e.user||"")).toLowerCase().indexOf(q)>=0;}):l;
   var body;
   if(q){
     body=renderAuditList(filtered.slice(0,300));
@@ -5616,7 +5634,7 @@ views.audit=function(){
   }
   return '<div class="panel"><div class="panel-h" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3>\uD83D\uDCCB Audit Log</h3><span style="font-size:12px;color:var(--muted)">'+l.length+' total events</span></div>'
    +'<div class="panel-b" style="'+(q?'':'padding:0')+'"><div style="display:flex;gap:8px;margin-bottom:'+(q?'14px':'0')+';flex-wrap:wrap;'+(q?'':'padding:14px 17px 0')+'">'
-   +'<input id="audit_q" placeholder="\uD83D\uDD0D Search action, patient, detail..." value="'+q+'" oninput="filterAudit()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--bg2)">'
+   +'<input id="audit_q" placeholder="\uD83D\uDD0D Search action, patient, detail, user..." value="'+q+'" oninput="filterAudit()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--bg2)">'
    +'<button onclick="if(!confirm(\'Clear audit log?\'))return;DB.auditLog=[];save();render();" style="padding:8px 14px;background:var(--danger);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Clear Log</button>'
    +'</div><div id="audit_list" style="'+(q?'':'padding:0 17px 10px')+'">'+body+'</div></div></div>';
 };
@@ -5745,5 +5763,5 @@ setInterval(function(){
   if(["dashboard","appointments","reminders"].includes(current))render();
 },60000);
 </script>
-<nav class="bottom-nav" id="bottomNav"><div class="bottom-nav-inner"><button class="bnav-btn active" id="bn-dashboard" onclick="go('dashboard');bnav('dashboard')"><span class="bico">🏠</span><span>Home</span></button><button class="bnav-btn" id="bn-patients" onclick="go('patients');bnav('patients')"><span class="bico">👤</span><span>Patients</span></button><button class="bnav-btn" id="bn-appointments" onclick="go('appointments');bnav('appointments')"><span class="bico">📅</span><span>Calendar</span></button><button class="bnav-btn" id="bn-billing" onclick="go('billing');bnav('billing')"><span class="bico">💰</span><span>Billing</span></button><button class="bnav-btn" id="bn-more" onclick="toggleMoreDrawer()"><span class="bico" style="position:relative">&#8801;<span id="moreBadge" style="display:none;position:absolute;top:-2px;right:-4px;width:8px;height:8px;border-radius:50%;background:#ef4444"></span></span><span>More</span></button></div></nav><div class="more-drawer" id="moreDrawer"><div class="more-drawer-handle"></div><div class="more-drawer-grid"><button class="more-item" data-v="assessment" onclick="go('assessment');bnav('more');closeMoreDrawer()"><span class="mico">📝</span>Assessment</button><button class="more-item" data-v="treatment" onclick="go('treatment');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Treatments</button><button class="more-item" data-v="packages" onclick="go('packages');bnav('more');closeMoreDrawer()"><span class="mico">🎁</span>Packages</button><button class="more-item" data-v="reminders" onclick="go('reminders');bnav('more');closeMoreDrawer()"><span class="mico">🔔</span>Reminders</button><button class="more-item" data-v="reports" onclick="go('reports');bnav('more');closeMoreDrawer()"><span class="mico">📈</span>Reports</button><button class="more-item" data-v="expenses" onclick="go('expenses');bnav('more');closeMoreDrawer()"><span class="mico">💸</span>Expenses</button><button class="more-item" data-v="staff" onclick="go('staff');bnav('more');closeMoreDrawer()"><span class="mico">👥</span>Staff</button><button class="more-item" data-v="branches" onclick="go('branches');bnav('more');closeMoreDrawer()"><span class="mico">🏢</span>Branches</button><button class="more-item" data-v="logins" onclick="go('logins');bnav('more');closeMoreDrawer()"><span class="mico">🔑</span>Logins</button><button class="more-item" data-v="audit" onclick="go('audit');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Audit Log</button><button class="more-item" data-v="settings" onclick="go('settings');bnav('more');closeMoreDrawer()"><span class="mico">&#9881;</span>Settings<span id="settingsBadgeMobile" style="display:none;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-left:6px"></span></button><button class="more-item" data-v="help" onclick="go('help');bnav('more');closeMoreDrawer()"><span class="mico">❓</span>How to use</button></div></div><div id="moreBackdrop" onclick="closeMoreDrawer()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:998;backdrop-filter:blur(2px)"></div></body>
+<nav class="bottom-nav" id="bottomNav"><div class="bottom-nav-inner"><button class="bnav-btn active" id="bn-dashboard" onclick="go('dashboard');bnav('dashboard')"><span class="bico">🏠</span><span>Home</span></button><button class="bnav-btn" id="bn-patients" onclick="go('patients');bnav('patients')"><span class="bico">👤</span><span>Patients</span></button><button class="bnav-btn" id="bn-appointments" onclick="go('appointments');bnav('appointments')"><span class="bico">📅</span><span>Calendar</span></button><button class="bnav-btn" id="bn-billing" onclick="go('billing');bnav('billing')"><span class="bico">💰</span><span>Billing</span></button><button class="bnav-btn" id="bn-more" onclick="toggleMoreDrawer()"><span class="bico" style="position:relative">&#8801;<span id="moreBadge" style="display:none;position:absolute;top:-2px;right:-4px;width:8px;height:8px;border-radius:50%;background:#ef4444"></span></span><span>More</span></button></div></nav><div class="more-drawer" id="moreDrawer"><div class="more-drawer-handle"></div><div class="more-drawer-grid"><button class="more-item" id="recBackupMore" style="display:none" onclick="closeMoreDrawer();exportFullBackup()"><span class="mico">💾</span>Full backup</button><button class="more-item" data-v="assessment" onclick="go('assessment');bnav('more');closeMoreDrawer()"><span class="mico">📝</span>Assessment</button><button class="more-item" data-v="treatment" onclick="go('treatment');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Treatments</button><button class="more-item" data-v="packages" onclick="go('packages');bnav('more');closeMoreDrawer()"><span class="mico">🎁</span>Packages</button><button class="more-item" data-v="reminders" onclick="go('reminders');bnav('more');closeMoreDrawer()"><span class="mico">🔔</span>Reminders</button><button class="more-item" data-v="reports" onclick="go('reports');bnav('more');closeMoreDrawer()"><span class="mico">📈</span>Reports</button><button class="more-item" data-v="expenses" onclick="go('expenses');bnav('more');closeMoreDrawer()"><span class="mico">💸</span>Expenses</button><button class="more-item" data-v="staff" onclick="go('staff');bnav('more');closeMoreDrawer()"><span class="mico">👥</span>Staff</button><button class="more-item" data-v="branches" onclick="go('branches');bnav('more');closeMoreDrawer()"><span class="mico">🏢</span>Branches</button><button class="more-item" data-v="logins" onclick="go('logins');bnav('more');closeMoreDrawer()"><span class="mico">🔑</span>Logins</button><button class="more-item" data-v="audit" onclick="go('audit');bnav('more');closeMoreDrawer()"><span class="mico">📋</span>Audit Log</button><button class="more-item" data-v="settings" onclick="go('settings');bnav('more');closeMoreDrawer()"><span class="mico">&#9881;</span>Settings<span id="settingsBadgeMobile" style="display:none;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-left:6px"></span></button><button class="more-item" data-v="help" onclick="go('help');bnav('more');closeMoreDrawer()"><span class="mico">❓</span>How to use</button></div></div><div id="moreBackdrop" onclick="closeMoreDrawer()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:998;backdrop-filter:blur(2px)"></div></body>
 </html>
