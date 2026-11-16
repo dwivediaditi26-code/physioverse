@@ -902,7 +902,7 @@ async function afterLogin(){
  const kids=[...document.getElementById("nav").children];
  kids.forEach((el,i)=>{if(el.classList.contains("grp")){let any=false;for(let j=i+1;j<kids.length;j++){const k=kids[j];if(k.classList.contains("grp"))break;if(k.tagName==="BUTTON"&&k.style.display!=="none"){any=true;break;}}el.style.display=any?"":"none";}});
  document.getElementById("userChip").innerHTML=`<div class="avatar" style="background:${r.color}">${initials}</div><div class="uc-text" style="line-height:1.15"><div style="font-weight:700;font-size:13px">${dispName}</div><div style="font-size:11px;color:var(--muted)">${r.title}</div></div>`;
- ["recBackupSide","recBackupMore"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=(role==="receptionist")?"":"none";});
+ ["recBackupSide","recBackupMore"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=(role==="receptionist"||role==="therapist")?"":"none";});
  fillBranches();document.getElementById("branchSel").value="b1";
  logAudit("Login","Signed in as "+role);
  go(r.home);
