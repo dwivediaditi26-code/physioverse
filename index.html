@@ -3780,11 +3780,14 @@ views.reports=()=>{
   const allInv=DB.invoices.filter(inBranch);
   const allExp=DB.expenses.filter(inBranch);
   // Month options from invoices + expenses
-  const allMonths=[...new Set([...allInv.map(i=>i.date?i.date.slice(0,7):''),...allExp.map(e=>e.date?e.date.slice(0,7):'')].filter(Boolean))].sort().reverse();
+  // Revenue is counted in the month the invoice was PAID (paidAt, falling back to the invoice date) —
+  // the same rule the Dashboard's "Revenue (Paid)" uses — so the two screens always agree.
+  const paidDate=i=>i.paidAt||i.date||'';
+  const allMonths=[...new Set([...allInv.map(i=>i.date?i.date.slice(0,7):''),...allInv.filter(i=>i.status==='Paid').map(i=>paidDate(i).slice(0,7)),...allExp.map(e=>e.date?e.date.slice(0,7):'')].filter(Boolean))].sort().reverse();
   // First time only: default to the most recent month with data. After that, respect the user's choice (including "" for All time).
   if(_rptMonth===null)_rptMonth=allMonths.length?allMonths[0]:"";
   // Filter by selected month
-  const inv=_rptMonth?allInv.filter(i=>(i.date||'').startsWith(_rptMonth)):allInv;
+  const inv=_rptMonth?allInv.filter(i=>(i.status==='Paid'?paidDate(i):(i.date||'')).startsWith(_rptMonth)):allInv;
   const ex=_rptMonth?allExp.filter(e=>(e.date||'').startsWith(_rptMonth)):allExp;
   const paid=inv.filter(i=>i.status==='Paid');
   const pend=inv.filter(i=>i.status==='Pending');
@@ -3797,7 +3800,7 @@ views.reports=()=>{
   const byCat={};ex.forEach(e=>{byCat[e.cat]=(byCat[e.cat]||0)+e.amount;});
   // Week-wise revenue for selected month
   const weekRev=[0,0,0,0,0];
-  paid.forEach(i=>{if(!i.date)return;const d=new Date(i.date);const w=Math.min(Math.floor((d.getDate()-1)/7),4);weekRev[w]+=invTotals(i).total;});
+  paid.forEach(i=>{const pd=paidDate(i);if(!pd)return;const d=new Date(pd.slice(0,10)+'T00:00:00');const w=Math.min(Math.floor((d.getDate()-1)/7),4);weekRev[w]+=invTotals(i).total;});
   const maxW=Math.max(...weekRev,1);
   // Therapist stats (all time or filtered)
   const therStats={};DB.appointments.filter(inBranch).forEach(a=>{therStats[a.therapist]=(therStats[a.therapist]||0)+1;});
