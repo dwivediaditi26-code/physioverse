@@ -784,7 +784,12 @@ const ROLES={
  therapist:{name:"Therapist",title:"Therapist",init:"TH",color:"#0d9488",home:"appointments",scope:null,
    views:["dashboard","patients","appointments","assessment","treatment","reminders","help"]},
  receptionist:{name:"Receptionist",title:"Receptionist",init:"RC",color:"#d97706",home:"appointments",scope:null,
-   views:["dashboard","patients","appointments","packages","billing","reminders","help"]}
+   views:["dashboard","patients","appointments","packages","billing","reminders","help"]},
+ // Combined login for one person who works as both therapist and receptionist: everything either
+ // role can see (clinical assessment/treatment detail AND billing/packages). Set in Supabase as
+ // user_metadata.role = "both".
+ both:{name:"Therapist + Receptionist",title:"Therapist & Receptionist",init:"TR",color:"#7c3aed",home:"appointments",scope:null,
+   views:["dashboard","patients","appointments","assessment","treatment","packages","billing","reminders","help"]}
 };
 function canDo(cap){return true;}
 function showLoginForm(){
@@ -829,14 +834,14 @@ async function submitNewPassword(){
  msg.style.color="var(--ok)";msg.textContent="✓ Password updated. Signing you in…";
  RECOVERY_MODE=false;
  const meta=(data.user&&data.user.user_metadata)||{};
- const role=(meta.role==="therapist"||meta.role==="receptionist"||meta.role==="owner")?meta.role:"receptionist";
+ const role=(meta.role==="therapist"||meta.role==="receptionist"||meta.role==="both"||meta.role==="owner")?meta.role:"receptionist";
  CURROLE=role;CURNAME=meta.name||(ROLES[role]&&ROLES[role].name)||data.user.email;MYTHER=null;
  await sbLoadData();
  await afterLogin();
 }
 
 // Real login: email + password via Supabase Auth. The role comes from the signed-in
-// user's user_metadata.role ("owner" | "therapist" | "receptionist"), set by the owner
+// user's user_metadata.role ("owner" | "therapist" | "receptionist" | "both"), set by the owner
 // when creating each login in Supabase — never chosen by the person signing in.
 async function sbSignIn(){
  const errEl=document.getElementById('demoPassErr');const btn=document.getElementById('loginBtn');
@@ -848,7 +853,7 @@ async function sbSignIn(){
  btn.disabled=false;btn.textContent='Sign In →';
  if(error){errEl.textContent=error.message;errEl.style.display='block';return;}
  const meta=(data.user&&data.user.user_metadata)||{};
- const role=(meta.role==='therapist'||meta.role==='receptionist'||meta.role==='owner')?meta.role:'receptionist';
+ const role=(meta.role==='therapist'||meta.role==='receptionist'||meta.role==='both'||meta.role==='owner')?meta.role:'receptionist';
  CURROLE=role;
  CURNAME=meta.name||(ROLES[role]&&ROLES[role].name)||email;
  MYTHER=null; // therapist logins are no longer scoped to a name match — any therapist sees all clinic data
@@ -873,7 +878,7 @@ async function sbTryResume(){
   const user=data&&data.session&&data.session.user;
   if(!user){hideResumeOverlay();return;}
   const meta=user.user_metadata||{};
-  const role=(meta.role==='therapist'||meta.role==='receptionist'||meta.role==='owner')?meta.role:'receptionist';
+  const role=(meta.role==='therapist'||meta.role==='receptionist'||meta.role==='both'||meta.role==='owner')?meta.role:'receptionist';
   CURROLE=role;CURNAME=meta.name||(ROLES[role]&&ROLES[role].name)||user.email;MYTHER=null; // no name-scoping — any therapist sees all clinic data
   // A print (especially a heavy one) can trigger the OS/browser to silently reload the tab.
   // getSession() above usually still resolves fine on that reload, but the data fetch that
@@ -902,7 +907,7 @@ async function afterLogin(){
  const kids=[...document.getElementById("nav").children];
  kids.forEach((el,i)=>{if(el.classList.contains("grp")){let any=false;for(let j=i+1;j<kids.length;j++){const k=kids[j];if(k.classList.contains("grp"))break;if(k.tagName==="BUTTON"&&k.style.display!=="none"){any=true;break;}}el.style.display=any?"":"none";}});
  document.getElementById("userChip").innerHTML=`<div class="avatar" style="background:${r.color}">${initials}</div><div class="uc-text" style="line-height:1.15"><div style="font-weight:700;font-size:13px">${dispName}</div><div style="font-size:11px;color:var(--muted)">${r.title}</div></div>`;
- ["recBackupSide","recBackupMore"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=(role==="receptionist"||role==="therapist")?"":"none";});
+ ["recBackupSide","recBackupMore"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=(role==="receptionist"||role==="therapist"||role==="both")?"":"none";});
  fillBranches();document.getElementById("branchSel").value="b1";
  logAudit("Login","Signed in as "+role);
  go(r.home);
@@ -4241,7 +4246,8 @@ views.logins=()=>{
  return `<div class="muted" style="font-size:12.5px;margin-bottom:14px;max-width:520px">Set or change the password for any login. The person doesn't need to do anything — just tell them the new password.</div>
   ${loginsRow('Owner','#2563eb','OWN')}
   ${loginsRow('Therapist','#0d9488','THE')}
-  ${loginsRow('Receptionist','#d97706','REC')}`;
+  ${loginsRow('Receptionist','#d97706','REC')}
+  ${loginsRow('Therapist + Receptionist','#7c3aed','TRC')}`;
 };
 async function ownerSetPassword(init,label){
  const email=(document.getElementById('lp_email_'+init).value||'').trim();
@@ -5440,7 +5446,7 @@ function renderAssessTable(){
 }
 function filterAssessTable(){_assessQ=(document.getElementById("assessSearch")?.value||"").toLowerCase();_assessTher=(document.getElementById("assessTherFilter")?.value||"");_assessPage=0;renderAssessTable();}
 
-function logAudit(a,d,p){DB.auditLog=DB.auditLog||[];var _role=CURROLE||"owner";var _roleLabel=_role.charAt(0).toUpperCase()+_role.slice(1);var _who=(CURNAME&&CURNAME.toLowerCase()!==_roleLabel.toLowerCase())?CURNAME+" ("+_roleLabel+")":_roleLabel;DB.auditLog.unshift({id:uid("al"),ts:new Date().toISOString(),action:a,detail:d,user:_who,patient:p||""});if(DB.auditLog.length>2000)DB.auditLog=DB.auditLog.slice(0,2000);save();}
+function logAudit(a,d,p){DB.auditLog=DB.auditLog||[];var _role=CURROLE||"owner";var _roleLabel=_role==="both"?"Therapist+Receptionist":_role.charAt(0).toUpperCase()+_role.slice(1);var _who=(CURNAME&&CURNAME.toLowerCase()!==_roleLabel.toLowerCase())?CURNAME+" ("+_roleLabel+")":_roleLabel;DB.auditLog.unshift({id:uid("al"),ts:new Date().toISOString(),action:a,detail:d,user:_who,patient:p||""});if(DB.auditLog.length>2000)DB.auditLog=DB.auditLog.slice(0,2000);save();}
 let _auditOpenMonths={};
 function toggleAuditMonth(m){_auditOpenMonths[m]=!(_auditOpenMonths[m]!==undefined?_auditOpenMonths[m]:(m===todayISO.slice(0,7)));render();}
 views.help=function(){
@@ -5588,6 +5594,7 @@ views.help=function(){
      <li><b>Owner:</b> sees everything — all patients, clinical records, billing, packages, staff, reports, and settings.</li>
      <li><b>Therapist:</b> full clinical access (assessments, treatment sessions, patients, appointments) across the whole clinic. No Packages section, no Billing/invoice history, no Staff, Reports, or Settings.</li>
      <li><b>Receptionist:</b> Patients, Appointments, Packages, Billing, and Reminders. No Assessment section and no clinical detail inside a patient's Treatment tab — just session numbers, dates, and a Pay button for anything unpaid. No Revenue figure on the dashboard, no Staff, Reports, or Settings.</li>
+     <li><b>Therapist + Receptionist:</b> one login that can do both jobs — everything the therapist and the receptionist can see, including assessments, full treatment detail, Packages and Billing. No Staff, Reports, or Settings.</li>
     </ul>
     <p style="margin-top:8px" class="muted" style="font-size:12.5px">This is enforced by the role set on each login (in Supabase) — not by which device or browser someone uses.</p>`),
 
