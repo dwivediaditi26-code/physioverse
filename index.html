@@ -4719,6 +4719,16 @@ function assessView(id){
   window.scrollTo(0,0);
 }
 
+// ROM / MMT / special-test values are stored under "Region", "Region::L", "Region::R" or "Region::B"
+// depending on the side that was selected when they were typed in. Return each non-empty bucket
+// separately so Left, Right and Bilateral readings are ALL shown (merging them let the Right values
+// silently overwrite the Left ones, and "::B" values were never shown at all).
+function sideBuckets(obj,r){
+  const out=[];
+  [["",r],["L",r+"::L"],["R",r+"::R"],["B",r+"::B"]].forEach(([s,k])=>{const d=obj&&obj[k];if(d&&typeof d==="object"&&Object.keys(d).length)out.push({side:s,data:d});});
+  return out;
+}
+const sideSfx=(buckets,b)=>(buckets.length>1&&b.side)?" ("+(b.side==="B"?"Bilat":b.side)+")":"";
 function assessDocHTML(id){
   if(!DB.assessments)return'';
   const c=DB.assessments.find(x=>x.id===id);if(!c)return'';
@@ -4746,7 +4756,7 @@ function assessDocHTML(id){
 
   // ── O: Objective — per region ──
   let regionBlocks="";
-  const stripSide=k=>k.replace(/::[LR]$/,"");
+  const stripSide=k=>k.replace(/::[LRB]$/,"");
   const allDocRegions=[...new Set([
     ...(c.regions||[]),
     ...(c.romRegions||[]),
@@ -4787,18 +4797,18 @@ function assessDocHTML(id){
     // ROM — only filled entries. Data can live under the plain region key OR under per-side
     // keys (region::L, region::R) depending on whether a side was chosen when the value was entered.
     // Merge all of them so we don't miss anything.
-    const romData=Object.assign({},c.rom&&c.rom[r],c.rom&&c.rom[r+"::L"],c.rom&&c.rom[r+"::R"]);
-    const romEntries=(AROM[r]||[]).map(({mv,norm})=>{const s=romData[mv]||{};const active=s.active,passive=s.passive;if(!active&&!passive)return null;const parts=[active&&`A:${active}°`,passive&&`P:${passive}°`].filter(Boolean).join(" / ");return{mv,norm,parts};}).filter(Boolean);
+    const romB=sideBuckets(c.rom,r);
+    const romEntries=[];(AROM[r]||[]).forEach(({mv,norm})=>{romB.forEach(b=>{const s=b.data[mv]||{};const active=s.active,passive=s.passive;if(!active&&!passive)return;const parts=[active&&`A:${active}°`,passive&&`P:${passive}°`].filter(Boolean).join(" / ");romEntries.push({mv:mv+sideSfx(romB,b),norm,parts});});});
     const romHTML=romEntries.length?`<div class="adoc-sub-lbl" style="margin-top:10px">Range of motion</div>
       <div class="adoc-rom-grid">${romEntries.map(e=>`<div class="adoc-rom-item"><div class="adoc-rom-mv">${e.mv}</div><div class="adoc-rom-val">${e.parts} <span class="adoc-rom-norm">/ ${e.norm}</span></div></div>`).join("")}</div>`:"";
 
     // MMT — only graded muscles. Same per-side-key merge as ROM.
-    const mmtData=Object.assign({},c.mmt&&c.mmt[r],c.mmt&&c.mmt[r+"::L"],c.mmt&&c.mmt[r+"::R"]);
-    const mmtItems=(AMMT[r]||[]).map(m=>{const g=mmtData[m];if(g==null)return null;const note=mmtData[m+"_note"];return`${m} — ${g}/5${note?" ("+note+")":""}`;}).filter(Boolean);
+    const mmtB=sideBuckets(c.mmt,r);
+    const mmtItems=[];(AMMT[r]||[]).forEach(m=>{mmtB.forEach(b=>{const g=b.data[m];if(g==null)return;const note=b.data[m+"_note"];mmtItems.push(`${m}${sideSfx(mmtB,b)} — ${g}/5${note?" ("+note+")":""}`);});});
     const mmtHTML=mmtItems.length?`<div class="adoc-sub-lbl" style="margin-top:10px">Manual muscle testing</div>${chips(mmtItems,+mmtItems.find(x=>+x.match(/(\d)\/5/)?.[1]||5)<4?"weak":"")}`:"";
 
     // Special tests — only positive ones
-    const testsData=Object.assign({},c.tests&&c.tests[r],c.tests&&c.tests[r+"::L"],c.tests&&c.tests[r+"::R"]);
+    const testsData=Object.assign({},c.tests&&c.tests[r],c.tests&&c.tests[r+"::L"],c.tests&&c.tests[r+"::R"],c.tests&&c.tests[r+"::B"]);
     const posTests=(ATESTS[r]||[]).filter(t=>testsData[t]==="+").map(t=>t+" ✚");
     const negTests=(ATESTS[r]||[]).filter(t=>testsData[t]==="-").map(t=>t);
     const testsHTML=(posTests.length||negTests.length)?
@@ -4972,7 +4982,7 @@ function buildPDFHTML(id){
 
   // Per-region
   let regLines='';
-  (c.regions||[]).forEach(r=>{
+  [...new Set([...(c.regions||[]),...(c.romRegions||[]),...(c.mmtRegions||[]),...(c.testRegions||[])])].forEach(r=>{
     const side=c.regionSides&&c.regionSides[r];
     const obsIdxs=c.obs&&c.obs[r]||[];
     const obsNames=(AOBS[r]||[]).filter((_,i)=>obsIdxs.includes(i));
@@ -4981,11 +4991,11 @@ function buildPDFHTML(id){
     const ns=c.neuro&&c.neuro[r]||{};
     const neuroSyms=ANEURO_SYMS.filter((_,i)=>ns['s'+i]);
     const neuroExtra=[ns.radTo&&'Radiates→'+ns.radTo,ns.dermatomal&&ns.dermatomal].filter(Boolean).join(' · ');
-    const romData=Object.assign({},c.rom&&c.rom[r],c.rom&&c.rom[r+"::L"],c.rom&&c.rom[r+"::R"]);
-    const romEntries=(AROM[r]||[]).map(({mv,norm})=>{const s=romData[mv]||{};if(!s.active&&!s.passive)return null;return `${mv} ${[s.active&&'A:'+s.active+'°',s.passive&&'P:'+s.passive+'°'].filter(Boolean).join('/')} <span style="color:#94a3b8">(N:${norm})</span>`;}).filter(Boolean);
-    const mmtData=Object.assign({},c.mmt&&c.mmt[r],c.mmt&&c.mmt[r+"::L"],c.mmt&&c.mmt[r+"::R"]);
-    const mmtItems=(AMMT[r]||[]).map(m=>{const g=mmtData[m];return g!=null?`${m} — ${g}/5`:null;}).filter(Boolean);
-    const testsData=Object.assign({},c.tests&&c.tests[r],c.tests&&c.tests[r+"::L"],c.tests&&c.tests[r+"::R"]);
+    const romB=sideBuckets(c.rom,r);
+    const romEntries=[];(AROM[r]||[]).forEach(({mv,norm})=>{romB.forEach(b=>{const s=b.data[mv]||{};if(!s.active&&!s.passive)return;romEntries.push(`${mv}${sideSfx(romB,b)} ${[s.active&&'A:'+s.active+'°',s.passive&&'P:'+s.passive+'°'].filter(Boolean).join('/')} <span style="color:#94a3b8">(N:${norm})</span>`);});});
+    const mmtB=sideBuckets(c.mmt,r);
+    const mmtItems=[];(AMMT[r]||[]).forEach(m=>{mmtB.forEach(b=>{const g=b.data[m];if(g!=null)mmtItems.push(`${m}${sideSfx(mmtB,b)} — ${g}/5`);});});
+    const testsData=Object.assign({},c.tests&&c.tests[r],c.tests&&c.tests[r+"::L"],c.tests&&c.tests[r+"::R"],c.tests&&c.tests[r+"::B"]);
     const posTests=(ATESTS[r]||[]).filter(t=>testsData[t]==='+');
     const negTests=(ATESTS[r]||[]).filter(t=>testsData[t]==='-');
 
