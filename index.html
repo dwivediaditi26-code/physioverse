@@ -3262,7 +3262,15 @@ function viewInvoice(id){const i=DB.invoices.find(x=>x.id===id);const p=pById(i.
   <button class="btn sec" onclick="printHTML(document.getElementById('invPrintArea').outerHTML)">🖨 Print</button>
   <button class="btn" onclick="closeModal()">Close</button>
  </div>`,true);}
-function deleteInvoice(id){if(CURROLE!=='owner'){alert("Only the owner can delete invoices.");return;}if(!confirm("Delete this invoice permanently? This cannot be undone."))return;DB.invoices=DB.invoices.filter(x=>x.id!==id);save();closeModal();render();logAudit("Invoice","Deleted "+id);}
+function deleteInvoice(id){
+ // Owner, receptionist and the combined therapist+receptionist login may delete bills; therapist-only logins cannot (they have no Billing access anyway).
+ if(!(CURROLE==='owner'||CURROLE==='receptionist'||CURROLE==='both')){alert("Your login can't delete invoices.");return;}
+ const inv=DB.invoices.find(x=>x.id===id);if(!inv)return;
+ if(!confirm("Delete this invoice permanently? This cannot be undone."))return;
+ const _p=pById(inv.pid),_t=invTotals(inv).total;
+ DB.invoices=DB.invoices.filter(x=>x.id!==id);save();closeModal();render();
+ logAudit("Invoice","Deleted "+id+" — "+inr(_t)+" ("+(inv.status||"?")+(inv.mode&&inv.mode!=="—"?", "+inv.mode:"")+")",_p?_p.name:"");
+}
 function editInvoiceForm(id){const i=DB.invoices.find(x=>x.id===id);if(i.status!=="Pending"&&!confirm("This invoice is already "+i.status+". Edit anyway?"))return;
  openModal(`<div class="modal-h"><h3>Edit Invoice ${i.id}</h3><button class="x" onclick="closeModal()">×</button></div>
  <div class="modal-b">
@@ -5603,7 +5611,7 @@ views.help=function(){
     <ul style="margin:10px 0 0 22px">
      <li><b>Owner:</b> sees everything — all patients, clinical records, billing, packages, staff, reports, and settings.</li>
      <li><b>Therapist:</b> full clinical access (assessments, treatment sessions, patients, appointments) across the whole clinic. No Packages section, no Billing/invoice history, no Staff, Reports, or Settings.</li>
-     <li><b>Receptionist:</b> Patients, Appointments, Packages, Billing, and Reminders. No Assessment section and no clinical detail inside a patient's Treatment tab — just session numbers, dates, and a Pay button for anything unpaid. No Revenue figure on the dashboard, no Staff, Reports, or Settings.</li>
+     <li><b>Receptionist:</b> Patients, Appointments, Packages, Billing (including deleting a bill), and Reminders. No Assessment section and no clinical detail inside a patient's Treatment tab — just session numbers, dates, and a Pay button for anything unpaid. No Revenue figure on the dashboard, no Staff, Reports, or Settings.</li>
      <li><b>Therapist + Receptionist:</b> one login that can do both jobs — everything the therapist and the receptionist can see, including assessments, full treatment detail, Packages and Billing. No Staff, Reports, or Settings.</li>
     </ul>
     <p style="margin-top:8px" class="muted" style="font-size:12.5px">This is enforced by the role set on each login (in Supabase) — not by which device or browser someone uses.</p>`),
